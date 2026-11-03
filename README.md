@@ -1,90 +1,59 @@
 # configurable-tree-traversal
 
-**One iterative engine for trees, dependency DAGs and cyclic graphs, in TypeScript. Built so an agent coordinator can ask "what can run next, and why not the rest?"**
+**Dependency readiness for agent coordinators, with iterative tree traversal and cyclic graph exploration.**
 
-| Trees and objects                               | Task DAGs for agents                                  | Cyclic graphs                                |
-| ----------------------------------------------- | ----------------------------------------------------- | -------------------------------------------- |
-| DFS pre/in/post-order and BFS                   | Declare work and subtree-completion joins             | Walk shared and cyclic reference graphs      |
-| Plain objects, ASTs, or your own tree source    | Validate once; cycles reported with witness vertices  | Once, simple-paths or walks revisit policies |
-| Sync and async, no recursion                    | Get ready-work tickets; complete or fail them         | Explicit depth and budget bounds             |
-| Prune, pause, resume, iterate events            | Restart from accepted facts and get the same frontier | Typed vertices, edges and paths              |
-| Rewrite hints, delete subtrees, rewrite objects | Explain any blocker; revise the graph atomically      | Lazy sources with resolver hydration         |
+CTT discovers graphs, schedules callbacks, and explains which prerequisites block work. Your host owns task meaning, agent dispatch, retries, claims, result acceptance, and durable storage.
+
+> **UNRELEASED breaking API.** These guides describe this source checkout. `package.json` still says `0.12.0`, but the explicit names below are not the API of the released `0.12.0` package. No new release is implied. Use the checkout instructions below and the [migration from released 0.12](docs/migration-explicit-api.md).
 
 ## Agent workflows
 
-Your coordinator owns the agents, the queue and the database. CTT owns the dependency logic: given the task graph and the results you have accepted so far, it returns the work that can start now and explains everything that cannot. Research unlocks implementation and test planning; review waits for both:
+Research unlocks implementation and test planning; review waits for both:
 
 ```text
 research ──┬── implement ──┬── review
            └── testPlan ───┘
 ```
 
-| You report                       | CTT returns                    |
-| -------------------------------- | ------------------------------ |
-| `research` accepted              | ready: `implement`, `testPlan` |
-| `implement`, `testPlan` accepted | ready: `review`                |
-| `review` accepted                | finished                       |
-
-Ask why `review` is still waiting, at any point, without advancing anything:
-
-```text
-review is waiting for work on: implement, testPlan
-```
-
-What that gives a coordinator loop, each backed by a runnable example:
-
-- **Dispatch from tickets, not guesses.** Each `advance()` returns tickets for exactly the work whose dependencies are satisfied; you filter them through your own claims and capacity, dispatch, and report completion when you have accepted the result ([quickstart](#quickstart-find-the-next-agent-tasks)).
-- **Join on a whole subtree, not one task.** Packaging can wait for a composite compile task and both of its children, while compile itself waits only for the parent build's own work ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-completion-dependencies-example.ts)).
-- **Survive restarts and human waits.** Store accepted results in your own database; a fresh session seeded with them yields the same ready set, so a crash, a redeploy or an approval wait costs nothing to resume ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-reconciliation-example.ts)).
-- **Explain blockers without advancing.** Captured dependency snapshots answer "what is this waiting for" and "what depends on this", for dashboards and for agents deciding what to do next ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)).
-- **Change the plan mid-flight.** Revise the graph as an atomic batch, get a diff, and start a new session that carries forward only the results you still trust ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)).
-- **Reuse workflow shapes.** Define a fragment once, instantiate it with your own IDs, and compose instances with explicit dependencies ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)).
-- **Discover lazily.** Resolve prerequisites from a task catalog or service as they are referenced, sync or async ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-prerequisite-resolution-example.ts)).
-- **Gather context from cyclic graphs.** Walk code references, citations or provenance with hard bounds, and know whether the walk was exhausted or limited ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-paths-example.ts)).
-
-No server, no database, no DSL. Readiness for a 10,000-task graph in 60 to 200 ms on a laptop ([benchmarks](docs/reference.md#benchmark-results)). 3133 tests, 100% coverage, one runtime dependency.
-
-[Quickstart](#quickstart-find-the-next-agent-tasks) · [Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [Public symbols](docs/api-index.md)
+A coordinator can obtain ready work as local settlement tickets, join on a composite's complete retained subgraph, reconstruct progress from accepted facts, or explain blockers without advancing execution. A validated topology can serve independent sessions and can be revised through an atomic declaration batch. See [agent workflows](docs/agent-workflows.md) for dispatch and recovery.
 
 ## Start with autonomous agents
 
-| You want to…                                                    | Use CTT for…                                             | Start here                                                                               |
-| --------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Coordinate research, implementation, testing, and review agents | Parallel branches and dependency joins                   | [Quickstart](#quickstart-find-the-next-agent-tasks)                                      |
-| Let a coordinator choose which agents run next                  | Ready tasks returned as local work tickets               | [Host-controlled execution](docs/agent-workflows.md#choose-an-execution-model)           |
-| Resume after a process restart or wait for human input          | Reconstruction from accepted completion facts            | [Recovery and storage](docs/agent-workflows.md#persist-facts-and-reconstruct)            |
-| Review a composite task only after all its subtasks finish      | `dependsOnSubgraphCompletion`                            | [Work versus completion](docs/agent-workflows.md#work-dependencies-and-completion-joins) |
-| Fetch dependencies from a task catalog or service               | `resolvePrerequisite(id)`                                | [Discover prerequisites](docs/agent-workflows.md#discover-the-graph)                     |
-| Explore cyclic context, code references, or provenance          | Lazy typed vertex/edge/path walking with explicit bounds | [Graph exploration](docs/agent-workflows.md#explore-context-and-references)              |
-| Walk or transform a repository index, AST, or JSON object       | Iterative sync/async DFS, BFS, pruning, rewriting        | [Tree and object traversal](docs/reference.md#traverse-an-object)                        |
+| Need                                | CTT contract                                             |
+| ----------------------------------- | -------------------------------------------------------- |
+| Dispatch ready tasks                | `runUntilWorkBoundary().workSettlementTickets`           |
+| Accept externally completed work    | `acceptCompletedWork(ticket)` after host acceptance      |
+| Join on all retained subtasks       | `workWaitsForSubgraphCompletionOf`                       |
+| Explain a blocker                   | `captureMilestoneSnapshot().explainMilestone(...)`       |
+| Recover after process loss          | Rebuild with `acceptedCompletedWorkVertexIds`            |
+| Explore references or provenance    | `GraphWalkBuilder` with explicit route policy and bounds |
+| Traverse or transform an AST/object | Tree builders and `ObjectPropertyTreeSource`             |
+
+CTT keeps progress in memory. Tickets and settlement tokens are local capabilities; store accepted work facts in your own system.
 
 ## Install
 
-```sh
-npm install configurable-tree-traversal
-```
-
-Upgrading from 0.11.0? The API changed; follow the [upgrade checklist](docs/migration-api-distinctions.md).
-
-To run the examples from a source checkout instead:
+For this unreleased API, use a source checkout:
 
 ```sh
+git clone https://github.com/dany-fedorov/configurable-tree-traversal.git
+cd configurable-tree-traversal
 npm ci
 npm run tsfile -- examples/quickstart-example.ts
 ```
 
-Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. CI checks TypeScript consumers with the locked 4.9.5 compiler. The packed consumers also compile under 4.7.4 when `CTT_TYPESCRIPT_COMPILER` points at that compiler (see the [testing guide](docs/testing.md)).
+The checkout examples import source directly. The package-style imports shown in the guides describe the locally built package for this checkout; installing the released `0.12.0` package does not provide these new names. Requires Node **22.12.0+**; see [runtime and compiler checks](docs/testing.md).
 
 ## Quickstart: find the next agent tasks
 
-After `research` completes, `implement` and `testPlan` can run independently. `review` waits for both. Supply a flat task collection with explicit work dependencies:
+Declare work prerequisites explicitly, validate the topology, and create an independent external-work session. This example simulates host acceptance of every returned task:
 
 <!-- standalone -->
 
 ```ts
 import {
-  materializeDagInputFromRecords,
-  prepareDag,
+  materializeMultiEntryDagInputFromRecordCatalog,
+  discoverValidateAndCaptureDag,
 } from 'configurable-tree-traversal';
 
 const tasks = [
@@ -93,29 +62,35 @@ const tasks = [
   { id: 'testPlan', requires: ['research'] },
   { id: 'review', requires: ['implement', 'testPlan'] },
 ];
-const prepared = prepareDag(
-  materializeDagInputFromRecords(tasks, {
-    id: (task) => task.id,
-    dependsOnWork: (task) => task.requires,
+const prepared = discoverValidateAndCaptureDag(
+  materializeMultiEntryDagInputFromRecordCatalog(tasks, {
+    selectVertexId: (task) => task.id,
+    selectWorkPrerequisiteVertexIds: (task) => task.requires,
   }),
 );
 if (prepared.kind === 'invalid') throw new Error('Invalid task graph');
 
 // Simulate completion facts already accepted by the host.
 const accepted = new Set(['research']);
-const session = prepared.dag.createWorkSession({ completedWork: accepted });
+const session = prepared.validatedTopology.createExternalWorkSession({
+  acceptedCompletedWorkVertexIds: accepted,
+});
 while (true) {
-  const boundary = session.advance();
+  const boundary = session.runUntilWorkBoundary();
   if (boundary.kind === 'finished') {
     console.log('finished');
     break;
   }
   if (boundary.kind === 'paused') throw new Error('Unexpected pause');
-  console.log('ready:', boundary.workTickets.map((t) => t.vertexId).join(', '));
-  for (const ticket of boundary.workTickets) {
+  console.log(
+    `ready: ${boundary.workSettlementTickets
+      .map((t) => t.vertexId)
+      .join(', ')}`,
+  );
+  for (const ticket of boundary.workSettlementTickets) {
     // Simulation: a real host dispatches, validates and persists acceptance here.
     accepted.add(ticket.vertexId);
-    session.completeWork(ticket);
+    session.acceptCompletedWork(ticket);
   }
 }
 ```
@@ -126,81 +101,37 @@ ready: review
 finished
 ```
 
-Ask why a task is still waiting without advancing. On the same graph, after `research` is accepted and before any ticket is completed, review is blocked by its two work dependencies:
-
-<!-- standalone -->
-
-```ts
-import {
-  materializeDagInputFromRecords,
-  prepareDag,
-} from 'configurable-tree-traversal';
-
-const prepared = prepareDag(
-  materializeDagInputFromRecords(
-    [
-      { id: 'research', requires: [] },
-      { id: 'implement', requires: ['research'] },
-      { id: 'testPlan', requires: ['research'] },
-      { id: 'review', requires: ['implement', 'testPlan'] },
-    ],
-    { id: (task) => task.id, dependsOnWork: (task) => task.requires },
-  ),
-);
-if (prepared.kind === 'invalid') throw new Error('Invalid task graph');
-const session = prepared.dag.createWorkSession({
-  completedWork: new Set(['research']),
-});
-session.advance();
-const explanation = session
-  .inspectMilestones()
-  .explain({ vertexId: 'review', milestone: 'work' });
-if (explanation.kind === 'live' && !explanation.satisfied) {
-  const waitsFor = explanation.blockers.flatMap((blocker) =>
-    blocker.kind === 'constraint' ? [blocker.prerequisite.vertexId] : [],
-  );
-  console.log('review is waiting for work on:', waitsFor.join(', '));
-}
-```
-
-```text
-review is waiting for work on: implement, testPlan
-```
-
-Each `constraint` blocker is an original dependency edge with the status of both ends; `unfinishedWork` blockers name the prerequisites whose work is still open. The [inspection example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts) covers transitive dependents and seeded parents.
-
-**Materialize** turns the collection and its explicit prerequisites into a discovery input. **Prepare** discovers and validates the graph, then retains reusable topology; independent sessions reuse those facts without calling the original source again.
-
-**Advance** returns tickets for work whose dependencies are satisfied. After the host accepts a result, **completeWork** reports that fact; the next advance can release a dependent task. A ticket is a session-local completion capability, not a distributed claim.
-
-The loop simulates accepted work. A real coordinator filters readiness through claims, waits and capacity, then dispatches and durably accepts results before completing tickets. For that integration, continue with [agent workflows](docs/agent-workflows.md#choose-an-execution-model). The reference covers [invalid graphs](docs/reference.md#validation-results-and-failures) and [local ticket ownership and duplicate reports](docs/reference.md#ticket-coordination); the [foundations example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts) demonstrates independent sessions and recovery.
+Before dispatch, apply host claims, capacity, and waits. Accept the result durably before calling `acceptCompletedWork`. Completion tickets observe dependency readiness; they do not grant distributed ownership. For a blocker explanation, request `{ vertexId: 'review', milestone: 'workCompletion' }` from `captureMilestoneSnapshot().explainMilestone(...)`.
 
 ## Second quickstart: walk an object
 
-The same engine traverses plain objects, abstract trees and ASTs. Depth-first pre-order over a nested object, printing each path:
+Tree events identify committed structural visits through `eventKind`; visitor callbacks receive `visitorPhase`.
 
 <!-- standalone -->
 
 ```ts
 import {
-  DepthFirstTreeTraversal,
-  DepthFirstPhase,
-  ObjectTreeSource,
+  DepthFirstTreeTraversalBuilder,
+  DepthFirstTreeVisitPhase,
+  ObjectPropertyTreeSource,
 } from 'configurable-tree-traversal';
 
-const traversal = new DepthFirstTreeTraversal({
-  traversableTree: new ObjectTreeSource({ a: { b: 1 }, c: 2 }),
-});
-
-const runner = traversal.createRunner();
-for (const { vertex, vertexRef } of runner.iterateEvents({
-  emitEvents: [DepthFirstPhase.PRE_ORDER],
+const runner = new DepthFirstTreeTraversalBuilder({
+  treeDiscoverySource: new ObjectPropertyTreeSource({ a: { b: 1 }, c: 2 }),
+}).createIndependentRunnerFromCurrentOptions();
+for (const {
+  vertex,
+  vertexHandle,
+} of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+  deliveredEventKinds: [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION],
 })) {
   const path = runner
-    .getResolvedTreeView()
-    .requirePathTo(vertexRef, { noRoot: true })
-    .map((ref) => ref.getValue().getData().key);
-  console.log(path, vertex.getData().value);
+    .getLiveResolvedTreeView()
+    .requireStructuralAncestorPathTo(vertexHandle, {
+      includeDesignatedRoot: false,
+    })
+    .map((handle) => handle.getCurrentVertexView().getVertexData().propertyKey);
+  console.log(path, vertex.getVertexData().propertyValue);
 }
 ```
 
@@ -211,15 +142,16 @@ for (const { vertex, vertexRef } of runner.iterateEvents({
 [ 'c' ] 2
 ```
 
-Three visit orders (pre, in, post), breadth-first, async adapters, pruning with `SKIP_REMAINING_CHILDREN`, hint rewriting and object rewriting are covered in the [reference](docs/reference.md#traverse-an-object).
+The [reference](docs/reference.md#traverse-an-object) covers child-boundary and completion phases, breadth-first and asynchronous traversal, pruning, and object rewriting.
 
 ## Choose your next page
 
-- **Integrating an agent coordinator:** [Agent workflows](docs/agent-workflows.md), including execution models, persistence, retries, and common mistakes.
-- **Looking up a contract:** [API and behavior reference](docs/reference.md), including tree traversal, commands, identity, errors, and async semantics.
-- **Finding runnable code or source:** [Documentation index](docs/index.md).
-- **Changing CTT:** [Repository agent guide](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/AGENTS.md) and [testing guide](docs/testing.md).
-- **Checking releases:** [Changelog](CHANGELOG.md).
+- [Agent workflows](docs/agent-workflows.md): execution models, dispatch, recovery, and revisions.
+- [API reference](docs/reference.md): current behavior and exact ownership boundaries.
+- [Public symbol index](docs/api-index.md): supported names, signatures, and import paths.
+- [Explicit API migration](docs/migration-explicit-api.md): released 0.12 to this unreleased checkout.
+- [Documentation map](docs/index.md): runnable examples and contributor guidance.
+- [Changelog](CHANGELOG.md): release history.
 
 ## Imports and compatibility
 
@@ -227,19 +159,19 @@ Three visit orders (pre, in, post), breadth-first, async adapters, pruning with 
 
 ```ts
 import {
-  DagTraversal,
+  DagTraversalBuilder,
   TraversalVisitorCommandName,
 } from 'configurable-tree-traversal';
 ```
 
 ```js
 const {
-  DagTraversal,
+  DagTraversalBuilder,
   TraversalVisitorCommandName,
 } = require('configurable-tree-traversal');
 ```
 
-Native ESM `.mjs` entries and `.d.mts` declarations share one CommonJS implementation and canonical types. Named/default imports, classes, namespaces, and commands preserve identity across loaders. ESM entries use Node-compatible `createRequire`; standalone browser ESM and tree shaking are not promised. Nine explicit runtime entry points are supported; historical deep imports are blocked; see [compatibility details](docs/reference.md#api-compatibility).
+Native ESM and CommonJS entries share constructors, sentinels, namespaces, and declaration identity. Use the nine explicit runtime entry points; deep engine paths are private. Browser ESM and tree shaking are not promised. See [supported imports](docs/reference.md#supported-imports).
 
 ## Reference shortcuts
 
@@ -270,5 +202,3 @@ Older links to README sections now resolve to the [reference](docs/reference.md)
 </details>
 
 MIT licensed.
-
-Use the [upgrade checklist](docs/migration-api-distinctions.md) for the final naming, ownership and output-presence changes from 0.11.0.

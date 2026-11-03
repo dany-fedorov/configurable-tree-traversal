@@ -1,12 +1,12 @@
 import { assertOwnKeys, definedOptions } from './assertPublicOptions';
-import type { GetPathToOptions } from './ResolvedTree';
+import type { StructuralAncestorPathOptions } from './ResolvedTree';
 
 /** Capture query controls once without touching caller data or vertex identities. */
 export function normalizePathOptions(
-  input?: GetPathToOptions,
-): GetPathToOptions {
+  input?: StructuralAncestorPathOptions,
+): StructuralAncestorPathOptions {
   if (input === undefined) return {};
-  assertOwnKeys(input, ['noRoot', 'noSelf']);
+  assertOwnKeys(input, ['includeDesignatedRoot', 'includeTargetVertex']);
   const options = definedOptions(input);
   for (const value of Object.values(options)) {
     if (typeof value !== 'boolean')

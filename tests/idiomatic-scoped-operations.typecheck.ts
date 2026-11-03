@@ -1,85 +1,127 @@
 import {
-  AsyncDagTraversal,
-  DagTraversal,
-  DepthFirstTreeTraversal,
+  AsyncDagTraversalBuilder,
+  DagTraversalBuilder,
+  DepthFirstTreeTraversalBuilder,
   DagVisitorPhase,
-  DepthFirstPhase,
+  DepthFirstTreeVisitPhase,
   TraversalVisitorCommandName as Command,
-  type TreeSource,
-  type VertexTypes,
-  type TreeVisitor,
+  type TreeDiscoverySource,
+  type VertexDataAndChildHintTypes,
+  type TreeVertexPhaseVisitorCallback,
   type DagVisitor,
-  type MutationCommand,
-  type MutationCommandBuilder,
-  type MutationCommands,
-  type TraversalVisitorResult,
+  type VertexDataReplacementOrDeletionCommand,
+  type VertexDataMutationCommandBuilder,
+  type VertexDataMutationCommandTools,
+  type VisitorCommandsResult,
 } from '../src';
-type T = VertexTypes<string, string>;
-declare const tree: TreeSource<T>;
-const treeDelete: TreeVisitor<DepthFirstPhase.PRE_ORDER, T> = () => ({
-  commands: [{ commandName: Command.DELETE_TREE_SUBTREE }],
+type T = VertexDataAndChildHintTypes<string, string>;
+declare const tree: TreeDiscoverySource<T>;
+const treeDelete: TreeVertexPhaseVisitorCallback<
+  T,
+  T,
+  DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION
+> = () => ({
+  commands: [
+    {
+      commandName: Command.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS,
+    },
+  ],
 });
 const dagDelete: DagVisitor<T, T, DagVisitorPhase.ON_WORK_READY> = () => ({
-  commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
+  commands: [
+    {
+      commandName:
+        Command.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+    },
+  ],
 });
-const badTree: TreeVisitor<DepthFirstPhase.PRE_ORDER, T> = () => ({
-  // @ts-expect-error Tree callbacks forbid DAG cascade deletion.
-  commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
+const badTree: TreeVertexPhaseVisitorCallback<
+  T,
+  T,
+  DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION
+> = () => ({
+  commands: [
+    {
+      // @ts-expect-error Tree callbacks forbid DAG cascade deletion.
+      commandName:
+        Command.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+    },
+  ],
 });
 const badDag: DagVisitor<T, T, DagVisitorPhase.ON_WORK_READY> = () => ({
-  // @ts-expect-error DAG callbacks forbid tree subtree deletion.
-  commands: [{ commandName: Command.DELETE_TREE_SUBTREE }],
+  commands: [
+    {
+      // @ts-expect-error DAG callbacks forbid tree subtree deletion.
+      commandName: Command.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS,
+    },
+  ],
 });
-new DagTraversal({ traversableTree: tree }).addVisitorFor(
-  DagVisitorPhase.ON_WORK_READY,
-  dagDelete,
-);
-new DepthFirstTreeTraversal({ traversableTree: tree }).addVisitorFor(
-  DepthFirstPhase.PRE_ORDER,
+new DagTraversalBuilder({
+  treeDiscoverySource: tree,
+}).registerVisitorCallbackForPhase(DagVisitorPhase.ON_WORK_READY, dagDelete);
+new DepthFirstTreeTraversalBuilder({
+  treeDiscoverySource: tree,
+}).registerVisitorCallbackForPhase(
+  DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   treeDelete,
 );
 // @ts-expect-error Explicit graph policies are inapplicable to tree discovery.
-new DagTraversal({ traversableTree: tree, rootWorkDependencies: 'ignore' });
+new DagTraversalBuilder({
+  treeDiscoverySource: tree,
+  rootWorkPrerequisitePolicy: 'ignore',
+});
 // @ts-expect-error Explicit graph policies are inapplicable to async tree discovery.
-new AsyncDagTraversal({
-  traversableTree: tree,
-  dependsOnWorkDefault: 'none',
+new AsyncDagTraversalBuilder({
+  treeDiscoverySource: tree,
+  undeclaredWorkPrerequisitePolicy: 'none',
 });
+new DagTraversalBuilder({
+  treeDiscoverySource: tree,
 // @ts-expect-error Tree source patches cannot supply graph-only policies.
-new DagTraversal({ traversableTree: tree }).configure({
-  traversableTree: tree,
-  dependsOnWorkDefault: 'none',
+}).patchOptionsForFutureRunners({
+  treeDiscoverySource: tree,
+  undeclaredWorkPrerequisitePolicy: 'none',
 });
-const shared: MutationCommand<T> = {
-  commandName: Command.DELETE_DAG_VERTEX_CASCADE,
+const shared: VertexDataReplacementOrDeletionCommand<T> = {
+  commandName:
+    Command.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
 };
-const treeScoped: MutationCommand<T, Command.DELETE_TREE_SUBTREE> = {
-  commandName: Command.DELETE_TREE_SUBTREE,
+const treeScoped: VertexDataReplacementOrDeletionCommand<
+  T,
+  Command.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS
+> = {
+  commandName: Command.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS,
 };
-declare const builder: MutationCommandBuilder<
+declare const builder: VertexDataMutationCommandBuilder<
   T,
   string,
-  Command.DELETE_TREE_SUBTREE
+  Command.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS
 >;
-const builders: MutationCommands<T, string, Command.DELETE_TREE_SUBTREE> = {
-  makeMutationCommand: builder,
+const builders: VertexDataMutationCommandTools<
+  T,
+  string,
+  Command.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS
+> = {
+  makeVertexDataMutationCommand: builder,
 };
-const sharedResult: TraversalVisitorResult<T> = {
+const sharedResult: VisitorCommandsResult<T> = {
   commands: [shared, treeScoped],
 };
 void [badTree, badDag, builders, sharedResult];
-
-// @ts-expect-error Mutation deletion scopes are limited to the two deletion names.
-type InvalidMutationScope = MutationCommand<T, Command.PAUSE_TRAVERSAL>;
+type InvalidMutationScope = VertexDataReplacementOrDeletionCommand<
+  T,
+  // @ts-expect-error Mutation deletion scopes are limited to the two deletion names.
+  Command.PAUSE_TRAVERSAL
+>;
 const badState: import('../src').TraversalVisitorCommand<
   T,
-  Command.SET_VISITOR_CHAIN_STATE
+  Command.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE
 > = {
-  commandName: Command.SET_VISITOR_CHAIN_STATE,
+  commandName: Command.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
   // @ts-expect-error The retired envelope field is not the canonical state field.
   commandArguments: { vertexVisitorsChainState: undefined },
 };
 // @ts-expect-error Removed store method has no alias.
-declare const removedStoreMethod: import('../src').ResolvedTreeStore<T>['delete'];
+declare const removedStoreMethod: import('../src').MutableResolvedTreeStore<T>['delete'];
 void [badState, removedStoreMethod];
 export type InvalidMutationScopeWitness = InvalidMutationScope;

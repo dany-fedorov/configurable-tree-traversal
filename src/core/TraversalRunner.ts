@@ -1,15 +1,15 @@
 import type { VertexHandle } from '@core/CTTRef';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { VertexView } from '@core/Vertex';
 
 export type TreeTraversalEvent<
   Phase extends string,
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 > = {
-  vertex: VertexView<TTP | RW_TTP>;
-  vertexRef: VertexHandle<TTP | RW_TTP>;
-  phase: Phase;
+  vertex: VertexView<InputVertexTypes | RewrittenVertexTypes>;
+  vertexHandle: VertexHandle<InputVertexTypes | RewrittenVertexTypes>;
+  eventKind: Phase;
   isTreeRoot: boolean;
 };
 
@@ -21,9 +21,9 @@ export type TraversalStopReason =
   | 'failed';
 
 export enum TraversalRunnerStatus {
-  INITIAL = 'INITIAL',
+  NOT_STARTED = 'NOT_STARTED',
   RUNNING = 'RUNNING',
-  HALTED = 'HALTED',
+  SUSPENDED = 'SUSPENDED',
   FINISHED = 'FINISHED',
   FAILED = 'FAILED',
 }

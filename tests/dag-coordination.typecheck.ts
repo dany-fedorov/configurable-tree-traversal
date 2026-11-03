@@ -1,38 +1,45 @@
 import type {
   TraversalExecutionState,
-  ExecutionInspection,
+  TraversalExecutionSnapshot,
   DagMilestoneSnapshot,
 } from '../src';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
-import type { DagSummary } from '../src/traversals/dag-traversal/lib/DagProgress';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
+import type { DagProgressSnapshot } from '../src/traversals/dag-traversal/lib/DagProgress';
 import type { DagTraversalRunner } from '../src/traversals/dag-traversal/lib/DagTraversalRunner';
 import type { AsyncDagTraversalRunner } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalRunner';
 import {
-  bindDagWorkSession,
-  bindAsyncDagWorkSession,
-  type DagWorkSession,
-  type AsyncDagWorkSession,
-  type DagWorkBoundary,
+  bindDagExternalWorkSession,
+  bindAsyncDagExternalWorkSession,
+  type DagExternalWorkSession,
+  type AsyncDagExternalWorkSession,
+  type DagExternalWorkRunBoundary,
   type DagSettlementReceipt,
-  type DagWorkTicket,
+  type DagWorkSettlementTicket,
 } from '../src/traversals/dag-traversal/coordinateDag';
 
 type TaskId = { readonly task: string };
-type Input = VertexTypes<{ task: string }, number>;
-type Output = VertexTypes<{ result: number }, string>;
+type Input = VertexDataAndChildHintTypes<{ task: string }, number>;
+type Output = VertexDataAndChildHintTypes<{ result: number }, string>;
 declare const runner: DagTraversalRunner<Input, Output, TaskId>;
 declare const asyncRunner: AsyncDagTraversalRunner<Input, Output, TaskId>;
-const coordinator: DagWorkSession<TaskId> = bindDagWorkSession(runner);
-const asyncCoordinator: AsyncDagWorkSession<TaskId> =
-  bindAsyncDagWorkSession(asyncRunner);
-const boundary: DagWorkBoundary<TaskId> = coordinator.advance();
-const pending: Promise<DagWorkBoundary<TaskId>> = asyncCoordinator.advance();
-const summary: DagSummary<TaskId> = coordinator.summary();
-const requested: boolean = coordinator.requestPause();
+const coordinator: DagExternalWorkSession<TaskId> =
+  bindDagExternalWorkSession(runner);
+const asyncCoordinator: AsyncDagExternalWorkSession<TaskId> =
+  bindAsyncDagExternalWorkSession(asyncRunner);
+const boundary: DagExternalWorkRunBoundary<TaskId> =
+  coordinator.runUntilWorkBoundary();
+const pending: Promise<DagExternalWorkRunBoundary<TaskId>> =
+  asyncCoordinator.runUntilWorkBoundary();
+const captureProgressSnapshot: DagProgressSnapshot<TaskId> =
+  coordinator.captureProgressSnapshot();
+const requested: boolean =
+  coordinator.requestPauseAfterAdmittedCallbacksDrain();
 if (boundary.kind === 'awaitingSettlement') {
-  const ticket: DagWorkTicket<TaskId> = boundary.workTickets[0]!;
+  const ticket: DagWorkSettlementTicket<TaskId> =
+    boundary.workSettlementTickets[0]!;
   const id: TaskId = ticket.vertexId;
-  const accepted: DagSettlementReceipt = coordinator.completeWork(ticket);
+  const accepted: DagSettlementReceipt =
+    coordinator.acceptCompletedWork(ticket);
   const failed: DagSettlementReceipt = asyncCoordinator.failTraversal(
     ticket,
     undefined,
@@ -42,38 +49,43 @@ if (boundary.kind === 'awaitingSettlement') {
   // @ts-expect-error Async fatal settlement has only the canonical method.
   asyncCoordinator.fail(ticket, undefined);
   // @ts-expect-error Spreading drops private nominal ticket identity.
-  coordinator.completeWork({ ...ticket });
+  coordinator.acceptCompletedWork({ ...ticket });
   // @ts-expect-error Spreading cannot manufacture async fatal settlement authority.
   asyncCoordinator.failTraversal({ ...ticket }, undefined);
   // @ts-expect-error Tickets expose a readonly identity.
   ticket.vertexId = { task: 'changed' };
   // @ts-expect-error Frontier observations are readonly.
-  boundary.workTickets.push(ticket);
+  boundary.workSettlementTickets.push(ticket);
   // @ts-expect-error A vertex ID alone is not a settlement capability.
-  coordinator.completeWork(id);
+  coordinator.acceptCompletedWork(id);
   // @ts-expect-error Ticket identity cannot change generic families.
-  const wrongId: DagWorkTicket<number> = ticket;
+  const wrongId: DagWorkSettlementTicket<number> = ticket;
   void [id, accepted, failed, wrongId];
 }
 // @ts-expect-error Ticket ownership cannot be constructed by the caller.
-const forged: DagWorkTicket<TaskId> = { vertexId: { task: 'forged' } };
+const forged: DagWorkSettlementTicket<TaskId> = {
+  vertexId: { task: 'forged' },
+};
 // @ts-expect-error A sync facade cannot wrap an async runner.
-bindDagWorkSession(asyncRunner);
+bindDagExternalWorkSession(asyncRunner);
 // @ts-expect-error An async facade cannot wrap a sync runner.
-bindAsyncDagWorkSession(runner);
-void [pending, summary, requested, forged];
+bindAsyncDagExternalWorkSession(runner);
+void [pending, captureProgressSnapshot, requested, forged];
 
 const syncState: TraversalExecutionState = coordinator;
-const asyncState: TraversalExecutionState<ExecutionInspection> =
+const asyncState: TraversalExecutionState<TraversalExecutionSnapshot> =
   asyncCoordinator;
 const dependencies: DagMilestoneSnapshot<TaskId> =
-  coordinator.inspectMilestones();
+  coordinator.captureMilestoneSnapshot();
 const asyncDependencies: DagMilestoneSnapshot<TaskId> =
-  asyncCoordinator.inspectMilestones();
-// @ts-expect-error Dependency queries preserve the coordinator ID domain.
-dependencies.explain({ vertexId: 'wrong', milestone: 'work' });
+  asyncCoordinator.captureMilestoneSnapshot();
+dependencies.explainMilestone({
+  // @ts-expect-error Dependency queries preserve the coordinator ID domain.
+  vertexId: 'wrong',
+  milestone: 'workCompletion',
+});
 void [syncState, asyncState, dependencies, asyncDependencies];
 
 import * as publicApi from '../src';
 // @ts-expect-error Tickets have no public runtime value or constructor.
-new publicApi.DagWorkTicket();
+new publicApi.DagWorkSettlementTicket();

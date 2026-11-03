@@ -1,14 +1,14 @@
-import type { MutableRef, VertexHandle } from './CTTRef';
-import type { Vertex, VertexView, VertexCloneContent } from './Vertex';
-import type { VertexTypes } from './TreeTypeParameters';
+import type { MutableValueReference, VertexHandle } from './CTTRef';
+import type { Vertex, VertexView } from './Vertex';
+import type { VertexDataAndChildHintTypes } from './TreeTypeParameters';
 import type {
-  InternalVertexResolutionContext,
-  VertexResolutionContext,
+  InternalChildDiscoveryContext,
+  ChildDiscoveryContext,
 } from './ResolvedTree';
 import type {
   InternalResolvedGraphView,
-  ResolvedGraphView,
-  OriginalGraphView,
+  LiveResolvedGraphView,
+  PreCommandDiscoveredGraphView,
 } from './ResolvedGraphView';
 import { normalizePathOptions } from './normalizePathOptions';
 
@@ -18,43 +18,50 @@ const vertices = new WeakMap<object, object>();
 const contexts = new WeakMap<object, object>();
 const graphs = new WeakMap<object, object>();
 
-export function vertexView<T extends VertexTypes>(
-  vertex: Vertex<T>,
-): VertexView<T> {
-  let view = vertices.get(vertex) as VertexView<T> | undefined;
+export function vertexView<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+>(vertex: Vertex<InputVertexTypes>): VertexView<InputVertexTypes> {
+  let view = vertices.get(vertex) as VertexView<InputVertexTypes> | undefined;
   if (view === undefined) {
-    // Cache the facet identity, not mutable standalone Vertex hint contents.
-    const getChildHints = () => Object.freeze(vertex.getChildHints().slice());
     view = Object.freeze({
-      $data: vertex.getData(),
-      get $childHints() {
-        return getChildHints();
+      $vertexData: vertex.getVertexData(),
+      get $childDiscoveryHints() {
+        return vertex.getDetachedChildDiscoveryHints();
       },
-      getData: () => vertex.getData(),
-      getChildHints,
-      hasNoChildHints: () => vertex.hasNoChildHints(),
-      clone: (content?: VertexCloneContent<T>) => vertex.clone(content),
+      getVertexData: () => vertex.getVertexData(),
+      getDetachedChildDiscoveryHints: () =>
+        vertex.getDetachedChildDiscoveryHints(),
+      hasChildDiscoveryHints: () => vertex.hasChildDiscoveryHints(),
+      createEditableShallowCloneWithContentOverrides: (
+        content?: import('./Vertex').VertexContentOverridesForShallowClone<InputVertexTypes>,
+      ) => vertex.createEditableShallowCloneWithContentOverrides(content),
     });
     vertices.set(vertex, view);
   }
   return view;
 }
 
-export function vertexHandle<T extends VertexTypes>(
-  ref: MutableRef<Vertex<T>>,
-): VertexHandle<T>;
-export function vertexHandle<T extends VertexTypes>(
-  ref: MutableRef<Vertex<T>> | null,
-): VertexHandle<T> | null;
-export function vertexHandle<T extends VertexTypes>(
-  ref: MutableRef<Vertex<T>> | null,
-): VertexHandle<T> | null {
+export function createVertexHandleFacet<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+>(
+  ref: MutableValueReference<Vertex<InputVertexTypes>>,
+): VertexHandle<InputVertexTypes>;
+export function createVertexHandleFacet<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+>(
+  ref: MutableValueReference<Vertex<InputVertexTypes>> | null,
+): VertexHandle<InputVertexTypes> | null;
+export function createVertexHandleFacet<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+>(
+  ref: MutableValueReference<Vertex<InputVertexTypes>> | null,
+): VertexHandle<InputVertexTypes> | null {
   if (ref === null) return null;
-  let handle = handles.get(ref) as VertexHandle<T> | undefined;
+  let handle = handles.get(ref) as VertexHandle<InputVertexTypes> | undefined;
   if (handle === undefined) {
     handle = Object.freeze({
-      getRefId: () => ref.getRefId(),
-      getValue: () => vertexView(ref.getValue()),
+      getReferenceIdentity: () => ref.getReferenceIdentity(),
+      getCurrentVertexView: () => vertexView(ref.getReferencedValue()),
     });
     handles.set(ref, handle);
     refs.set(handle, ref);
@@ -63,55 +70,80 @@ export function vertexHandle<T extends VertexTypes>(
 }
 
 /** Unknown/forged objects stay unknown to identity-based stores; never trust their methods. */
-export function internalRef<T extends VertexTypes>(
-  handle: VertexHandle<T>,
-): MutableRef<Vertex<T>> {
-  return (refs.get(handle) ?? handle) as MutableRef<Vertex<T>>;
+export function internalRef<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+>(
+  handle: VertexHandle<InputVertexTypes>,
+): MutableValueReference<Vertex<InputVertexTypes>> {
+  return (refs.get(handle) ?? handle) as MutableValueReference<
+    Vertex<InputVertexTypes>
+  >;
 }
 
-export function resolutionContextView<T extends VertexTypes>(
-  context: InternalVertexResolutionContext<T> | null,
-): VertexResolutionContext<T> | null {
+export function resolutionContextView<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+>(
+  context: InternalChildDiscoveryContext<InputVertexTypes> | null,
+): ChildDiscoveryContext<InputVertexTypes> | null {
   if (context === null) return null;
-  let view = contexts.get(context) as VertexResolutionContext<T> | undefined;
+  let view = contexts.get(context) as
+    | ChildDiscoveryContext<InputVertexTypes>
+    | undefined;
   if (view === undefined) {
     view = Object.freeze({
-      ...context,
-      parentVertex: vertexView(context.parentVertex),
-      parentVertexRef: vertexHandle(context.parentVertexRef),
+      discoveryDepthInEdges: context.discoveryDepthInEdges,
+      parentVertexAtChildResolution: vertexView(
+        context.parentVertexAtChildResolution,
+      ),
+      parentVertexHandle: createVertexHandleFacet(context.parentVertexHandle),
+      parentChildHintIndex: context.parentChildHintIndex,
+      childDiscoveryHint: context.childDiscoveryHint,
     });
     contexts.set(context, view);
   }
   return view;
 }
 
-type InternalOriginalGraphView<T extends VertexTypes, ID> = Omit<
-  InternalResolvedGraphView<T, ID>,
-  'get' | 'getVisitStageOf'
+type InternalOriginalGraphView<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId,
+> = Omit<
+  InternalResolvedGraphView<InputVertexTypes, VertexId>,
+  'get' | 'getVertexVisitSchedulingStageOrNull'
 >;
-export function originalGraphView<T extends VertexTypes, ID>(
-  graph: InternalOriginalGraphView<T, ID>,
-): OriginalGraphView<T, ID> {
-  const list = (values: MutableRef<Vertex<T>>[]) =>
-    Object.freeze(values.map((ref) => vertexHandle(ref)));
+export function preCommandDiscoveredGraphView<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId,
+>(
+  graph: InternalOriginalGraphView<InputVertexTypes, VertexId>,
+): PreCommandDiscoveredGraphView<InputVertexTypes, VertexId> {
+  const list = (values: MutableValueReference<Vertex<InputVertexTypes>>[]) =>
+    Object.freeze(values.map((ref) => createVertexHandleFacet(ref)));
   return Object.freeze({
-    has: (ref: VertexHandle<T>) => graph.has(internalRef(ref)),
-    getRoot: () => vertexHandle(graph.getRoot()),
-    getVertexRefs: () => list(graph.getVertexRefs()),
-    getVertexRefById: (id: ID) => vertexHandle(graph.getVertexRefById(id)),
-    requireVertexId: (ref: VertexHandle<T>) =>
+    containsVertexHandle: (ref: VertexHandle<InputVertexTypes>) =>
+      graph.has(internalRef(ref)),
+    getDesignatedRootHandleOrNull: () =>
+      createVertexHandleFacet(graph.getRoot()),
+    getVertexHandles: () => list(graph.getVertexRefs()),
+    getVertexHandleByIdOrNull: (id: VertexId) =>
+      createVertexHandleFacet(graph.getVertexRefById(id)),
+    requireVertexId: (ref: VertexHandle<InputVertexTypes>) =>
       graph.requireVertexId(internalRef(ref)),
-    getParentsOf: (ref: VertexHandle<T>) => {
+    getDistinctStructuralParentHandlesOrNull: (
+      ref: VertexHandle<InputVertexTypes>,
+    ) => {
       const values = graph.getParentsOf(internalRef(ref));
       return values === null ? null : list(values);
     },
-    getChildrenOf: (ref: VertexHandle<T>) => {
+    getStructuralChildHandlesInSlotOrderOrNull: (
+      ref: VertexHandle<InputVertexTypes>,
+    ) => {
       const values = graph.getChildrenOf(internalRef(ref));
       return values === null ? null : list(values);
     },
-    requirePathsTo: (
-      ref: VertexHandle<T>,
-      options?: import('./ResolvedTree').GetPathToOptions,
+    requireAllStructuralAncestorPathsTo: (
+      ref: VertexHandle<InputVertexTypes>,
+      options?: import('./ResolvedTree').StructuralAncestorPathOptions,
     ) =>
       Object.freeze(
         graph
@@ -121,57 +153,97 @@ export function originalGraphView<T extends VertexTypes, ID>(
   });
 }
 
-export function resolvedGraphView<T extends VertexTypes, ID>(
-  graph: InternalResolvedGraphView<T, ID>,
-): ResolvedGraphView<T, ID> {
-  let view = graphs.get(graph) as ResolvedGraphView<T, ID> | undefined;
+export function liveResolvedGraphView<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId,
+>(
+  graph: InternalResolvedGraphView<InputVertexTypes, VertexId>,
+): LiveResolvedGraphView<InputVertexTypes, VertexId> {
+  let view = graphs.get(graph) as
+    | LiveResolvedGraphView<InputVertexTypes, VertexId>
+    | undefined;
   if (view === undefined) {
     view = Object.freeze({
-      ...originalGraphView(graph),
-      getVisitStageOf: (ref: VertexHandle<T>) =>
-        graph.getVisitStageOf(internalRef(ref)),
-      get: (ref: VertexHandle<T>) => {
+      ...preCommandDiscoveredGraphView(graph),
+      getVertexVisitSchedulingStageOrNull: (
+        ref: VertexHandle<InputVertexTypes>,
+      ) => graph.getVertexVisitSchedulingStageOrNull(internalRef(ref)),
+      getVertexSnapshotOrNull: (ref: VertexHandle<InputVertexTypes>) => {
         const record = graph.get(internalRef(ref));
         return record === null
           ? null
           : Object.freeze({
-              ...record,
-              dependsOnWork: Object.freeze(record.dependsOnWork.slice()),
-              ...(record.dependsOnSubgraphCompletion === undefined
+              vertexHandle: createVertexHandleFacet(record.vertexHandle),
+              vertex: vertexView(record.vertex),
+              vertexId: record.vertexId,
+              firstDiscoveryDepthInEdges: record.discoveryDepth,
+              schedulingVisitStage: record.visitStage,
+              workWaitsForWorkOf: Object.freeze(
+                record.workWaitsForWorkOf.slice(),
+              ),
+              ...(record.workWaitsForSubgraphCompletionOf === undefined
                 ? {}
                 : {
-                    dependsOnSubgraphCompletion: Object.freeze(
-                      record.dependsOnSubgraphCompletion.slice(),
+                    workWaitsForSubgraphCompletionOf: Object.freeze(
+                      record.workWaitsForSubgraphCompletionOf.slice(),
                     ),
                   }),
-              vertexRef: vertexHandle(record.vertexRef),
-              vertex: vertexView(record.vertex),
-              incoming: Object.freeze(
+              incomingStructuralChildEdges: Object.freeze(
                 record.incoming.map((edge) =>
                   Object.freeze({
-                    ...edge,
-                    parentRef: vertexHandle(edge.parentRef),
-                    childRef: vertexHandle(edge.childRef),
+                    parentVertexHandle: createVertexHandleFacet(edge.parentRef),
+                    childVertexHandle: createVertexHandleFacet(edge.childRef),
+                    parentChildHintIndex: edge.hintIndex,
+                    childDiscoveryHint: edge.hint,
                   }),
                 ),
               ),
-              slots: Object.freeze(
-                record.slots.map((slot) =>
-                  Object.freeze(
-                    slot.kind === 'linked'
-                      ? { ...slot, childRef: vertexHandle(slot.childRef) }
-                      : slot.kind === 'omitted'
-                      ? {
-                          ...slot,
-                          identity:
+              orderedChildDiscoverySlots: Object.freeze(
+                record.slots.map(
+                  (
+                    slot,
+                  ): import('./graph/types').ChildDiscoverySlot<
+                    InputVertexTypes,
+                    VertexId
+                  > => {
+                    const common = { childDiscoveryHint: slot.hint };
+                    switch (slot.kind) {
+                      case 'pending':
+                        return Object.freeze({
+                          ...common,
+                          kind: 'awaitingResolution',
+                        });
+                      case 'linked':
+                        return Object.freeze({
+                          ...common,
+                          kind: 'linkedToVertex',
+                          childVertexHandle: createVertexHandleFacet(
+                            slot.childRef,
+                          ),
+                        });
+                      case 'omitted':
+                        return Object.freeze({
+                          ...common,
+                          kind: 'omitted',
+                          omittedVertexIdentity:
                             slot.identity === null
                               ? null
                               : Object.freeze({
                                   vertexId: slot.identity.vertexId,
                                 }),
-                        }
-                      : { ...slot },
-                  ),
+                        });
+                      case 'deleted':
+                        return Object.freeze({
+                          ...common,
+                          kind: 'targetDeleted',
+                        });
+                      case 'disabled':
+                        return Object.freeze({
+                          ...common,
+                          kind: 'discoverySkipped',
+                        });
+                    }
+                  },
                 ),
               ),
             });

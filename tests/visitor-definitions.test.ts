@@ -1,71 +1,84 @@
 import {
-  DepthFirstTreeTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  AsyncBreadthFirstTreeTraversal,
-  DagTraversal,
-  AsyncDagTraversal,
-  DepthFirstPhase as F,
-  BreadthFirstPhase as B,
+  DepthFirstTreeTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  DepthFirstTreeVisitPhase as F,
+  BreadthFirstTreeVisitPhase as B,
   DagVisitorPhase as D,
-  traverseTreeDepthFirst,
-  traverseTreeDepthFirstAsync,
-  traverseTreeBreadthFirst,
-  traverseTreeBreadthFirstAsync,
+  runTreeDepthFirstUntilSuspendedOrTerminal,
+  runTreeDepthFirstUntilSuspendedOrTerminalAsync,
+  runTreeBreadthFirstUntilSuspendedOrTerminal,
+  runTreeBreadthFirstUntilSuspendedOrTerminalAsync,
   traverseDag,
   traverseDagAsync,
 } from '../src';
 
-const traversableTree = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
-      vertexContent: { $data: 'root', $childHints: [] as string[] },
+const treeDiscoverySource = {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: {
+        $vertexData: 'root',
+        $childDiscoveryHints: [] as string[],
+      },
     },
   }),
-  resolveChild: () => ({ kind: 'omitted' as const }),
+  resolveChildVertexFromHint: () => ({
+    kind: 'vertexIntentionallyOmitted' as const,
+  }),
 };
-const traversableGraph = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
+const dagDiscoverySource = {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId: 'root',
-      vertexContent: { $data: 'root', $childHints: [] as string[] },
+      vertexContentInput: {
+        $vertexData: 'root',
+        $childDiscoveryHints: [] as string[],
+      },
     },
   }),
-  resolveChild: () => ({
-    identity: null,
-    satisfiesDependencies: true as const,
-    kind: 'omitted' as const,
+  resolveChildHint: () => ({
+    omittedVertexIdentity: null,
+    satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+    kind: 'vertexIntentionallyOmitted' as const,
   }),
 };
 const families = [
   [
-    DepthFirstTreeTraversal,
-    F.PRE_ORDER,
-    { traversableTree },
-    traverseTreeDepthFirst,
+    DepthFirstTreeTraversalBuilder,
+    F.BEFORE_CHILD_EXPANSION,
+    { treeDiscoverySource },
+    runTreeDepthFirstUntilSuspendedOrTerminal,
   ],
   [
-    AsyncDepthFirstTreeTraversal,
-    F.PRE_ORDER,
-    { traversableTree },
-    traverseTreeDepthFirstAsync,
+    AsyncDepthFirstTreeTraversalBuilder,
+    F.BEFORE_CHILD_EXPANSION,
+    { treeDiscoverySource },
+    runTreeDepthFirstUntilSuspendedOrTerminalAsync,
   ],
   [
-    BreadthFirstTreeTraversal,
-    B.LEVEL_ORDER,
-    { traversableTree },
-    traverseTreeBreadthFirst,
+    BreadthFirstTreeTraversalBuilder,
+    B.AT_LEVEL_ORDER_VERTEX,
+    { treeDiscoverySource },
+    runTreeBreadthFirstUntilSuspendedOrTerminal,
   ],
   [
-    AsyncBreadthFirstTreeTraversal,
-    B.LEVEL_ORDER,
-    { traversableTree },
-    traverseTreeBreadthFirstAsync,
+    AsyncBreadthFirstTreeTraversalBuilder,
+    B.AT_LEVEL_ORDER_VERTEX,
+    { treeDiscoverySource },
+    runTreeBreadthFirstUntilSuspendedOrTerminalAsync,
   ],
-  [DagTraversal, D.ON_WORK_READY, { traversableGraph }, traverseDag],
-  [AsyncDagTraversal, D.ON_WORK_READY, { traversableGraph }, traverseDagAsync],
+  [DagTraversalBuilder, D.ON_WORK_READY, { dagDiscoverySource }, traverseDag],
+  [
+    AsyncDagTraversalBuilder,
+    D.ON_WORK_READY,
+    { dagDiscoverySource },
+    traverseDagAsync,
+  ],
 ] as const;
 
 // Each public family must normalize the same caller-owned input shapes.
@@ -77,7 +90,7 @@ for (const [Ctor, order, source, helper] of families) {
       'array',
       'groups',
     ] as const) {
-      test(`accepts ${shape} at constructor, configure, replacement and helper boundaries`, async () => {
+      test(`accepts ${shape} at constructor, patchOptionsForFutureRunners, replacement and helper boundaries`, async () => {
         const seen: string[] = [];
         const callback = () => {
           seen.push('called');
@@ -92,18 +105,29 @@ for (const [Ctor, order, source, helper] of families) {
             : { groups: [{ visitors: [callback, { visitor: callback }] }] };
         // Runtime matrix intentionally erases family-specific overloads; the compiler fixture covers them.
         const Constructor = Ctor as unknown as new (input: unknown) => {
-          configure(input: unknown): unknown;
-          setVisitorsFor(order: string, input: unknown): unknown;
-          createRunner(): { run(): unknown };
+          patchOptionsForFutureRunners(input: unknown): unknown;
+          replaceVisitorDefinitionsForPhase(
+            order: string,
+            input: unknown,
+          ): unknown;
+          createIndependentRunnerFromCurrentOptions(): {
+            runUntilSuspendedOrTerminal(): unknown;
+          };
         };
         const config = { ...source, visitors: { [order]: input } };
-        await new Constructor(config).createRunner().run();
+        await new Constructor(config)
+          .createIndependentRunnerFromCurrentOptions()
+          .runUntilSuspendedOrTerminal();
         const configured = new Constructor(source);
-        configured.configure(config);
-        await configured.createRunner().run();
+        configured.patchOptionsForFutureRunners(config);
+        await configured
+          .createIndependentRunnerFromCurrentOptions()
+          .runUntilSuspendedOrTerminal();
         const replaced = new Constructor(source);
-        replaced.setVisitorsFor(order, input);
-        await replaced.createRunner().run();
+        replaced.replaceVisitorDefinitionsForPhase(order, input);
+        await replaced
+          .createIndependentRunnerFromCurrentOptions()
+          .runUntilSuspendedOrTerminal();
         await (helper as unknown as (input: unknown) => unknown)(config);
         expect(seen).toEqual(
           Array(shape === 'array' || shape === 'groups' ? 8 : 4).fill('called'),
@@ -117,63 +141,73 @@ for (const [Ctor, order, source] of families) {
   test(`${Ctor.name}: grouped append and list/set preserve snapshots and empty groups are inert`, async () => {
     const calls: string[] = [];
     const Constructor = Ctor as unknown as new (input: unknown) => {
-      addVisitorFor(
+      registerVisitorCallbackForPhase(
         order: string,
         callback: () => void,
-        options?: { priority: number },
+        options?: { descendingExecutionPriorityWithinGroup: number },
       ): unknown;
-      addVisitorGroupFor(order: string, input: unknown): unknown;
-      setVisitorsFor(order: string, input: unknown): unknown;
-      listVisitorsFor(order: string): unknown;
-      createRunner(): { run(): unknown };
+      appendVisitorGroupForPhase(order: string, input: unknown): unknown;
+      replaceVisitorDefinitionsForPhase(order: string, input: unknown): unknown;
+      getDetachedVisitorRegistrationRecordsForPhase(order: string): unknown;
+      createIndependentRunnerFromCurrentOptions(): {
+        runUntilSuspendedOrTerminal(): unknown;
+      };
     };
     const t = new Constructor(source);
-    t.addVisitorFor(
+    t.registerVisitorCallbackForPhase(
       order,
       () => {
         calls.push('low');
       },
-      { priority: 1 },
+      { descendingExecutionPriorityWithinGroup: 1 },
     );
-    t.addVisitorGroupFor(order, {
+    t.appendVisitorGroupForPhase(order, {
       visitors: [],
-      commandCommitMode: 'afterGroup' as const,
+      visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
     });
-    t.setVisitorsFor(order, t.listVisitorsFor(order));
-    t.addVisitorFor(
+    t.replaceVisitorDefinitionsForPhase(
+      order,
+      t.getDetachedVisitorRegistrationRecordsForPhase(order),
+    );
+    t.registerVisitorCallbackForPhase(
       order,
       () => {
         calls.push('high');
       },
-      { priority: 1000 },
+      { descendingExecutionPriorityWithinGroup: 1000 },
     );
-    t.addVisitorGroupFor(order, {
+    t.appendVisitorGroupForPhase(order, {
       visitors: [
         () => {
           calls.push('group');
         },
       ],
     });
-    t.addVisitorFor(
+    t.registerVisitorCallbackForPhase(
       order,
       () => {
         calls.push('tail');
       },
-      { priority: 9999 },
+      { descendingExecutionPriorityWithinGroup: 9999 },
     );
-    t.setVisitorsFor(order, t.listVisitorsFor(order));
-    const snapshot = t.createRunner();
-    t.setVisitorsFor(order, () => {
+    t.replaceVisitorDefinitionsForPhase(
+      order,
+      t.getDetachedVisitorRegistrationRecordsForPhase(order),
+    );
+    const snapshot = t.createIndependentRunnerFromCurrentOptions();
+    t.replaceVisitorDefinitionsForPhase(order, () => {
       calls.push('replacement');
     });
-    await snapshot.run();
+    await snapshot.runUntilSuspendedOrTerminal();
     expect(calls).toEqual(['high', 'low', 'group', 'tail']);
-    await t.createRunner().run();
+    await t
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal();
     expect(calls.slice(-1)).toEqual(['replacement']);
     expect(() =>
-      t.addVisitorGroupFor(order, {
+      t.appendVisitorGroupForPhase(order, {
         visitors: [],
-        commandCommitMode: 'invalid',
+        visitorCommandCommitTiming: 'invalid',
       }),
     ).toThrow(TypeError);
   });

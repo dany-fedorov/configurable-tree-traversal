@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+Breaking explicit-API naming migration; see the [migration guide](docs/migration-explicit-api.md). The source checkout uses these names before a separately authorized release.
+
+- Name reusable configuration classes as builders and distinguish independent runners, live views, detached snapshots, callback admission and committed event delivery.
+- Make source protocols, dependency milestone direction, settlement authority, work states, progress fields and topology validation guarantees explicit.
+- Use positive path-inclusion flags and child-hint predicates; migrate explicit boolean values/results by inversion.
+- Name walking route-prefix observations, target occurrence/read budgets, admission-based resolution caching and permanent disposal explicitly.
+- Name object-property adapters, patches, child reconstruction, output-type assertions, cache protocol methods and final/captured results explicitly.
+- Align callback generic ordering, emitted `eventKind` fields, command scope and public import/namespace roles. Remove superseded spellings without compatibility aliases.
+
 ## 0.12.0 — 2026-10-31
 
 Breaking release. Start upgrades from 0.11.0 with the [final API checklist](docs/migration-api-distinctions.md).

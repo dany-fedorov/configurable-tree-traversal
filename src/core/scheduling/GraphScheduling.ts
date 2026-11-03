@@ -3,16 +3,16 @@ import { engineDagValidationErrors } from '@core/errors/engineDagValidationError
 import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
 import { dependencyMilestones } from './dependencyMilestones';
-import { MutableRef } from '@core/CTTRef';
-import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
+import { MutableValueReference } from '@core/CTTRef';
+import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
 import type { MakeVertexResult } from '@core/TraversableTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import { Vertex } from '@core/Vertex';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import { hasVertexId, sameVertexId } from '@core/graph/identity';
 import type {
   GraphSchedulingState,
-  HintVertexId,
+  ChildHintVertexIdentity,
   InternalVertexRef,
   VertexId,
 } from '@core/graph/types';
@@ -22,45 +22,64 @@ import type {
   VertexWork,
 } from '@core/scheduling/types';
 
-export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
+export class GraphScheduling<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> {
   private readonly work = new Map<
-    InternalVertexRef<T | R>,
-    VertexWork<T | R>
+    InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+    VertexWork<InputVertexTypes | RewrittenVertexTypes>
   >();
   private readonly reverseDependencies = new Map<
     VertexId,
-    Set<InternalVertexRef<T | R>>
+    Set<InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>>
   >();
   private readonly reverseCompleteDependencies = new Map<
     VertexId,
-    Set<InternalVertexRef<T | R>>
+    Set<InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>>
   >();
   private completionValidation = false;
-  private readonly removedRefs = new Set<InternalVertexRef<T | R>>();
-  private readonly reusableTreeChildren = new Map<
-    InternalVertexRef<T | R>,
-    Map<number, { ref: InternalVertexRef<T | R>; hint: (T | R)['VertexHint'] }>
+  private readonly removedRefs = new Set<
+    InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>
   >();
-  private eligible: EligibleVisit<T | R>[] = [];
+  private readonly reusableTreeChildren = new Map<
+    InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+    Map<
+      number,
+      {
+        ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>;
+        hint: (InputVertexTypes | RewrittenVertexTypes)['ChildHint'];
+      }
+    >
+  >();
+  private eligible: EligibleVisit<InputVertexTypes | RewrittenVertexTypes>[] =
+    [];
   private eligibleHead = 0;
   private openDiscoveryCount = 0;
   private validatedTopologyVersion: number | null = null;
 
   private readonly unusedCompletedWork: Set<VertexId>;
   private readonly catalogIds = new Map<VertexId, number>();
-  private readonly discoveryExpansion: InternalVertexRef<T | R>[] = [];
-  private readonly seededExpansion: InternalVertexRef<T | R>[] = [];
+  private readonly discoveryExpansion: InternalVertexRef<
+    InputVertexTypes | RewrittenVertexTypes
+  >[] = [];
+  private readonly seededExpansion: InternalVertexRef<
+    InputVertexTypes | RewrittenVertexTypes
+  >[] = [];
 
   constructor(
-    private readonly container: ResolvedGraphsContainer<T, R>,
-    completedWork?: ReadonlySet<VertexId>,
+    private readonly container: ResolvedGraphsContainer<
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >,
+    acceptedCompletedWorkVertexIds?: ReadonlySet<VertexId>,
     private eager = false,
-    private readonly rootWorkDependencies: 'honor' | 'ignore' = 'honor',
-    private readonly dependsOnWorkDefault:
+    private readonly rootWorkPrerequisitePolicy: 'honor' | 'ignore' = 'honor',
+    private readonly undeclaredWorkPrerequisitePolicy:
       | 'none'
-      | 'discoveryParentWork' = 'none',
+      | 'waitForDiscoveringParentWork' = 'none',
   ) {
-    this.unusedCompletedWork = new Set(completedWork);
+    this.unusedCompletedWork = new Set(acceptedCompletedWorkVertexIds);
   }
 
   enableEagerDiscovery(): void {
@@ -71,12 +90,14 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     return Array.from(this.unusedCompletedWork);
   }
 
-  takeSeededExpansion(): InternalVertexRef<T | R> | null {
+  takeSeededExpansion(): InternalVertexRef<
+    InputVertexTypes | RewrittenVertexTypes
+  > | null {
     return this.seededExpansion.shift() ?? null;
   }
 
   /** Detached progress records; querying never advances scheduling queues. */
-  inspectWork(): VertexWork<T | R>[] {
+  inspectWork(): VertexWork<InputVertexTypes | RewrittenVertexTypes>[] {
     return Array.from(this.work.values(), (work) => ({
       ...work,
       unmet: new Set(work.unmet),
@@ -88,7 +109,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
   /** Narrow detached facts for inspection; never advances any scheduler queue. */
   inspectSchedulingState(): readonly GraphSchedulingState[] {
     return Array.from(this.work.values(), (work) => ({
-      vertexId: this.container.resolvedGraphView.requireVertexId(work.ref),
+      vertexId: this.container.liveResolvedGraphView.requireVertexId(work.ref),
       expansion: work.expansion,
       initialCommitted: work.initialCommitted,
       completionCommitted: work.completionCommitted,
@@ -96,11 +117,13 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     }));
   }
 
-  takeDiscoveryExpansion(): InternalVertexRef<T | R> | null {
+  takeDiscoveryExpansion(): InternalVertexRef<
+    InputVertexTypes | RewrittenVertexTypes
+  > | null {
     return this.discoveryExpansion.shift() ?? null;
   }
 
-  /** Closed hint expansion for every retained vertex; independent of work success. */
+  /** Closed childDiscoveryHint expansion for every retained resolvedVertexInput; independent of work success. */
   isDiscoveryComplete(): boolean {
     return this.openDiscoveryCount === 0;
   }
@@ -109,7 +132,9 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     return this.completionValidation;
   }
 
-  private declaredPrerequisites(ref: InternalVertexRef<T | R>): VertexId[] {
+  private declaredPrerequisites(
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ): VertexId[] {
     return Array.from(
       new Set([
         ...this.container.store.getDeclaredDependencies(ref),
@@ -120,28 +145,36 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
 
   /** Validate original declarations, even when a successful seed satisfied them. */
   validateDiscoveredGraph(): void {
-    const dependencies = Array.from(this.work.keys(), (ref) => ({
-      id: this.container.resolvedGraphView.requireVertexId(ref),
-      missing: this.declaredPrerequisites(ref),
-    }));
-    const diagnostics = this.diagnoseStall({ dependencies, incomplete: [] });
+    const blockedVertexPrerequisiteReports = Array.from(
+      this.work.keys(),
+      (ref) => ({
+        id: this.container.liveResolvedGraphView.requireVertexId(ref),
+        missing: this.declaredPrerequisites(ref),
+      }),
+    );
+    const diagnostics = this.diagnoseStall({
+      dependencies: blockedVertexPrerequisiteReports,
+      incomplete: [],
+    });
     if (
-      diagnostics.unknownPrerequisiteIds.length > 0 ||
-      diagnostics.dependencyCycleComponents.length > 0
+      diagnostics.unresolvedPrerequisiteVertexIds.length > 0 ||
+      diagnostics.milestoneCycleVertexIdComponents.length > 0
     ) {
       const error = new DagTraversalStallError(diagnostics);
       engineDagValidationErrors.set(this.container.store, error);
       throw error;
     }
     if (this.getUnusedCompletedWorkIds().length > 0) {
-      throw new TypeError('completedWork contains undiscovered vertex IDs');
+      throw new TypeError(
+        'acceptedCompletedWorkVertexIds contains undiscovered vertex IDs',
+      );
     }
     this.validatedTopologyVersion = this.container.store.getTopologyVersion();
   }
 
   /** Reuse only successful validation; a summary never publishes evidence. */
   diagnoseTopology(
-    refs: readonly InternalVertexRef<T | R>[],
+    refs: readonly InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>[],
   ): DagTraversalStallDiagnostics | null {
     if (
       this.validatedTopologyVersion ===
@@ -151,28 +184,38 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     }
     return this.diagnoseStall({
       dependencies: refs.map((ref) => ({
-        id: this.container.resolvedGraphView.requireVertexId(ref),
+        id: this.container.liveResolvedGraphView.requireVertexId(ref),
         missing: this.declaredPrerequisites(ref),
       })),
       incomplete: [],
     });
   }
 
-  restoreDagSeed(readyVisits: readonly EligibleVisit<T | R>[]): void {
-    const refs = this.container.resolvedGraphView.getVertexRefs();
-    const restoredWork = new Map<InternalVertexRef<T | R>, VertexWork<T | R>>();
+  restoreDagSeed(
+    dependencyEligiblePhaseVisits: readonly EligibleVisit<
+      InputVertexTypes | RewrittenVertexTypes
+    >[],
+  ): void {
+    const refs = this.container.liveResolvedGraphView.getVertexRefs();
+    const restoredWork = new Map<
+      InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+      VertexWork<InputVertexTypes | RewrittenVertexTypes>
+    >();
     const restoredDependencies = new Map<
       VertexId,
-      Set<InternalVertexRef<T | R>>
+      Set<InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>>
     >();
     const restoredCompleteDependencies = new Map<
       VertexId,
-      Set<InternalVertexRef<T | R>>
+      Set<InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>>
     >();
-    const queued = new Map<InternalVertexRef<T | R>, EligibleVisit<T | R>>();
+    const queued = new Map<
+      InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+      EligibleVisit<InputVertexTypes | RewrittenVertexTypes>
+    >();
 
-    for (const visit of readyVisits) {
-      if (!this.container.resolvedGraphView.has(visit.ref)) {
+    for (const visit of dependencyEligiblePhaseVisits) {
+      if (!this.container.liveResolvedGraphView.has(visit.ref)) {
         this.throwInvalidSeed('ready visit references an unknown vertex');
       }
       if (queued.has(visit.ref)) {
@@ -180,7 +223,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       }
       if (
         visit.order !== 'ON_WORK_READY' &&
-        visit.order !== 'ON_SUBGRAPH_READY'
+        visit.order !== 'ON_SUBGRAPH_COMPLETION_READY'
       ) {
         this.throwInvalidSeed('ready visit has an invalid order');
       }
@@ -192,13 +235,13 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       const slots = this.container.store.getTraversalSlots(ref);
       const unmet = this.registerDependencies(
         ref,
-        vertex.dependsOnWork,
+        vertex.workWaitsForWorkOf,
         restoredDependencies,
         false,
       );
       const unmetComplete = this.registerDependencies(
         ref,
-        vertex.dependsOnSubgraphCompletion ?? [],
+        vertex.workWaitsForSubgraphCompletionOf ?? [],
         restoredCompleteDependencies,
         true,
       );
@@ -211,15 +254,16 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
         slots?.map(
           (slot) =>
             slot.kind !== 'linked' ||
-            this.container.resolvedGraphView.getVisitStageOf(slot.childRef) ===
-              'COMPLETE',
+            this.container.liveResolvedGraphView.getVertexVisitSchedulingStageOrNull(
+              slot.childRef,
+            ) === 'COMPLETION_VISIT_COMMITTED',
         ) ?? [];
       const remainingChildren = completionAccounted.filter(
         (accounted) => !accounted,
       ).length;
       const status = vertex.visitStage;
       const queuedVisit = queued.get(ref);
-      const work: VertexWork<T | R> = {
+      const work: VertexWork<InputVertexTypes | RewrittenVertexTypes> = {
         ref,
         unmet,
         unmetComplete,
@@ -228,10 +272,11 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
         initialCommitted:
           status === 'INITIAL_VISIT_COMMITTED' ||
           status === 'COMPLETION_VISIT_ELIGIBLE' ||
-          status === 'COMPLETE',
+          status === 'COMPLETION_VISIT_COMMITTED',
         completionAdmitted:
-          status === 'COMPLETION_VISIT_ELIGIBLE' || status === 'COMPLETE',
-        completionCommitted: status === 'COMPLETE',
+          status === 'COMPLETION_VISIT_ELIGIBLE' ||
+          status === 'COMPLETION_VISIT_COMMITTED',
+        completionCommitted: status === 'COMPLETION_VISIT_COMMITTED',
         completionAccounted,
         remainingChildren,
       };
@@ -268,7 +313,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
           slots === null ||
           hasUnmet ||
           remainingChildren !== 0 ||
-          queuedVisit?.order !== 'ON_SUBGRAPH_READY'
+          queuedVisit?.order !== 'ON_SUBGRAPH_COMPLETION_READY'
         ) {
           this.throwInvalidSeed(
             'COMPLETION_VISIT_ELIGIBLE vertex is inconsistent',
@@ -280,7 +325,9 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
         remainingChildren !== 0 ||
         queuedVisit !== undefined
       ) {
-        this.throwInvalidSeed('COMPLETE vertex is inconsistent');
+        this.throwInvalidSeed(
+          'COMPLETION_VISIT_COMMITTED vertex is inconsistent',
+        );
       }
       restoredWork.set(ref, work);
     }
@@ -300,11 +347,15 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       this.reverseCompleteDependencies.set(id, dependents);
     }
     this.completionValidation = restoredCompleteDependencies.size > 0;
-    this.eligible = readyVisits.map((visit) => ({ ...visit }));
+    this.eligible = dependencyEligiblePhaseVisits.map((visit) => ({
+      ...visit,
+    }));
     this.eligibleHead = 0;
   }
 
-  enrollExisting(ref: InternalVertexRef<T | R>): void {
+  enrollExisting(
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ): void {
     if (!this.work.has(ref)) {
       this.captureReusableTreeChildren(ref);
       this.container.store.resetTraversal(ref);
@@ -312,7 +363,9 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     }
   }
 
-  acceptRoot(result: MakeVertexResult<T>): InternalVertexRef<T | R> | null {
+  acceptRoot(
+    result: MakeVertexResult<InputVertexTypes>,
+  ): InternalVertexRef<InputVertexTypes | RewrittenVertexTypes> | null {
     this.rejectTreeMetadata(result);
     const resultHasId = hasVertexId(result);
     const suppliedId = this.container.syntheticRoot
@@ -342,21 +395,25 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     const accepted =
       resultHasId || this.container.syntheticRoot
         ? {
-            ref: new MutableRef(new Vertex<T | R>(result.vertexContent)),
+            ref: new MutableValueReference(
+              new Vertex<InputVertexTypes | RewrittenVertexTypes>(
+                result.vertexContent,
+              ),
+            ),
             id: suppliedId,
           }
         : this.makeUniqueRef(result.vertexContent);
-    const dependencies =
+    const blockedVertexPrerequisiteReports =
       this.container.sourceMode === 'graph' &&
-      this.rootWorkDependencies === 'honor' &&
+      this.rootWorkPrerequisitePolicy === 'honor' &&
       !this.container.syntheticRoot
-        ? Array.from(new Set(result.dependsOnWork))
+        ? Array.from(new Set(result.workWaitsForWorkOf))
         : [];
     const completeDependencies = this.container.syntheticRoot
       ? []
       : this.getCompleteDependencies(result);
     if (
-      [...dependencies, ...completeDependencies].some(
+      [...blockedVertexPrerequisiteReports, ...completeDependencies].some(
         (id) => this.container.store.getIdState(id)?.kind === 'deleted',
       )
     ) {
@@ -367,18 +424,24 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     this.container.acceptRoot(
       accepted.ref,
       accepted.id,
-      dependencies,
+      blockedVertexPrerequisiteReports,
       completeDependencies,
     );
-    this.register(accepted.ref, dependencies, completeDependencies);
+    this.register(
+      accepted.ref,
+      blockedVertexPrerequisiteReports,
+      completeDependencies,
+    );
     return accepted.ref;
   }
 
   acceptVertex(
-    context: InternalVertexResolutionContext<T | R>,
-    result: MakeVertexResult<T>,
-    hintIdentity?: HintVertexId,
-  ): InternalVertexRef<T | R> | null {
+    context: InternalChildDiscoveryContext<
+      InputVertexTypes | RewrittenVertexTypes
+    >,
+    result: MakeVertexResult<InputVertexTypes>,
+    hintIdentity?: ChildHintVertexIdentity,
+  ): InternalVertexRef<InputVertexTypes | RewrittenVertexTypes> | null {
     this.rejectTreeMetadata(result);
     const resultHasId = hasVertexId(result);
     const hintHasId = hintIdentity !== undefined && hasVertexId(hintIdentity);
@@ -396,12 +459,15 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
         : this.findExistingTreeChild(context);
     if (existingTreeChild !== null) {
       this.container.acceptEdge(
-        context.parentVertexRef,
-        context.hintIndex,
+        context.parentVertexHandle,
+        context.parentChildHintIndex,
         existingTreeChild,
         true,
       );
-      this.noteLinkedSlot(context.parentVertexRef, context.hintIndex);
+      this.noteLinkedSlot(
+        context.parentVertexHandle,
+        context.parentChildHintIndex,
+      );
       this.enrollExisting(existingTreeChild);
       return existingTreeChild;
     }
@@ -412,36 +478,48 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       : hintHasId
       ? hintIdentity.vertexId
       : undefined;
-    if (context.parentVertexRef === this.container.syntheticRootRef) {
+    if (context.parentVertexHandle === this.container.syntheticRootRef) {
       if (!hasSuppliedId)
         throw new TypeError('Catalog entries require explicit vertex IDs');
       const previous = this.catalogIds.get(suppliedId);
-      if (previous !== undefined && previous !== context.hintIndex) {
+      if (previous !== undefined && previous !== context.parentChildHintIndex) {
         throw new TypeError('Duplicate catalog vertex ID');
       }
-      this.catalogIds.set(suppliedId, context.hintIndex);
+      this.catalogIds.set(suppliedId, context.parentChildHintIndex);
     }
     const known = hasSuppliedId
       ? this.getKnownResult(suppliedId, result)
       : undefined;
 
     if (known?.kind === 'deleted') {
-      this.closeSlot(context.parentVertexRef, context.hintIndex, 'deleted');
+      this.closeSlot(
+        context.parentVertexHandle,
+        context.parentChildHintIndex,
+        'deleted',
+      );
       return null;
     }
     if (known?.kind === 'omitted') {
-      this.closeSlot(context.parentVertexRef, context.hintIndex, 'omitted', {
-        vertexId: suppliedId,
-      });
+      this.closeSlot(
+        context.parentVertexHandle,
+        context.parentChildHintIndex,
+        'omitted',
+        {
+          vertexId: suppliedId,
+        },
+      );
       return null;
     }
     if (known?.kind === 'live') {
       this.container.acceptEdge(
-        context.parentVertexRef,
-        context.hintIndex,
+        context.parentVertexHandle,
+        context.parentChildHintIndex,
         known.ref,
       );
-      this.noteLinkedSlot(context.parentVertexRef, context.hintIndex);
+      this.noteLinkedSlot(
+        context.parentVertexHandle,
+        context.parentChildHintIndex,
+      );
       return known.ref;
     }
     if (result.vertexContent === null) {
@@ -449,8 +527,8 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
         this.acceptOmission(suppliedId);
       }
       this.closeSlot(
-        context.parentVertexRef,
-        context.hintIndex,
+        context.parentVertexHandle,
+        context.parentChildHintIndex,
         'omitted',
         hasSuppliedId ? { vertexId: suppliedId } : undefined,
       );
@@ -459,36 +537,54 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
 
     const accepted = hasSuppliedId
       ? {
-          ref: new MutableRef(new Vertex<T | R>(result.vertexContent)),
+          ref: new MutableValueReference(
+            new Vertex<InputVertexTypes | RewrittenVertexTypes>(
+              result.vertexContent,
+            ),
+          ),
           id: suppliedId,
         }
       : this.makeUniqueRef(result.vertexContent);
-    const dependencies = this.getDependencies(context, result);
+    const blockedVertexPrerequisiteReports = this.getDependencies(
+      context,
+      result,
+    );
     const completeDependencies = this.getCompleteDependencies(result);
     if (
-      [...dependencies, ...completeDependencies].some(
+      [...blockedVertexPrerequisiteReports, ...completeDependencies].some(
         (id) => this.container.store.getIdState(id)?.kind === 'deleted',
       )
     ) {
       this.container.store.markDeleted(accepted.id);
-      this.closeSlot(context.parentVertexRef, context.hintIndex, 'deleted');
+      this.closeSlot(
+        context.parentVertexHandle,
+        context.parentChildHintIndex,
+        'deleted',
+      );
       this.deleteDependentsOf(accepted.id);
       return null;
     }
     this.container.acceptVertex(
       accepted.ref,
       accepted.id,
-      dependencies,
+      blockedVertexPrerequisiteReports,
       context,
       completeDependencies,
     );
     this.container.acceptEdge(
-      context.parentVertexRef,
-      context.hintIndex,
+      context.parentVertexHandle,
+      context.parentChildHintIndex,
       accepted.ref,
     );
-    this.noteLinkedSlot(context.parentVertexRef, context.hintIndex);
-    this.register(accepted.ref, dependencies, completeDependencies);
+    this.noteLinkedSlot(
+      context.parentVertexHandle,
+      context.parentChildHintIndex,
+    );
+    this.register(
+      accepted.ref,
+      blockedVertexPrerequisiteReports,
+      completeDependencies,
+    );
     return accepted.ref;
   }
 
@@ -515,8 +611,8 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
 
   acceptPrerequisite(
     id: VertexId,
-    result: MakeVertexResult<T>,
-  ): InternalVertexRef<T | R> | null {
+    result: MakeVertexResult<InputVertexTypes>,
+  ): InternalVertexRef<InputVertexTypes | RewrittenVertexTypes> | null {
     this.rejectTreeMetadata(result);
     if (hasVertexId(result) && !sameVertexId(id, result.vertexId)) {
       throw new Error(
@@ -533,10 +629,12 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       this.acceptOmission(id);
       return null;
     }
-    const dependencies = Array.from(new Set(result.dependsOnWork));
+    const blockedVertexPrerequisiteReports = Array.from(
+      new Set(result.workWaitsForWorkOf),
+    );
     const completeDependencies = this.getCompleteDependencies(result);
     if (
-      [...dependencies, ...completeDependencies].some(
+      [...blockedVertexPrerequisiteReports, ...completeDependencies].some(
         (dependency) =>
           this.container.store.getIdState(dependency)?.kind === 'deleted',
       )
@@ -545,20 +643,24 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       this.deleteDependentsOf(id);
       return null;
     }
-    const ref = new MutableRef(new Vertex<T | R>(result.vertexContent));
+    const ref = new MutableValueReference(
+      new Vertex<InputVertexTypes | RewrittenVertexTypes>(result.vertexContent),
+    );
     this.container.acceptDetachedVertex(
       ref,
       id,
-      dependencies,
+      blockedVertexPrerequisiteReports,
       completeDependencies,
     );
-    this.register(ref, dependencies, completeDependencies);
+    this.register(ref, blockedVertexPrerequisiteReports, completeDependencies);
     return ref;
   }
 
   acceptKnownHint(
-    context: InternalVertexResolutionContext<T | R>,
-    hintIdentity: HintVertexId,
+    context: InternalChildDiscoveryContext<
+      InputVertexTypes | RewrittenVertexTypes
+    >,
+    hintIdentity: ChildHintVertexIdentity,
   ): boolean {
     if (!hasVertexId(hintIdentity)) return false;
     if (this.container.store.getIdState(hintIdentity.vertexId) === undefined) {
@@ -568,8 +670,10 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     return true;
   }
 
-  markPreVisited(ref: InternalVertexRef<T | R>): void {
-    const vertex = this.container.resolvedGraphView.get(ref);
+  markPreVisited(
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ): void {
+    const vertex = this.container.liveResolvedGraphView.get(ref);
     if (vertex === null) throw new Error('Unknown vertex reference');
     const vertexWork = this.work.get(ref);
     if (vertexWork === undefined) throw new Error('Vertex is not enrolled');
@@ -581,14 +685,16 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     this.enqueueCompletion(vertexWork);
   }
 
-  markPreVisiting(ref: InternalVertexRef<T | R>): void {
+  markPreVisiting(
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ): void {
     this.getWork(ref);
     this.container.store.setVisitStage(ref, 'INITIAL_VISIT_STARTED');
   }
 
   prepareSlots(
-    ref: InternalVertexRef<T | R>,
-    hints: readonly (T | R)['VertexHint'][],
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+    hints: readonly (InputVertexTypes | RewrittenVertexTypes)['ChildHint'][],
   ): void {
     const vertexWork = this.getWork(ref);
     if (vertexWork.expansion !== 'unprepared') {
@@ -599,24 +705,35 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
   }
 
   restoreConsumedTreeSlot(
-    context: InternalVertexResolutionContext<T | R>,
+    context: InternalChildDiscoveryContext<
+      InputVertexTypes | RewrittenVertexTypes
+    >,
   ): void {
     const child = this.findExistingTreeChild(context);
     if (child === null) {
-      this.closeSlot(context.parentVertexRef, context.hintIndex, 'omitted');
+      this.closeSlot(
+        context.parentVertexHandle,
+        context.parentChildHintIndex,
+        'omitted',
+      );
       return;
     }
     this.container.acceptEdge(
-      context.parentVertexRef,
-      context.hintIndex,
+      context.parentVertexHandle,
+      context.parentChildHintIndex,
       child,
       true,
     );
-    this.noteLinkedSlot(context.parentVertexRef, context.hintIndex);
-    this.container.store.setVisitStage(child, 'COMPLETE');
+    this.noteLinkedSlot(
+      context.parentVertexHandle,
+      context.parentChildHintIndex,
+    );
+    this.container.store.setVisitStage(child, 'COMPLETION_VISIT_COMMITTED');
   }
 
-  closeExpansion(ref: InternalVertexRef<T | R>): void {
+  closeExpansion(
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ): void {
     const vertexWork = this.getWork(ref);
     if (vertexWork.expansion === 'closed') return;
     if (vertexWork.expansion === 'unprepared') {
@@ -633,8 +750,9 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       if (
         slot.kind !== 'pending' &&
         (slot.kind !== 'linked' ||
-          this.container.resolvedGraphView.getVisitStageOf(slot.childRef) ===
-            'COMPLETE')
+          this.container.liveResolvedGraphView.getVertexVisitSchedulingStageOrNull(
+            slot.childRef,
+          ) === 'COMPLETION_VISIT_COMMITTED')
       ) {
         vertexWork.completionAccounted[index] = true;
       } else {
@@ -646,10 +764,10 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
   }
 
   closeSlot(
-    parent: InternalVertexRef<T | R>,
+    parent: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
     index: number,
     reason: 'omitted' | 'deleted' | 'disabled',
-    omittedIdentity?: HintVertexId,
+    omittedIdentity?: ChildHintVertexIdentity,
   ): void {
     this.container.store.closeSlot(parent, index, reason, omittedIdentity);
     const vertexWork = this.work.get(parent);
@@ -658,13 +776,15 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     this.accountSlot(vertexWork, index);
   }
 
-  markComplete(ref: InternalVertexRef<T | R>): void {
+  markComplete(
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ): void {
     const vertexWork = this.getWork(ref);
     if (vertexWork.completionCommitted) return;
     const vertex = this.getVertex(ref);
 
     vertexWork.completionCommitted = true;
-    this.container.store.setVisitStage(ref, 'COMPLETE');
+    this.container.store.setVisitStage(ref, 'COMPLETION_VISIT_COMMITTED');
     this.satisfy(vertex.vertexId, true);
     for (const edge of vertex.incoming) {
       const parentWork = this.work.get(edge.parentRef);
@@ -673,42 +793,59 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     }
   }
 
-  takeReady(): InternalVertexRef<T | R> | null {
+  takeReady(): InternalVertexRef<
+    InputVertexTypes | RewrittenVertexTypes
+  > | null {
     if (this.peekEligible()?.order !== 'ON_WORK_READY') return null;
     return this.dequeueEligible()!.ref;
   }
 
-  takeEligible(): EligibleVisit<T | R> | null {
+  takeEligible(): EligibleVisit<
+    InputVertexTypes | RewrittenVertexTypes
+  > | null {
     return this.dequeueEligible();
   }
 
-  inspectEligible(): readonly EligibleVisit<T | R>[] {
+  inspectEligible(): readonly EligibleVisit<
+    InputVertexTypes | RewrittenVertexTypes
+  >[] {
     return this.eligible.slice(this.eligibleHead);
   }
 
-  takeCompleting(): InternalVertexRef<T | R> | null {
-    if (this.peekEligible()?.order !== 'ON_SUBGRAPH_READY') return null;
+  takeCompleting(): InternalVertexRef<
+    InputVertexTypes | RewrittenVertexTypes
+  > | null {
+    if (this.peekEligible()?.order !== 'ON_SUBGRAPH_COMPLETION_READY')
+      return null;
     return this.dequeueEligible()!.ref;
   }
 
-  deleteVertex(ref: InternalVertexRef<T | R>): Set<InternalVertexRef<T | R>> {
-    if (!this.container.resolvedGraphView.has(ref)) return new Set();
+  deleteVertex(
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ): Set<InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>> {
+    if (!this.container.liveResolvedGraphView.has(ref)) return new Set();
 
-    const root = this.container.resolvedGraphView.getRoot();
+    const root = this.container.liveResolvedGraphView.getRoot();
     if (ref === root) {
-      return this.deleteRefs(this.container.resolvedGraphView.getVertexRefs());
+      return this.deleteRefs(
+        this.container.liveResolvedGraphView.getVertexRefs(),
+      );
     }
     return this.deleteRefs([ref]);
   }
 
   /** Every mutation reports removals once so effect owners cannot outlive consumers. */
-  takeRemovedRefs(): Set<InternalVertexRef<T | R>> {
+  takeRemovedRefs(): Set<
+    InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>
+  > {
     const removed = new Set(this.removedRefs);
     this.removedRefs.clear();
     return removed;
   }
 
-  private deleteDependentsOf(id: VertexId): Set<InternalVertexRef<T | R>> {
+  private deleteDependentsOf(
+    id: VertexId,
+  ): Set<InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>> {
     return this.deleteRefs([
       ...(this.reverseDependencies.get(id) ?? []),
       ...(this.reverseCompleteDependencies.get(id) ?? []),
@@ -716,19 +853,25 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
   }
 
   private deleteRefs(
-    initialRefs: readonly InternalVertexRef<T | R>[],
-  ): Set<InternalVertexRef<T | R>> {
-    const removals = new Set<InternalVertexRef<T | R>>();
-    const pending: InternalVertexRef<T | R>[] = [];
+    initialRefs: readonly InternalVertexRef<
+      InputVertexTypes | RewrittenVertexTypes
+    >[],
+  ): Set<InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>> {
+    const removals = new Set<
+      InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>
+    >();
+    const pending: InternalVertexRef<
+      InputVertexTypes | RewrittenVertexTypes
+    >[] = [];
     for (const ref of initialRefs) this.addRemoval(ref, removals, pending);
     while (pending.length > 0) {
       const current = pending.pop()!;
-      if (current === this.container.resolvedGraphView.getRoot()) {
-        for (const ref of this.container.resolvedGraphView.getVertexRefs()) {
+      if (current === this.container.liveResolvedGraphView.getRoot()) {
+        for (const ref of this.container.liveResolvedGraphView.getVertexRefs()) {
           this.addRemoval(ref, removals, pending);
         }
       }
-      const vertex = this.container.resolvedGraphView.get(current)!;
+      const vertex = this.container.liveResolvedGraphView.get(current)!;
 
       for (const dependent of [
         ...(this.reverseDependencies.get(vertex.vertexId) ?? []),
@@ -736,12 +879,13 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       ]) {
         this.addRemoval(dependent, removals, pending);
       }
-      for (const child of this.container.resolvedGraphView.getChildrenOf(
+      for (const child of this.container.liveResolvedGraphView.getChildrenOf(
         current,
       )!) {
         if (removals.has(child) || this.container.isDetachedAnchor(child))
           continue;
-        const parents = this.container.resolvedGraphView.getParentsOf(child)!;
+        const parents =
+          this.container.liveResolvedGraphView.getParentsOf(child)!;
         if (parents.every((parent) => removals.has(parent))) {
           this.addRemoval(child, removals, pending);
         }
@@ -749,11 +893,11 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     }
 
     const survivingSlots: Array<{
-      parent: InternalVertexRef<T | R>;
+      parent: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>;
       index: number;
     }> = [];
     for (const removal of removals) {
-      const vertex = this.container.resolvedGraphView.get(removal)!;
+      const vertex = this.container.liveResolvedGraphView.get(removal)!;
       for (const edge of vertex.incoming) {
         if (!removals.has(edge.parentRef)) {
           survivingSlots.push({
@@ -792,7 +936,9 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     return removals;
   }
 
-  disableSubtree(ref: InternalVertexRef<T | R>): void {
+  disableSubtree(
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ): void {
     const vertex = this.getVertex(ref);
     for (let index = 0; index < vertex.slots.length; index += 1) {
       if (vertex.slots[index]!.kind === 'pending') {
@@ -802,15 +948,19 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     this.closeExpansion(ref);
   }
 
-  getStall(): GraphStall<T | R> | null {
+  getStall(): GraphStall<InputVertexTypes | RewrittenVertexTypes> | null {
     if (this.peekEligible() !== null) return null;
-    const dependencies: GraphStall<T | R>['dependencies'] = [];
-    const incomplete: InternalVertexRef<T | R>[] = [];
+    const blockedVertexPrerequisiteReports: GraphStall<
+      InputVertexTypes | RewrittenVertexTypes
+    >['dependencies'] = [];
+    const incomplete: InternalVertexRef<
+      InputVertexTypes | RewrittenVertexTypes
+    >[] = [];
     for (const [ref, vertexWork] of this.work) {
       if (vertexWork.completionCommitted) continue;
       if (vertexWork.unmet.size > 0 || vertexWork.unmetComplete.size > 0) {
-        dependencies.push({
-          id: this.container.resolvedGraphView.requireVertexId(ref),
+        blockedVertexPrerequisiteReports.push({
+          id: this.container.liveResolvedGraphView.requireVertexId(ref),
           missing: Array.from(
             new Set([...vertexWork.unmet, ...vertexWork.unmetComplete]),
           ),
@@ -819,66 +969,79 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
         incomplete.push(ref);
       }
     }
-    return dependencies.length === 0 && incomplete.length === 0
+    return blockedVertexPrerequisiteReports.length === 0 &&
+      incomplete.length === 0
       ? null
-      : { dependencies, incomplete };
+      : { dependencies: blockedVertexPrerequisiteReports, incomplete };
   }
 
-  diagnoseStall(stall: GraphStall<T | R>): DagTraversalStallDiagnostics {
-    const dependencies = stall.dependencies.map(({ id, missing }) => ({
-      vertexId: id,
-      unmetPrerequisiteIds: missing.slice(),
-    }));
+  diagnoseStall(
+    stall: GraphStall<InputVertexTypes | RewrittenVertexTypes>,
+  ): DagTraversalStallDiagnostics {
+    const blockedVertexPrerequisiteReports = stall.dependencies.map(
+      ({ id, missing }) => ({
+        vertexId: id,
+        prerequisiteVertexIdsInReport: missing.slice(),
+      }),
+    );
     const unknown = new Set<VertexId>();
-    for (const { unmetPrerequisiteIds } of dependencies) {
-      for (const dependency of unmetPrerequisiteIds) {
+    for (const {
+      prerequisiteVertexIdsInReport,
+    } of blockedVertexPrerequisiteReports) {
+      for (const dependency of prerequisiteVertexIdsInReport) {
         if (this.container.store.getIdState(dependency) === undefined)
           unknown.add(dependency);
       }
     }
     const { edges, cycles } = dependencyMilestones(
-      Array.from(this.container.resolvedGraphView.getVertexRefs(), (ref) => ({
-        id: this.container.resolvedGraphView.requireVertexId(ref),
-        work: this.container.store.getDeclaredDependencies(ref),
-        complete: this.container.store.getDeclaredCompleteDependencies(ref),
-        children: this.container.resolvedGraphView
-          .getChildrenOf(ref)!
-          .map((child) =>
-            this.container.resolvedGraphView.requireVertexId(child),
-          ),
-      })),
+      Array.from(
+        this.container.liveResolvedGraphView.getVertexRefs(),
+        (ref) => ({
+          id: this.container.liveResolvedGraphView.requireVertexId(ref),
+          work: this.container.store.getDeclaredDependencies(ref),
+          complete: this.container.store.getDeclaredCompleteDependencies(ref),
+          children: this.container.liveResolvedGraphView
+            .getChildrenOf(ref)!
+            .map((child) =>
+              this.container.liveResolvedGraphView.requireVertexId(child),
+            ),
+        }),
+      ),
     );
     const syntheticId = this.container.syntheticRootId;
     // Analyze the full internal topology, then hide only synthetic bookkeeping.
-    const dependencyEdges = edges
+    const originalMilestoneConstraints = edges
       .filter(
-        ({ waiter, prerequisite }) =>
+        ({ waitingMilestone, prerequisiteMilestone }) =>
           syntheticId === null ||
-          (!sameVertexId(waiter.vertexId, syntheticId) &&
-            !sameVertexId(prerequisite.vertexId, syntheticId)),
+          (!sameVertexId(waitingMilestone.vertexId, syntheticId) &&
+            !sameVertexId(prerequisiteMilestone.vertexId, syntheticId)),
       )
-      .map(({ waiter, prerequisite, reason }) => ({
-        waiter: { ...waiter },
-        prerequisite: { ...prerequisite },
+      .map(({ waitingMilestone, prerequisiteMilestone, reason }) => ({
+        waitingMilestone: { ...waitingMilestone },
+        prerequisiteMilestone: { ...prerequisiteMilestone },
         reason,
       }));
     const cycleMembers = new Set(cycles.flat());
     return {
-      dependencies,
-      unknownPrerequisiteIds: Array.from(unknown),
-      dependencyCycleComponents: cycles,
-      dependencyEdges,
-      dependencyBlockedIds: dependencies
+      blockedVertexPrerequisiteReports,
+      unresolvedPrerequisiteVertexIds: Array.from(unknown),
+      milestoneCycleVertexIdComponents: cycles,
+      originalMilestoneConstraints,
+      nonCyclePrerequisiteBlockedVertexIds: blockedVertexPrerequisiteReports
         .filter(({ vertexId }) => !cycleMembers.has(vertexId))
         .map(({ vertexId }) => vertexId),
-      structurallyIncompleteIds: stall.incomplete.map((ref) =>
-        this.container.resolvedGraphView.requireVertexId(ref),
+      incompleteVertexIdsWithoutUnmetPrerequisites: stall.incomplete.map(
+        (ref) => this.container.liveResolvedGraphView.requireVertexId(ref),
       ),
     };
   }
 
   /** Root, discovery and lookup acceptance share identity/conflict semantics. */
-  private getKnownResult(id: VertexId, result: MakeVertexResult<T>) {
+  private getKnownResult(
+    id: VertexId,
+    result: MakeVertexResult<InputVertexTypes>,
+  ) {
     const known = this.container.store.getIdState(id);
     if (known?.kind === 'omitted' && result.vertexContent !== null) {
       this.throwOmissionContentConflict();
@@ -893,7 +1056,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     this.satisfy(id, true);
   }
 
-  private rejectTreeMetadata(result: MakeVertexResult<T>): void {
+  private rejectTreeMetadata(result: MakeVertexResult<InputVertexTypes>): void {
     if (
       this.container.sourceMode === 'graph' &&
       Object.prototype.hasOwnProperty.call(result, 'priority')
@@ -906,84 +1069,105 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
   }
 
   private makeUniqueRef(
-    content: NonNullable<MakeVertexResult<T>['vertexContent']>,
-  ): { ref: InternalVertexRef<T | R>; id: string } {
+    content: NonNullable<MakeVertexResult<InputVertexTypes>['vertexContent']>,
+  ): {
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>;
+    id: string;
+  } {
     while (true) {
-      const ref = new MutableRef(new Vertex<T | R>(content));
-      const id = ref.getRefId();
+      const ref = new MutableValueReference(
+        new Vertex<InputVertexTypes | RewrittenVertexTypes>(content),
+      );
+      const id = ref.getReferenceIdentity();
       if (this.container.store.getIdState(id) === undefined) return { ref, id };
     }
   }
 
   private getDependencies(
-    context: InternalVertexResolutionContext<T | R>,
-    result: MakeVertexResult<T>,
+    context: InternalChildDiscoveryContext<
+      InputVertexTypes | RewrittenVertexTypes
+    >,
+    result: MakeVertexResult<InputVertexTypes>,
   ): VertexId[] {
-    const declared = result.dependsOnWork;
+    const declared = result.workWaitsForWorkOf;
     if (declared !== undefined) return Array.from(new Set(declared));
     return (this.container.sourceMode === 'graph' &&
-      this.dependsOnWorkDefault === 'none') ||
-      context.parentVertexRef === this.container.syntheticRootRef
+      this.undeclaredWorkPrerequisitePolicy === 'none') ||
+      context.parentVertexHandle === this.container.syntheticRootRef
       ? []
       : [
-          this.container.resolvedGraphView.requireVertexId(
-            context.parentVertexRef,
+          this.container.liveResolvedGraphView.requireVertexId(
+            context.parentVertexHandle,
           ),
         ];
   }
 
   private findExistingTreeChild(
-    context: InternalVertexResolutionContext<T | R>,
-  ): InternalVertexRef<T | R> | null {
-    const candidates = this.reusableTreeChildren.get(context.parentVertexRef);
-    const candidate = candidates?.get(context.hintIndex);
+    context: InternalChildDiscoveryContext<
+      InputVertexTypes | RewrittenVertexTypes
+    >,
+  ): InternalVertexRef<InputVertexTypes | RewrittenVertexTypes> | null {
+    const candidates = this.reusableTreeChildren.get(
+      context.parentVertexHandle,
+    );
+    const candidate = candidates?.get(context.parentChildHintIndex);
     if (candidate === undefined) return null;
-    candidates!.delete(context.hintIndex);
+    candidates!.delete(context.parentChildHintIndex);
     if (candidates!.size === 0) {
-      this.reusableTreeChildren.delete(context.parentVertexRef);
+      this.reusableTreeChildren.delete(context.parentVertexHandle);
     }
-    return sameVertexId(candidate.hint, context.vertexHint)
+    return sameVertexId(candidate.hint, context.childDiscoveryHint)
       ? candidate.ref
       : null;
   }
 
-  private captureReusableTreeChildren(parent: InternalVertexRef<T | R>): void {
+  private captureReusableTreeChildren(
+    parent: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ): void {
     const tree = this.container.treeContainer?.resolvedTree;
     if (tree === undefined) return;
     const candidates = new Map<
       number,
-      { ref: InternalVertexRef<T | R>; hint: (T | R)['VertexHint'] }
+      {
+        ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>;
+        hint: (InputVertexTypes | RewrittenVertexTypes)['ChildHint'];
+      }
     >();
-    for (const child of tree.getChildrenOf(parent)!) {
-      const context = tree.getResolutionContextOf(child);
+    for (const child of tree.getDetachedChildReferenceListOrNull(parent)!) {
+      const context = tree.getDetachedChildDiscoveryContextOrNull(child);
       if (
-        context?.parentVertexRef === parent &&
-        !candidates.has(context.hintIndex)
+        context?.parentVertexHandle === parent &&
+        !candidates.has(context.parentChildHintIndex)
       ) {
-        candidates.set(context.hintIndex, {
+        candidates.set(context.parentChildHintIndex, {
           ref: child,
-          hint: context.vertexHint,
+          hint: context.childDiscoveryHint,
         });
       }
     }
     if (candidates.size > 0) this.reusableTreeChildren.set(parent, candidates);
   }
 
-  private getCompleteDependencies(result: MakeVertexResult<T>): VertexId[] {
+  private getCompleteDependencies(
+    result: MakeVertexResult<InputVertexTypes>,
+  ): VertexId[] {
     if (this.container.sourceMode === 'tree') return [];
-    if (result.dependsOnSubgraphCompletion !== undefined)
+    if (result.workWaitsForSubgraphCompletionOf !== undefined)
       this.completionValidation = true;
-    return Array.from(new Set(result.dependsOnSubgraphCompletion));
+    return Array.from(new Set(result.workWaitsForSubgraphCompletionOf));
   }
 
   private registerDependencies(
-    ref: InternalVertexRef<T | R>,
-    dependencies: readonly VertexId[],
-    reverse: Map<VertexId, Set<InternalVertexRef<T | R>>>,
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+    blockedVertexPrerequisiteReports: readonly VertexId[],
+    reverse: Map<
+      VertexId,
+      Set<InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>>
+    >,
     complete: boolean,
   ): Set<VertexId> {
     const unmet = new Set<VertexId>();
-    for (const dependency of dependencies) {
+    for (const dependency of blockedVertexPrerequisiteReports) {
       let dependents = reverse.get(dependency);
       if (dependents === undefined) {
         dependents = new Set();
@@ -993,11 +1177,12 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       const state = this.container.store.getIdState(dependency);
       if (state?.kind === 'omitted') continue;
       if (state?.kind === 'live') {
-        const status = this.container.resolvedGraphView.getVisitStageOf(
-          state.ref,
-        );
+        const status =
+          this.container.liveResolvedGraphView.getVertexVisitSchedulingStageOrNull(
+            state.ref,
+          );
         if (
-          status === 'COMPLETE' ||
+          status === 'COMPLETION_VISIT_COMMITTED' ||
           (!complete &&
             (status === 'INITIAL_VISIT_COMMITTED' ||
               status === 'COMPLETION_VISIT_ELIGIBLE'))
@@ -1010,13 +1195,13 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
   }
 
   private register(
-    ref: InternalVertexRef<T | R>,
-    dependencies: readonly VertexId[],
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+    blockedVertexPrerequisiteReports: readonly VertexId[],
     completeDependencies: readonly VertexId[] = [],
   ): void {
     const unmet = this.registerDependencies(
       ref,
-      dependencies,
+      blockedVertexPrerequisiteReports,
       this.reverseDependencies,
       false,
     );
@@ -1027,7 +1212,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       true,
     );
 
-    const vertexWork: VertexWork<T | R> = {
+    const vertexWork: VertexWork<InputVertexTypes | RewrittenVertexTypes> = {
       ref,
       unmet,
       unmetComplete,
@@ -1045,7 +1230,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     if (
       ref === this.container.syntheticRootRef ||
       this.unusedCompletedWork.delete(
-        this.container.resolvedGraphView.requireVertexId(ref),
+        this.container.liveResolvedGraphView.requireVertexId(ref),
       )
     ) {
       vertexWork.initialAdmitted = true;
@@ -1072,7 +1257,9 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     }
   }
 
-  private enqueueReady(vertexWork: VertexWork<T | R>): void {
+  private enqueueReady(
+    vertexWork: VertexWork<InputVertexTypes | RewrittenVertexTypes>,
+  ): void {
     if (
       vertexWork.unmet.size !== 0 ||
       vertexWork.unmetComplete.size !== 0 ||
@@ -1087,11 +1274,15 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     this.eligible.push({ ref: vertexWork.ref, order: 'ON_WORK_READY' });
   }
 
-  private peekEligible(): EligibleVisit<T | R> | null {
+  private peekEligible(): EligibleVisit<
+    InputVertexTypes | RewrittenVertexTypes
+  > | null {
     return this.eligible[this.eligibleHead] ?? null;
   }
 
-  private dequeueEligible(): EligibleVisit<T | R> | null {
+  private dequeueEligible(): EligibleVisit<
+    InputVertexTypes | RewrittenVertexTypes
+  > | null {
     const entry = this.peekEligible();
     if (entry === null) return null;
     this.eligibleHead += 1;
@@ -1109,7 +1300,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
   }
 
   private noteLinkedSlot(
-    parent: InternalVertexRef<T | R>,
+    parent: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
     index: number,
   ): void {
     const vertexWork = this.work.get(parent);
@@ -1123,7 +1314,10 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     }
   }
 
-  private accountSlot(vertexWork: VertexWork<T | R>, index: number): void {
+  private accountSlot(
+    vertexWork: VertexWork<InputVertexTypes | RewrittenVertexTypes>,
+    index: number,
+  ): void {
     if (vertexWork.completionAccounted[index] === true) return;
     vertexWork.completionAccounted[index] = true;
     if (vertexWork.expansion === 'closed') {
@@ -1132,7 +1326,9 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     }
   }
 
-  private enqueueCompletion(vertexWork: VertexWork<T | R>): void {
+  private enqueueCompletion(
+    vertexWork: VertexWork<InputVertexTypes | RewrittenVertexTypes>,
+  ): void {
     if (
       !vertexWork.initialCommitted ||
       vertexWork.expansion !== 'closed' ||
@@ -1147,26 +1343,34 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       vertexWork.ref,
       'COMPLETION_VISIT_ELIGIBLE',
     );
-    this.eligible.push({ ref: vertexWork.ref, order: 'ON_SUBGRAPH_READY' });
+    this.eligible.push({
+      ref: vertexWork.ref,
+      order: 'ON_SUBGRAPH_COMPLETION_READY',
+    });
   }
 
   private addRemoval(
-    ref: InternalVertexRef<T | R>,
-    removals: Set<InternalVertexRef<T | R>>,
-    pending: InternalVertexRef<T | R>[],
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+    removals: Set<InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>>,
+    pending: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>[],
   ): void {
-    if (!this.container.resolvedGraphView.has(ref) || removals.has(ref)) return;
+    if (!this.container.liveResolvedGraphView.has(ref) || removals.has(ref))
+      return;
     removals.add(ref);
     pending.push(ref);
   }
 
-  private getVertex(ref: InternalVertexRef<T | R>) {
-    const vertex = this.container.resolvedGraphView.get(ref);
+  private getVertex(
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ) {
+    const vertex = this.container.liveResolvedGraphView.get(ref);
     if (vertex === null) throw new Error('Unknown vertex reference');
     return vertex;
   }
 
-  private getWork(ref: InternalVertexRef<T | R>): VertexWork<T | R> {
+  private getWork(
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ): VertexWork<InputVertexTypes | RewrittenVertexTypes> {
     const vertexWork = this.work.get(ref);
     if (vertexWork === undefined) throw new Error('Vertex is not enrolled');
     return vertexWork;

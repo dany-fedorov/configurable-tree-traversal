@@ -1,10 +1,13 @@
-export { rewriteObject, rewriteObjectAs } from './rewriteObject';
+export {
+  rewriteObject,
+  rewriteObjectWithAssertedOutputType,
+} from './rewriteObject';
 export type {
   ObjectRewriteOutputResult,
-  ObjectRewriteContext,
-  ObjectRewriteInput,
-  ObjectRewriteCallback,
-  RewriteObjectResult,
-  RewriteObjectOptions,
-  RootValueConverter,
+  ObjectPropertyRewriteContext,
+  ObjectPropertyRewriteInput,
+  ObjectPropertyPostOrderRewriteCallback,
+  ObjectPropertyRewriteResult,
+  ObjectPropertyRewriteOptions,
+  PresentRootOutputConverter,
 } from './rewriteObject';

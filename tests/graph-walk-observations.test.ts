@@ -1,22 +1,31 @@
-import { GraphWalk, GraphWalkPhase, TraversalRunnerStatus } from '../src';
+import {
+  GraphWalkBuilder,
+  GraphWalkObservationKind,
+  TraversalRunnerStatus,
+} from '../src';
 import { contextFixture, idGraph } from './helpers/graph-walk-fixtures';
 
 it('observes vertices and every parallel/returning relationship in one pass', () => {
   const { source, calls } = contextFixture();
-  const walker = new GraphWalk({ source });
-  const runner = walker.createRunner();
+  const walker = new GraphWalkBuilder({ graphWalkDiscoverySource: source });
+  const runner = walker.createIndependentRunnerFromCurrentOptions();
   expect(calls).toEqual([]);
-  expect(runner.getStatus()).toBe(TraversalRunnerStatus.INITIAL);
+  expect(runner.getTraversalLifecycleStatus()).toBe(
+    TraversalRunnerStatus.NOT_STARTED,
+  );
   const events = [
-    ...runner.iterateEvents({
-      emitEvents: [GraphWalkPhase.VERTEX, GraphWalkPhase.EDGE],
+    ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: [
+        GraphWalkObservationKind.VERTEX_OCCURRENCE,
+        GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE,
+      ],
     }),
   ];
   expect(
     events.map((event) =>
-      event.kind === 'vertex'
+      event.eventKind === 'vertexOccurrence'
         ? `v:${event.vertex.vertexId}`
-        : `e:${event.edge.from}:${event.edge.to}:${event.edge.data.kind}`,
+        : `e:${event.edge.fromVertexId}:${event.edge.toVertexId}:${event.edge.edgeData.kind}`,
     ),
   ).toEqual([
     'v:A',
@@ -31,16 +40,20 @@ it('observes vertices and every parallel/returning relationship in one pass', ()
     'e:C:D:cites',
     'e:D:A:cites',
   ]);
-  expect(runner.summary()).toEqual({
+  expect(runner.captureProgressSnapshot()).toEqual({
     status: TraversalRunnerStatus.FINISHED,
-    outcome: { kind: 'exhausted' },
+    terminalOutcome: { kind: 'sourceRoutesExhausted' },
     counts: {
-      candidateReadAttempts: 14,
-      admittedTargets: 8,
-      uniqueFoundVertices: 5,
-      uniqueOmittedVertices: 0,
-      discoveredLinks: 6,
-      processedObservations: { vertex: 5, edge: 6, path: 5 },
+      rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 14,
+      admittedRootOrLinkTargetOccurrences: 8,
+      resolvedFoundVertexIdCount: 5,
+      resolvedOmittedVertexIdCount: 0,
+      freshSourceOutgoingLinkCount: 6,
+      acknowledgedObservationCountsByKind: {
+        vertexOccurrence: 5,
+        admittedEdgeOccurrence: 6,
+        routePrefix: 5,
+      },
     },
   });
   expect(calls.filter((call) => call.startsWith('resolve:'))).toEqual([
@@ -61,15 +74,16 @@ it('observes vertices and every parallel/returning relationship in one pass', ()
 
 it('discovers depth first in source order without pulling the next root early', () => {
   const { source, calls } = contextFixture();
-  const runner = new GraphWalk({
-    source,
-    strategy: 'depthFirst',
-  }).createRunner();
-  const iterator = runner.iterateEvents({
-    emitEvents: [GraphWalkPhase.VERTEX],
-  });
+  const runner = new GraphWalkBuilder({
+    graphWalkDiscoverySource: source,
+    expansionOrder: 'depthFirst',
+  }).createIndependentRunnerFromCurrentOptions();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: [GraphWalkObservationKind.VERTEX_OCCURRENCE],
+    });
   expect(iterator.next().value).toMatchObject({
-    kind: 'vertex',
+    eventKind: 'vertexOccurrence',
     vertex: { vertexId: 'A' },
   });
   expect(calls).toEqual(['roots', 'resolve:A']);
@@ -91,19 +105,21 @@ it('projects first-discovery prefix paths including isolated roots', () => {
     ],
   );
   const events = [
-    ...new GraphWalk({ source })
-      .createRunner()
-      .iterateEvents({ emitEvents: [GraphWalkPhase.PATH] }),
+    ...new GraphWalkBuilder({ graphWalkDiscoverySource: source })
+      .createIndependentRunnerFromCurrentOptions()
+      .runAndIterateObservationEventsUntilSuspendedOrTerminal({
+        deliveredEventKinds: [GraphWalkObservationKind.ROUTE_PREFIX],
+      }),
   ];
   expect(
     events.map((event) => ({
-      ids: event.vertices.map((vertex) => vertex.vertexId),
-      edges: event.edges.map((edge) => [
-        edge.from,
-        edge.outgoingIndex,
-        edge.to,
+      ids: event.verticesInRootToTargetOrder.map((vertex) => vertex.vertexId),
+      edges: event.edgesInRootToTargetOrder.map((edge) => [
+        edge.fromVertexId,
+        edge.sourceOutgoingLinkIndexBeforeFiltering,
+        edge.toVertexId,
       ]),
-      depth: event.depth,
+      depth: event.routeHopLength,
     })),
   ).toEqual([
     { ids: ['A'], edges: [], depth: 0 },
@@ -114,52 +130,72 @@ it('projects first-discovery prefix paths including isolated roots', () => {
 
 it('selects edges independently and runs to exhaustion without selecting any records', () => {
   const { source } = contextFixture();
-  const runner = new GraphWalk({ source }).createRunner();
+  const runner = new GraphWalkBuilder({
+    graphWalkDiscoverySource: source,
+  }).createIndependentRunnerFromCurrentOptions();
   expect([
-    ...runner.iterateEvents({ emitEvents: [GraphWalkPhase.EDGE] }),
+    ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: [GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE],
+    }),
   ]).toHaveLength(6);
-  const hidden = new GraphWalk({ source, emitEvents: [] }).createRunner();
-  expect(hidden.run()).toBe(hidden);
-  expect(hidden.summary()).toEqual(runner.summary());
-  expect([...runner.iterateEvents()]).toEqual([]);
+  const hidden = new GraphWalkBuilder({
+    graphWalkDiscoverySource: source,
+    deliveredEventKinds: [],
+  }).createIndependentRunnerFromCurrentOptions();
+  expect(hidden.runUntilSuspendedOrTerminal()).toBe(hidden);
+  expect(hidden.captureProgressSnapshot()).toEqual(
+    runner.captureProgressSnapshot(),
+  );
+  expect([
+    ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+  ]).toEqual([]);
 });
 
 it('pauses without expanding yielded occurrences and resumes pending phases with new selectors', () => {
   const { source, calls } = contextFixture();
-  const runner = new GraphWalk({ source }).createRunner();
-  expect(runner.requestPause()).toBe(false);
-  expect(runner.getStopReason()).toBeNull();
-  expect(runner.isHalted()).toBe(false);
-  const idle = runner.inspect();
+  const runner = new GraphWalkBuilder({
+    graphWalkDiscoverySource: source,
+  }).createIndependentRunnerFromCurrentOptions();
+  expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(false);
+  expect(runner.getTraversalStopReason()).toBeNull();
+  expect(runner.isSuspended()).toBe(false);
+  const idle = runner.captureExecutionSnapshot();
   expect(idle).toMatchObject({
-    kind: 'graph-walk',
-    execution: 'sync',
+    traversalAlgorithm: 'graph-walk',
+    callbackExecutionMode: 'sync',
     openSourceIteratorCount: 0,
-    frontierSize: 0,
+    pendingRouteExpansionFrameCount: 0,
   });
-  const iterator = runner.iterateEvents({ emitEvents: [GraphWalkPhase.EDGE] });
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: [GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE],
+    });
   const edge = iterator.next().value!;
-  expect(edge.kind).toBe('edge');
+  expect(edge.eventKind).toBe('admittedEdgeOccurrence');
   expect(calls).not.toContain('outgoing:B');
   iterator.return();
-  expect(runner.isHalted()).toBe(true);
-  expect(runner.getStopReason()).toBe('paused');
-  expect(runner.summary().outcome).toBeNull();
+  expect(runner.isSuspended()).toBe(true);
+  expect(runner.getTraversalStopReason()).toBe('paused');
+  expect(runner.captureProgressSnapshot().terminalOutcome).toBeNull();
   const before = calls.slice();
-  const inspection = runner.inspect();
+  const inspection = runner.captureExecutionSnapshot();
   expect(calls).toEqual(before);
   expect(inspection.pendingObservationKinds).toEqual([
-    GraphWalkPhase.VERTEX,
-    GraphWalkPhase.PATH,
+    GraphWalkObservationKind.VERTEX_OCCURRENCE,
+    GraphWalkObservationKind.ROUTE_PREFIX,
   ]);
   expect(inspection.openSourceIteratorCount).toBe(1);
   expect(Object.isFrozen(inspection)).toBe(true);
-  expect(Object.isFrozen(inspection.counts.processedObservations)).toBe(true);
-  expect(Object.isFrozen(inspection.executionOptions.emitEvents)).toBe(true);
+  expect(
+    Object.isFrozen(inspection.counts.acknowledgedObservationCountsByKind),
+  ).toBe(true);
+  expect(Object.isFrozen(inspection.executionOptions.deliveredEventKinds)).toBe(
+    true,
+  );
   const vertices = [
-    ...runner.iterateEvents({
-      emitEvents: [GraphWalkPhase.VERTEX],
-      visitorPhases: { include: [] },
+    ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: [GraphWalkObservationKind.VERTEX_OCCURRENCE],
+      admittedVisitorCallbackPhases: { include: [] },
     }),
   ];
   expect(vertices.map((event) => event.vertex.vertexId)).toEqual([
@@ -167,12 +203,15 @@ it('pauses without expanding yielded occurrences and resumes pending phases with
     'C',
     'D',
   ]);
-  expect(runner.inspect().executionOptions.visitorPhases).toEqual({
+  expect(
+    runner.captureExecutionSnapshot().executionOptions
+      .admittedVisitorCallbackPhases,
+  ).toEqual({
     include: [],
   });
-  expect(runner.inspect().openSourceIteratorCount).toBe(0);
-  expect(idle.counts.admittedTargets).toBe(0);
-  expect(inspection.counts.admittedTargets).toBe(3);
+  expect(runner.captureExecutionSnapshot().openSourceIteratorCount).toBe(0);
+  expect(idle.counts.admittedRootOrLinkTargetOccurrences).toBe(0);
+  expect(inspection.counts.admittedRootOrLinkTargetOccurrences).toBe(3);
 });
 
 it('retains detached emitted wrappers across caller mutation', () => {
@@ -183,62 +222,87 @@ it('retains detached emitted wrappers across caller mutation', () => {
       ['B', []],
     ],
   );
-  const runner = new GraphWalk({ source }).createRunner();
-  const iterator = runner.iterateEvents({
-    emitEvents: [GraphWalkPhase.EDGE, GraphWalkPhase.PATH],
-  });
+  const runner = new GraphWalkBuilder({
+    graphWalkDiscoverySource: source,
+  }).createIndependentRunnerFromCurrentOptions();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: [
+        GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE,
+        GraphWalkObservationKind.ROUTE_PREFIX,
+      ],
+    });
   const root = iterator.next().value!;
-  if (root.kind !== 'path') throw new Error('Expected path');
-  (root.vertices[0] as { vertexId: string }).vertexId = 'bad';
-  (root.edges as unknown[]).push('bad');
+  if (root.eventKind !== 'routePrefix') throw new Error('Expected path');
+  (root.verticesInRootToTargetOrder[0] as { vertexId: string }).vertexId =
+    'bad';
+  (root.edgesInRootToTargetOrder as unknown[]).push('bad');
   const edge = iterator.next().value!;
-  if (edge.kind !== 'edge') throw new Error('Expected edge');
-  (edge.edge as { to: string }).to = 'bad';
+  if (edge.eventKind !== 'admittedEdgeOccurrence')
+    throw new Error('Expected edge');
+  (edge.edge as { toVertexId: string }).toVertexId = 'bad';
   (edge.fromVertex as { vertexId: string }).vertexId = 'bad';
   expect(iterator.next().value).toMatchObject({
-    kind: 'path',
-    vertices: [{ vertexId: 'A' }, { vertexId: 'B' }],
-    edges: [{ from: 'A', to: 'B' }],
+    eventKind: 'routePrefix',
+    verticesInRootToTargetOrder: [{ vertexId: 'A' }, { vertexId: 'B' }],
+    edgesInRootToTargetOrder: [{ fromVertexId: 'A', toVertexId: 'B' }],
   });
   expect(iterator.next().done).toBe(true);
 });
 
 it('protects execution ownership and validates selector patches atomically', () => {
-  const runner = new GraphWalk({
-    source: idGraph(['A'], [['A', []]]),
-  }).createRunner();
-  const iterator = runner.iterateEvents();
+  const runner = new GraphWalkBuilder({
+    graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
+  }).createIndependentRunnerFromCurrentOptions();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   iterator.next();
-  expect(() => runner.run()).toThrow('execution owner');
+  expect(() => runner.runUntilSuspendedOrTerminal()).toThrow('execution owner');
   expect(() =>
-    runner.iterateEvents({ emitEvents: ['wrong' as GraphWalkPhase] }),
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: ['wrong' as GraphWalkObservationKind],
+    }),
   ).toThrow(TypeError);
   iterator.return();
-  const factory = new GraphWalk({ source: idGraph([], []) });
+  const factory = new GraphWalkBuilder({
+    graphWalkDiscoverySource: idGraph([], []),
+  });
   expect(
-    factory.configure({
-      emitEvents: [],
-      visitorPhases: { exclude: [GraphWalkPhase.EDGE] },
+    factory.patchOptionsForFutureRunners({
+      deliveredEventKinds: [],
+      admittedVisitorCallbackPhases: {
+        exclude: [GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE],
+      },
     }),
   ).toBe(factory);
-  const configured = factory.createRunner();
-  expect(configured.inspect().executionOptions.visitorPhases).toEqual({
-    exclude: [GraphWalkPhase.EDGE],
+  const configured = factory.createIndependentRunnerFromCurrentOptions();
+  expect(
+    configured.captureExecutionSnapshot().executionOptions
+      .admittedVisitorCallbackPhases,
+  ).toEqual({
+    exclude: [GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE],
   });
-  expect(configured.run().getStopReason()).toBe('finished');
+  expect(
+    configured.runUntilSuspendedOrTerminal().getTraversalStopReason(),
+  ).toBe('finished');
 });
 
 it('acknowledges an existing pause request when the iterator owner returns', () => {
   const { source, calls } = contextFixture();
-  const runner = new GraphWalk({ source }).createRunner();
-  const iterator = runner.iterateEvents();
+  const runner = new GraphWalkBuilder({
+    graphWalkDiscoverySource: source,
+  }).createIndependentRunnerFromCurrentOptions();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   iterator.next();
-  expect(runner.requestPause()).toBe(true);
+  expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(true);
   const before = calls.slice();
   iterator.return();
-  expect(runner.isHalted()).toBe(true);
-  expect(runner.getStopReason()).toBe('paused');
+  expect(runner.isSuspended()).toBe(true);
+  expect(runner.getTraversalStopReason()).toBe('paused');
   expect(calls).toEqual(before);
-  runner.run();
-  expect(runner.summary().outcome).toEqual({ kind: 'exhausted' });
+  runner.runUntilSuspendedOrTerminal();
+  expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
+    kind: 'sourceRoutesExhausted',
+  });
 });

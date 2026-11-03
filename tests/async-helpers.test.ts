@@ -1,54 +1,54 @@
 import {
-  BreadthFirstPhase,
-  DepthFirstPhase,
+  BreadthFirstTreeVisitPhase,
+  DepthFirstTreeVisitPhase,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
-  traverseTreeBreadthFirstAsync,
+  runTreeBreadthFirstUntilSuspendedOrTerminalAsync,
 } from '../src';
-import { traverseTreeDepthFirstAsync } from '../src/traversals/depth-first-traversal';
-import type { AsyncTreeSource } from '../src/core/AsyncTraversableTree';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { runTreeDepthFirstUntilSuspendedOrTerminalAsync } from '../src/traversals/depth-first-traversal';
+import type { AsyncTreeDiscoverySource } from '../src/core/AsyncTraversableTree';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 
-type TestTree = VertexTypes<string, string>;
+type TestTree = VertexDataAndChildHintTypes<string, string>;
 
-function tree(root: string): AsyncTreeSource<TestTree> {
+function tree(root: string): AsyncTreeDiscoverySource<TestTree> {
   return {
-    resolveRoot: async () => ({
-      kind: 'found' as const,
-      vertex: { vertexContent: { $data: root, $childHints: [] } },
+    resolveRootVertex: async () => ({
+      kind: "vertexResolved" as const,
+      resolvedVertexInput: { vertexContentInput: { $vertexData: root, $childDiscoveryHints: [] } },
     }),
-    resolveChild: async () => ({ kind: 'omitted' as const }),
+    resolveChildVertexFromHint: async () => ({ kind: "vertexIntentionallyOmitted" as const }),
   };
 }
 
 test('async tree helpers run with omitted visitors and configured source options', async () => {
-  const depthRunner = await traverseTreeDepthFirstAsync({
+  const depthRunner = await runTreeDepthFirstUntilSuspendedOrTerminalAsync({
     ...{
-      traversableTree: tree('config'),
+      treeDiscoverySource: tree('config'),
     },
   });
 
-  expect(depthRunner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
+  expect(depthRunner.getTraversalLifecycleStatus()).toBe(TraversalRunnerStatus.FINISHED);
   expect(
-    depthRunner.getResolvedGraphView().getRoot()?.getValue().getData(),
+    depthRunner.getLiveResolvedGraphView().getDesignatedRootHandleOrNull()?.getCurrentVertexView().getVertexData(),
   ).toBe('config');
 
-  const breadthRunner = await traverseTreeBreadthFirstAsync({
-    traversableTree: tree('root'),
+  const breadthRunner = await runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+    treeDiscoverySource: tree('root'),
   });
-  expect(breadthRunner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
+  expect(breadthRunner.getTraversalLifecycleStatus()).toBe(TraversalRunnerStatus.FINISHED);
 });
 
 test('async breadth-first helper registers its visitor and returns a halted runner', async () => {
   const visits: string[] = [];
-  const runner = await traverseTreeBreadthFirstAsync({
-    traversableTree: tree('root'),
+  const runner = await runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+    treeDiscoverySource: tree('root'),
     visitors: {
-      LEVEL_ORDER: async (vertex) => {
-        visits.push(vertex.getData());
+      AT_LEVEL_ORDER_VERTEX: async (vertex) => {
+        visits.push(vertex.getVertexData());
         return {
           commands: [
-            { commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL },
+            { commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
           ],
         };
       },
@@ -56,32 +56,32 @@ test('async breadth-first helper registers its visitor and returns a halted runn
   });
 
   expect(visits).toEqual(['root']);
-  expect(runner.getStatus()).toBe(TraversalRunnerStatus.HALTED);
-  expect(runner.inspect().kind).toBe('breadth-first');
-  expect(BreadthFirstPhase.LEVEL_ORDER).toBe('LEVEL_ORDER');
+  expect(runner.getTraversalLifecycleStatus()).toBe(TraversalRunnerStatus.SUSPENDED);
+  expect(runner.captureExecutionSnapshot().traversalAlgorithm).toBe('breadth-first');
+  expect(BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX).toBe('AT_LEVEL_ORDER_VERTEX');
 });
 
 test('async depth-first helper registers each named visitor', async () => {
-  const orders: DepthFirstPhase[] = [];
-  const runner = await traverseTreeDepthFirstAsync({
-    traversableTree: tree('root'),
+  const orders: DepthFirstTreeVisitPhase[] = [];
+  const runner = await runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+    treeDiscoverySource: tree('root'),
     visitors: {
-      PRE_ORDER: async (_vertex, options) => {
-        orders.push(options.phase);
+      BEFORE_CHILD_EXPANSION: async (_vertex, options) => {
+        orders.push(options.visitorPhase);
       },
-      IN_ORDER: async (_vertex, options) => {
-        orders.push(options.phase);
+      AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES: async (_vertex, options) => {
+        orders.push(options.visitorPhase);
       },
-      POST_ORDER: async (_vertex, options) => {
-        orders.push(options.phase);
+      AFTER_CHILD_SUBTREES: async (_vertex, options) => {
+        orders.push(options.visitorPhase);
       },
     },
   });
 
   expect(orders).toEqual([
-    DepthFirstPhase.PRE_ORDER,
-    DepthFirstPhase.IN_ORDER,
-    DepthFirstPhase.POST_ORDER,
+    DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+    DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
+    DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
   ]);
-  expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(TraversalRunnerStatus.FINISHED);
 });

@@ -1,5 +1,7 @@
 # Client API migration
 
+> Historical release guide: the tables and examples below describe the released 0.12 API and its earlier migration. They are not the API of this unreleased checkout. Start with the [explicit API migration](migration-explicit-api.md) to move from released 0.12 to this checkout; use the [current reference](reference.md) for the implemented contracts.
+
 Upgrade-only reading. Start from the [final upgrade checklist](migration-api-distinctions.md); this guide keeps the detailed tables and examples for one earlier stage and is not a step you apply in sequence. First-time readers should use the [README](../README.md) and [reference](reference.md) instead.
 
 [Documentation map](index.md) · [API reference](reference.md) · [Idiomatic API migration](migration-idiomatic-api.md)
@@ -35,7 +37,7 @@ This guide covers the twenty client API corrections. Removed forms have no compa
 
 A rewrite can retain old children and replace others with different values. Narrow current values with runtime checks; output patch payloads retain their declared types. Neither an explicit generic nor a narrow assembly cache proves reconstructed shape. Use `Map<Key, unknown>` or `ObjectAssemblyCache<Key>` for assembly. `createRootPropertyMapper(rootKey?)` preserves the actual root input and key types; default child discovery stays broad. Narrow discovery requires both `getRootPropertyFromInputObject` and `getChildrenOfProperty`, including through rewrite helper options.
 
-<!-- standalone -->
+<!-- historical 0.12 example; not a current standalone program -->
 
 ```ts
 import { rewriteObject } from 'configurable-tree-traversal';
@@ -70,7 +72,7 @@ Tree contexts expose `resolvedTreeView`; graph contexts expose `resolvedGraphVie
 
 Configuration validates the complete candidate before replacing settings. Missing/undefined fields retain prior values under `exactOptionalPropertyTypes`, including phase and in-order fields. Null clears only explicitly nullable fields, such as sorters and walking predicates. Walking construction accepts `limits`; `configure({ replaceLimits })` replaces the entire limits record. Existing runners retain their configuration snapshots. Builders, helpers, registration, execution, materializer and path-query option bags reject unsupported own keys before callbacks or mutation. Sources still accept inherited protocol methods and caller-owned state; task data and authored DAG declarations remain opaque/declaration inputs.
 
-<!-- standalone -->
+<!-- historical 0.12 example; not a current standalone program -->
 
 ```ts
 import {

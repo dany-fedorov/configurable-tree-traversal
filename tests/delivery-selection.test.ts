@@ -1,64 +1,71 @@
 import {
-  AsyncBreadthFirstTreeTraversal,
-  AsyncDagTraversal,
-  AsyncDepthFirstTreeTraversal,
-  AsyncGraphWalk,
-  BreadthFirstPhase,
-  DagTraversal,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  AsyncGraphWalkBuilder,
+  BreadthFirstTreeVisitPhase,
+  DagTraversalBuilder,
   DagVisitorPhase,
-  DepthFirstPhase,
-  GraphWalk,
+  DepthFirstTreeVisitPhase,
+  GraphWalkBuilder,
   TraversalRunnerStatus,
-  type VertexTypes,
+  type VertexDataAndChildHintTypes,
   type VertexView,
 } from '../src';
 import { deferred } from './helpers/graph-fixtures';
 import { idGraph } from './helpers/graph-walk-fixtures';
 
-type Data = VertexTypes<string, string>;
+type Data = VertexDataAndChildHintTypes<string, string>;
 const tree = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
-      vertexContent: { $data: 'root', $childHints: [] },
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
     },
   }),
-  resolveChild: () => ({ kind: 'omitted' as const }),
+  resolveChildVertexFromHint: () => ({
+    kind: 'vertexIntentionallyOmitted' as const,
+  }),
 };
 const graph = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId: 'root',
-      vertexContent: { $data: 'root', $childHints: [] },
+      vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
     },
   }),
-  resolveChild: () => ({
-    identity: null,
-    kind: 'omitted' as const,
-    satisfiesDependencies: true as const,
+  resolveChildHint: () => ({
+    omittedVertexIdentity: null,
+    kind: 'vertexIntentionallyOmitted' as const,
+    satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
   }),
 };
 const families = [
   {
     name: 'DFS',
-    phase: DepthFirstPhase.PRE_ORDER,
-    kind: DepthFirstPhase.PRE_ORDER,
+    phase: DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+    kind: DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
     make: () =>
-      new AsyncDepthFirstTreeTraversal<Data>({ traversableTree: tree }),
+      new AsyncDepthFirstTreeTraversalBuilder<Data>({
+        treeDiscoverySource: tree,
+      }),
   },
   {
     name: 'BFS',
-    phase: BreadthFirstPhase.LEVEL_ORDER,
-    kind: BreadthFirstPhase.LEVEL_ORDER,
+    phase: BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
+    kind: BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
     make: () =>
-      new AsyncBreadthFirstTreeTraversal<Data>({ traversableTree: tree }),
+      new AsyncBreadthFirstTreeTraversalBuilder<Data>({
+        treeDiscoverySource: tree,
+      }),
   },
   {
     name: 'DAG',
     phase: DagVisitorPhase.ON_WORK_READY,
-    kind: 'workCompleted',
-    make: () => new AsyncDagTraversal<Data>({ traversableGraph: graph }),
+    kind: 'workCompletionCommitted',
+    make: () =>
+      new AsyncDagTraversalBuilder<Data>({ dagDiscoverySource: graph }),
   },
 ];
 
@@ -70,7 +77,7 @@ describe.each(families)('$name buffered delivery', (family) => {
       const finish = deferred<void>();
       const calls: string[] = [];
       const traversal = family.make();
-      const add = traversal.addVisitorFor.bind(traversal) as (
+      const add = traversal.registerVisitorCallbackForPhase.bind(traversal) as (
         phase: string,
         visitor: (vertex: VertexView<Data>) => Promise<void> | void,
       ) => unknown;
@@ -82,14 +89,17 @@ describe.each(families)('$name buffered delivery', (family) => {
       add(family.phase, () => {
         calls.push('drained');
       });
-      const runner = traversal.createRunner();
+      const runner = traversal.createIndependentRunnerFromCurrentOptions();
       // Family fixtures deliberately share a runtime harness; public type cases are separate.
-      const iterate = runner.iterateEvents.bind(runner) as (config?: {
-        emitEvents?: readonly string[];
-        visitorPhases?: { include: readonly string[] };
-      }) => AsyncGenerator<{ phase?: string; kind?: string }>;
+      const iterate =
+        runner.runAndIterateObservationEventsUntilSuspendedOrTerminal.bind(
+          runner,
+        ) as (config?: {
+          deliveredEventKinds?: readonly string[];
+          admittedVisitorCallbackPhases?: { include: readonly string[] };
+        }) => AsyncGenerator<{ eventKind: string }>;
       const iterator = iterate({
-        emitEvents: selectedInitially ? [family.kind] : [],
+        deliveredEventKinds: selectedInitially ? [family.kind] : [],
       });
       const pending = iterator.next();
       await started.promise;
@@ -97,107 +107,141 @@ describe.each(families)('$name buffered delivery', (family) => {
       finish.resolve();
       expect(await closed).toEqual({ done: true, value: undefined });
       expect(await pending).toEqual({ done: true, value: undefined });
-      expect(runner.getStopReason()).toBe('paused');
-      expect(runner.inspect().bufferedEventCount).toBe(1);
+      expect(runner.getTraversalStopReason()).toBe('paused');
+      expect(runner.captureExecutionSnapshot().bufferedDeliveryEventCount).toBe(
+        1,
+      );
       expect(calls).toEqual(['start', 'drained']);
-      if ('summary' in runner)
-        expect(runner.summary().completedWorkIds).toEqual(['root']);
+      if ('captureProgressSnapshot' in runner)
+        expect(
+          runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+        ).toEqual(['root']);
       const delivered: string[] = [];
       for await (const event of iterate({
-        emitEvents: selectedInitially ? [] : [family.kind],
-        visitorPhases: { include: [] },
+        deliveredEventKinds: selectedInitially ? [] : [family.kind],
+        admittedVisitorCallbackPhases: { include: [] },
       }))
-        delivered.push(event.kind ?? event.phase!);
+        delivered.push(event.eventKind);
       expect(delivered).toEqual(selectedInitially ? [] : [family.kind]);
       expect(calls).toEqual(['start', 'drained']);
-      expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
-      expect(runner.getStopReason()).toBe('finished');
+      expect(runner.getTraversalLifecycleStatus()).toBe(
+        TraversalRunnerStatus.FINISHED,
+      );
+      expect(runner.getTraversalStopReason()).toBe('finished');
       expect(await iterate().next()).toEqual({ done: true, value: undefined });
     },
   );
 });
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test.each([
-    { emitEvents: [] },
-    { emitEvents: ['workCompleted'] },
-    { emitEvents: ['subgraphCompleted'] },
+    { deliveredEventKinds: [] },
+    { deliveredEventKinds: ['workCompletionCommitted'] },
+    { deliveredEventKinds: ['subgraphCompletionCommitted'] },
   ] as const)(
     `${Constructor.name} settles under empty admission selection and delivers %j`,
-    async ({ emitEvents }) => {
+    async ({ deliveredEventKinds }) => {
       const calls: string[] = [];
       const traversal = new Constructor<Data>({
-        traversableGraph: graph,
-        workCompletion: 'externalSettlement',
+        dagDiscoverySource: graph,
+        workCompletionPolicy: 'requireExternalWorkSettlement',
       });
-      traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, () => {
-        calls.push('work');
+      traversal.registerVisitorCallbackForPhase(
+        DagVisitorPhase.ON_WORK_READY,
+        () => {
+          calls.push('work');
+        },
+      );
+      traversal.registerVisitorCallbackForPhase(
+        DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY,
+        () => {
+          calls.push('complete');
+        },
+      );
+      const runner = traversal.createIndependentRunnerFromCurrentOptions();
+      await runner.runUntilSuspendedOrTerminal({
+        deliveredEventKinds: [],
+        admittedVisitorCallbackPhases: {
+          include: [DagVisitorPhase.ON_WORK_READY],
+        },
       });
-      traversal.addVisitorFor(DagVisitorPhase.ON_SUBGRAPH_READY, () => {
-        calls.push('complete');
-      });
-      const runner = traversal.createRunner();
-      await runner.run({
-        emitEvents: [],
-        visitorPhases: { include: [DagVisitorPhase.ON_WORK_READY] },
-      });
-      expect(runner.getStopReason()).toBe('awaitingSettlement');
-      const ticket = runner.summary().awaitingSettlement[0]!;
+      expect(runner.getTraversalStopReason()).toBe('awaitingSettlement');
+      const ticket =
+        runner.captureProgressSnapshot().workAwaitingSettlement[0]!;
       expect(
-        runner.settle(
+        runner.settleDeferredWork(
           ticket.vertexId,
           { kind: 'workCompleted' },
-          ticket.generation,
+          ticket.settlementToken,
         ),
       ).toBe(true);
       expect(
-        runner.settle(
+        runner.settleDeferredWork(
           ticket.vertexId,
           { kind: 'workCompleted' },
-          ticket.generation,
+          ticket.settlementToken,
         ),
       ).toBe(false);
       const delivered: string[] = [];
-      for await (const event of runner.iterateEvents({ emitEvents }))
-        delivered.push(event.kind);
-      expect(delivered).toEqual(emitEvents);
+      for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+        { deliveredEventKinds },
+      ))
+        delivered.push(event.eventKind);
+      expect(delivered).toEqual(deliveredEventKinds);
       expect(calls).toEqual(['work']);
-      expect(runner.summary().completedWorkIds).toEqual(['root']);
-      expect(runner.getStopReason()).toBe('finished');
-      await runner.run({ emitEvents: ['workCompleted', 'subgraphCompleted'] });
+      expect(
+        runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+      ).toEqual(['root']);
+      expect(runner.getTraversalStopReason()).toBe('finished');
+      await runner.runUntilSuspendedOrTerminal({
+        deliveredEventKinds: [
+          'workCompletionCommitted',
+          'subgraphCompletionCommitted',
+        ],
+      });
       expect(calls).toEqual(['work']);
     },
   );
 }
 
-for (const Constructor of [GraphWalk, AsyncGraphWalk]) {
+for (const Constructor of [GraphWalkBuilder, AsyncGraphWalkBuilder]) {
   test(`${Constructor.name} keeps delivery selection with paused and limited execution`, async () => {
     let calls = 0;
     const traversal = new Constructor({
-      source: idGraph(
+      graphWalkDiscoverySource: idGraph(
         ['root'],
         [
           ['root', ['child']],
           ['child', []],
         ],
       ),
-      limits: { maxDepth: 0 },
+      limits: { maxRouteHopDepth: 0 },
     });
-    const { GraphWalkPhase } = await import('../src');
-    traversal.addVisitorFor(GraphWalkPhase.VERTEX, () => {
-      calls++;
+    const { GraphWalkObservationKind } = await import('../src');
+    traversal.addVisitorForObservationKind(
+      GraphWalkObservationKind.VERTEX_OCCURRENCE,
+      () => {
+        calls++;
+      },
+    );
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
+    const first =
+      runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
+    expect((await first.next()).value).toMatchObject({
+      eventKind: 'vertexOccurrence',
     });
-    const runner = traversal.createRunner();
-    const first = runner.iterateEvents();
-    expect((await first.next()).value).toMatchObject({ kind: 'vertex' });
     await first.return();
-    expect(runner.getStopReason()).toBe('paused');
+    expect(runner.getTraversalStopReason()).toBe('paused');
     const delivered: string[] = [];
-    for await (const event of runner.iterateEvents({ emitEvents: ['path'] }))
-      delivered.push(event.kind);
-    expect(delivered).toEqual(['path']);
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+      { deliveredEventKinds: ['routePrefix'] },
+    ))
+      delivered.push(event.eventKind);
+    expect(delivered).toEqual(['routePrefix']);
     expect(calls).toBe(1);
-    expect(runner.summary().outcome).toMatchObject({ kind: 'limited' });
-    expect(runner.getStopReason()).toBe('finished');
+    expect(runner.captureProgressSnapshot().terminalOutcome).toMatchObject({
+      kind: 'traversalLimitsReached',
+    });
+    expect(runner.getTraversalStopReason()).toBe('finished');
   });
 }

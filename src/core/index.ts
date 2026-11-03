@@ -1,71 +1,77 @@
-export type { AsyncTreeSource } from './AsyncTraversableTree';
-export type { AsyncTreeVisitor } from './AsyncTraversalVisitor';
+export type { AsyncTreeDiscoverySource } from './AsyncTraversableTree';
+export type { AsyncTreeVertexPhaseVisitorCallback } from './AsyncTraversalVisitor';
 export type {
-  AsyncChildHintTransformer,
-  ChildHintTransformer,
+  AsyncChildHintsListTransformer,
+  ChildHintsListTransformer,
 } from './ChildHintTransformer';
 export type {
-  TreeDagExecutionInspection,
-  TreeDagInspectionOperation,
-  InspectionFilters,
+  TreeOrDagExecutionSnapshot,
+  TreeOrDagCallbackOperation,
+  TraversalExecutionSelections,
 } from './CoreInspection';
-export { MutableRef } from './CTTRef';
+export { MutableValueReference } from './CTTRef';
 export type { VertexHandle } from './CTTRef';
-export { DagDiscoveryCycleError } from './errors/DagDiscoveryCycleError';
+export { DagStructuralDiscoveryCycleError } from './errors/DagDiscoveryCycleError';
 export { DagTraversalStallError } from './errors/DagTraversalStallError';
 export type {
   DagMilestone,
-  DagWaitEdge,
+  DagMilestoneConstraint,
   DagTraversalStallDiagnostics,
 } from './errors/DagTraversalStallError';
-export type { ExecutionInspection } from './ExecutionInspection';
+export type { TraversalExecutionSnapshot } from './ExecutionInspection';
 export type {
-  ChildSlot,
-  HintVertexId,
+  ChildDiscoverySlot,
+  ChildHintVertexIdentity,
   MaybePromise,
-  ResolvedGraphVertex,
-  ResolvedVisitStage,
+  ResolvedGraphVertexSnapshot,
+  VertexVisitSchedulingStage,
   StructuralChildEdge,
   VertexId,
 } from './graph/types';
 export type {
-  MutationRequest,
-  MutationCommand,
-  MutationCommands,
-  MutationCommandBuilder,
-  TreeMutationCommandBinder,
-  TreeMutationCommandBinderFactory,
+  VertexDataReplacementOrDeletionRequest,
+  VertexDataReplacementOrDeletionCommand,
+  VertexDataMutationCommandTools,
+  VertexDataMutationCommandBuilder,
+  TreeVisitorVertexDataMutationToolsBinder,
+  TreeVisitorVertexDataMutationToolsBinderFactory,
 } from './MakeMutationCommandFunctionFactory';
-export type { ResolvedGraphView, OriginalGraphView } from './ResolvedGraphView';
-export { TreeVertexRecord, ResolvedTreeStore } from './ResolvedTree';
 export type {
-  VertexResolutionContext,
-  TreeVertexMetadata,
-  TreeVertexRecordContent,
-  ResolvedTreeMap,
-  GetPathToOptions,
+  LiveResolvedGraphView,
+  PreCommandDiscoveredGraphView,
+} from './ResolvedGraphView';
+export {
+  MutableTreeVertexTopologyRecord,
+  MutableResolvedTreeStore,
 } from './ResolvedTree';
-export type { ResolvedTreeVertexTypes } from './ResolvedTreeVertexTypes';
-export type { ResolvedTreeView } from './ResolvedTreeView';
+export type {
+  ChildDiscoveryContext,
+  TreeVertexDiscoveryMetadata,
+  TreeVertexTopologyRecordInput,
+  MutableTreeVertexRecordMap,
+  StructuralAncestorPathOptions,
+} from './ResolvedTree';
+export type { StoredTreeReferenceVertexTypes } from './ResolvedTreeVertexTypes';
+export type { LiveResolvedTreeView } from './ResolvedTreeView';
 export type {
   DagChildResolutionContext,
   DagDiscoverySource,
   AsyncDagDiscoverySource,
 } from './TraversableGraph';
 export type {
-  TreeChildResolutionContext,
-  DagVertexFound,
-  DagVertexOmitted,
-  PrerequisiteMissing,
-  DagVertexResolution,
-  DagPrerequisiteResolution,
-  TreeVertexFound,
-  TreeVertexOmitted,
+  TreeChildResolverContext,
+  FoundDagSourceVertex,
+  OmittedDagSourceVertex,
+  DagPrerequisiteLookupMissing,
+  DagSourceVertexResolution,
+  DagPrerequisiteLookupResult,
+  TreeVertexResolutionFound,
+  TreeVertexResolutionOmitted,
   TreeVertexResolution,
-  TreeSource,
+  TreeDiscoverySource,
 } from './TraversableTree';
 export type {
-  SelectedTraversalEvent,
+  TraversalEventNarrowedToSelectedKinds,
   TraversalExecutionState,
   SyncTraversalExecution,
   AsyncTraversalExecution,
@@ -76,32 +82,32 @@ export type {
   TraversalStopReason,
 } from './TraversalRunner';
 export type {
-  EmissionKind,
-  VisitorPhaseSelection,
-  TraversalExecutionOptions,
+  TraversalEventKindForVisitorPhase,
+  VisitorCallbackPhaseSelection,
+  TraversalExecutionSelectionPatch,
 } from './TraversalRunnerIterableConfig';
 export { TraversalVisitorCommandName } from './TraversalVisitor';
 export type {
   TraversalVisitorCommandArguments,
   TraversalVisitorCommand,
-  TraversalVisitorResult,
+  VisitorCommandsResult,
   TreeVisitorContext,
-  CommandCommitMode,
-  TraversalVisitorFunctionOptions,
-  VisitorDefinition,
+  VisitorCommandCommitTiming,
+  VisitorRegistrationOptions,
+  VisitorRegistrationDefinition,
   VisitorGroupMember,
   VisitorGroupDefinition,
-  VisitorPhaseInput,
+  VisitorDefinitionsForPhase,
   VisitorGroupMetadata,
   VisitorRegistrationMetadata,
-  TreeVisitorRecord,
-  TreeVisitor,
+  TreePhaseVisitorRegistrationRecord,
+  TreeVertexPhaseVisitorCallback,
 } from './TraversalVisitor';
-export type { VertexTypes } from './TreeTypeParameters';
+export type { VertexDataAndChildHintTypes } from './TreeTypeParameters';
 export { Vertex } from './Vertex';
 export type {
   VertexView,
   VertexContent,
   VertexContentInput,
-  VertexCloneContent,
+  VertexContentOverridesForShallowClone,
 } from './Vertex';

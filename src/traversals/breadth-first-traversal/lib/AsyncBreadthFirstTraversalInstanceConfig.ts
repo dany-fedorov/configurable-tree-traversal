@@ -2,100 +2,145 @@ import {
   assertTraversalFields,
   definedOptions,
 } from '@core/assertPublicOptions';
-import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
-import type { AsyncTreeVisitor } from '@core/AsyncTraversalVisitor';
-import type { AsyncChildHintTransformer } from '@core/ChildHintTransformer';
+import type { AsyncTreeDiscoverySource } from '@core/AsyncTraversableTree';
+import type { AsyncTreeVertexPhaseVisitorCallback } from '@core/AsyncTraversalVisitor';
+import type { AsyncChildHintsListTransformer } from '@core/ChildHintTransformer';
 import type { VisitorRecord } from '@core/graph/types';
-import type { VisitorInputs } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VisitorDefinitionsByPhase } from '@core/TraversalVisitor';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import { deepFreeze } from '@utils/deepFreeze';
 import {
   BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   type BreadthFirstTreeResolvedOptions,
 } from './BreadthFirstTraversalInstanceConfig';
-import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
+import { BreadthFirstTreeVisitPhase } from './BreadthFirstTraversalOrder';
 
-export type AsyncBreadthFirstTraversalVisitors<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+export type AsyncBreadthFirstTreeVisitorRegistrationsByPhase<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 > = {
-  [K in BreadthFirstPhase]: VisitorRecord<AsyncTreeVisitor<K, TTP, RW_TTP>>[];
+  [K in BreadthFirstTreeVisitPhase]: VisitorRecord<
+    AsyncTreeVertexPhaseVisitorCallback<
+      InputVertexTypes,
+      RewrittenVertexTypes,
+      K
+    >
+  >[];
 };
 
 export type AsyncBreadthFirstTreeResolvedOptions<
-  TTP extends VertexTypes = VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
+  InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > = Omit<
-  BreadthFirstTreeResolvedOptions<TTP, RW_TTP>,
-  'traversableTree' | 'transformChildHints' | 'visitors'
+  BreadthFirstTreeResolvedOptions<InputVertexTypes, RewrittenVertexTypes>,
+  'treeDiscoverySource' | 'transformChildHintsBeforeResolution' | 'visitors'
 > & {
-  traversableTree: AsyncTreeSource<TTP, RW_TTP>;
-  transformChildHints: AsyncChildHintTransformer<TTP> | null;
-  visitors: AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>;
-  concurrency: number;
+  treeDiscoverySource: AsyncTreeDiscoverySource<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
+  transformChildHintsBeforeResolution: AsyncChildHintsListTransformer<InputVertexTypes> | null;
+  visitors: AsyncBreadthFirstTreeVisitorRegistrationsByPhase<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
+  maxConcurrentCallbackInvocations: number;
 };
 
-export type AsyncBreadthFirstTreeOptionsPatch<
-  TTP extends VertexTypes = VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
+export type AsyncBreadthFirstTreeTraversalBuilderOptionsPatch<
+  InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > = {
-  traversableTree?: AsyncTreeSource<TTP, RW_TTP> | undefined;
-  transformChildHints?: AsyncChildHintTransformer<TTP> | null | undefined;
-  visitors?:
-    | VisitorInputs<AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>>
+  treeDiscoverySource?:
+    | AsyncTreeDiscoverySource<InputVertexTypes, RewrittenVertexTypes>
     | undefined;
-  retainOriginalTreeStructure?: boolean | undefined;
-  concurrency?: number | undefined;
+  transformChildHintsBeforeResolution?:
+    | AsyncChildHintsListTransformer<InputVertexTypes>
+    | null
+    | undefined;
+  visitors?:
+    | VisitorDefinitionsByPhase<
+        AsyncBreadthFirstTreeVisitorRegistrationsByPhase<
+          InputVertexTypes,
+          RewrittenVertexTypes
+        >
+      >
+    | undefined;
+  retainDiscoveredTreeBeforeVisitorCommands?: boolean | undefined;
+  maxConcurrentCallbackInvocations?: number | undefined;
 };
 
-export type AsyncBreadthFirstTreeOptions<
-  TTP extends VertexTypes = VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
-> = AsyncBreadthFirstTreeOptionsPatch<TTP, RW_TTP> & {
-  traversableTree: AsyncTreeSource<TTP, RW_TTP>;
+export type AsyncBreadthFirstTreeTraversalBuilderOptions<
+  InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> = AsyncBreadthFirstTreeTraversalBuilderOptionsPatch<
+  InputVertexTypes,
+  RewrittenVertexTypes
+> & {
+  treeDiscoverySource: AsyncTreeDiscoverySource<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
 };
 
 export const ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
-  AsyncBreadthFirstTreeResolvedOptions<VertexTypes>,
-  'traversableTree'
+  AsyncBreadthFirstTreeResolvedOptions<VertexDataAndChildHintTypes>,
+  'treeDiscoverySource'
 > = deepFreeze({
   ...BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-  transformChildHints: null,
+  transformChildHintsBeforeResolution: null,
   visitors: {
-    [BreadthFirstPhase.LEVEL_ORDER]: [],
+    [BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX]: [],
   },
-  concurrency: Infinity,
+  maxConcurrentCallbackInvocations: Infinity,
 });
 
 export function mergeAsyncBreadthFirstTraversalInstanceConfigs<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 >(
-  base: AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP>,
-  input: AsyncBreadthFirstTreeOptionsPatch<TTP, RW_TTP>,
-): AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP> {
+  base: AsyncBreadthFirstTreeResolvedOptions<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >,
+  input: AsyncBreadthFirstTreeTraversalBuilderOptionsPatch<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >,
+): AsyncBreadthFirstTreeResolvedOptions<
+  InputVertexTypes,
+  RewrittenVertexTypes
+> {
   const capturedInput = definedOptions(input);
-  assertTraversalFields(capturedInput, Object.values(BreadthFirstPhase));
+  assertTraversalFields(
+    capturedInput,
+    Object.values(BreadthFirstTreeVisitPhase),
+  );
   const visitors = {
     ...base.visitors,
     ...definedOptions(capturedInput.visitors ?? {}),
   };
-  const merged: AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP> = {
+  const merged: AsyncBreadthFirstTreeResolvedOptions<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  > = {
     ...base,
     ...capturedInput,
     visitors: {
-      [BreadthFirstPhase.LEVEL_ORDER]: normalizeVisitorDefinitions(
-        visitors[BreadthFirstPhase.LEVEL_ORDER],
-      ),
+      [BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX]:
+        normalizeVisitorDefinitions(
+          visitors[BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX],
+        ),
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
     },
   };
   if (
-    merged.concurrency !== Infinity &&
-    (!Number.isInteger(merged.concurrency) || merged.concurrency <= 0)
+    merged.maxConcurrentCallbackInvocations !== Infinity &&
+    (!Number.isInteger(merged.maxConcurrentCallbackInvocations) ||
+      merged.maxConcurrentCallbackInvocations <= 0)
   ) {
     throw new TypeError('Concurrency must be a positive integer or Infinity');
   }

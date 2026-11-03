@@ -1,16 +1,16 @@
 export {
-  materializeDagInputFromRecords,
-  materializeDagInputFromRecordsAsync,
+  materializeMultiEntryDagInputFromRecordCatalog,
+  materializeMultiEntryDagInputFromRecordCatalogAsync,
 } from './graphFrom';
 export {
-  materializeDagInputFromRoots,
-  materializeDagInputFromRootsAsync,
+  materializeDagInputFromRootRecords,
+  materializeDagInputFromRootRecordsAsync,
 } from './forestFrom';
 export type {
-  MaterializedDagInput,
+  MaterializedDagTraversalInput,
   DagRecordSelectors,
-  DagRootSelectors,
-  AsyncCollection,
+  DagRootRecordSelectors,
+  SyncOrAsyncIterable,
   AsyncDagRecordSelectors,
-  AsyncDagRootSelectors,
+  AsyncDagRootRecordSelectors,
 } from './types';

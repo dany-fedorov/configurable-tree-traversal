@@ -1,24 +1,24 @@
-import type { GraphWalkSource } from '../../src';
+import type { GraphWalkDiscoverySource } from '../../src';
 
 export function idGraph(
   roots: readonly string[],
   adjacency: Iterable<readonly [string, readonly string[]]>,
 ): Extract<
-  GraphWalkSource<string, undefined, string>,
-  { hydration: 'resolver' }
+  GraphWalkDiscoverySource<string, undefined, string>,
+  { vertexResolutionMode: 'resolverWithOptionalInlineResolution' }
 > {
   const byId = new Map(adjacency);
   return {
-    hydration: 'resolver' as const,
-    roots: () => roots.map((vertexId) => ({ vertexId })),
-    resolveVertex(vertexId) {
+    vertexResolutionMode: 'resolverWithOptionalInlineResolution' as const,
+    enumerateRootTargets: () => roots.map((vertexId) => ({ vertexId })),
+    resolveVertexDataById(vertexId) {
       if (!byId.has(vertexId)) throw new TypeError('Unknown test ID');
-      return { kind: 'found', data: vertexId };
+      return { kind: 'found', vertexData: vertexId };
     },
-    outgoing(vertex) {
+    enumerateOutgoingLinks(vertex) {
       return byId.get(vertex.vertexId)!.map((to) => ({
-        target: { vertexId: to },
-        data: undefined,
+        targetToResolveOnAdmission: { vertexId: to },
+        edgeData: undefined,
       }));
     },
   };
@@ -30,7 +30,7 @@ type ContextData =
 type Relation = { kind: 'imports' | 'references' | 'cites' | 'definedIn' };
 
 export function contextFixture(): {
-  source: GraphWalkSource<ContextData, Relation, string>;
+  source: GraphWalkDiscoverySource<ContextData, Relation, string>;
   calls: string[];
 } {
   const calls: string[] = [];
@@ -55,24 +55,27 @@ export function contextFixture(): {
     ['D', [['A', 'cites']]],
     ['E', []],
   ]);
-  const source: GraphWalkSource<ContextData, Relation, string> = {
-    hydration: 'resolver' as const,
-    roots() {
+  const source: GraphWalkDiscoverySource<ContextData, Relation, string> = {
+    vertexResolutionMode: 'resolverWithOptionalInlineResolution' as const,
+    enumerateRootTargets() {
       calls.push('roots');
       return [{ vertexId: 'A' }, { vertexId: 'E' }];
     },
-    resolveVertex(vertexId) {
+    resolveVertexDataById(vertexId) {
       calls.push(`resolve:${vertexId}`);
       if (!data.has(vertexId)) throw new TypeError('Unknown context ID');
-      return { kind: 'found', data: data.get(vertexId)! };
+      return { kind: 'found', vertexData: data.get(vertexId)! };
     },
-    outgoing(vertex) {
+    enumerateOutgoingLinks(vertex) {
       calls.push(`outgoing:${vertex.vertexId}`);
       return (function* () {
         let index = 0;
         for (const [to, kind] of links.get(vertex.vertexId)!) {
           calls.push(`link:${vertex.vertexId}:${index++}`);
-          yield { target: { vertexId: to }, data: { kind } };
+          yield {
+            targetToResolveOnAdmission: { vertexId: to },
+            edgeData: { kind },
+          };
         }
       })();
     },

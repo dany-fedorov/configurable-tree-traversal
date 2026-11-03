@@ -1,330 +1,434 @@
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 import {
-  AsyncDagTraversal,
-  DagTraversal,
+  AsyncDagTraversalBuilder,
+  DagTraversalBuilder,
   DagVisitorPhase as Order,
 } from '../src/traversals/dag-traversal';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 import { traversalInternals } from './internal-runner-fixtures';
 
-type G = VertexTypes<string, string>;
+type G = VertexDataAndChildHintTypes<string, string>;
 const catalog = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
-      vertexContent: { $data: '', $childHints: ['A', 'B'] },
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: { $vertexData: '', $childDiscoveryHints: ['A', 'B'] },
     },
   }),
-  resolveChild: (id: string) => ({
-    kind: 'found' as const,
-    vertex: {
+  resolveChildHint: (id: string) => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId: id,
-      dependsOnWork: id === 'B' ? ['A'] : [],
-      vertexContent: { $data: id, $childHints: [] },
+      workWaitsForWorkOf: id === 'B' ? ['A'] : [],
+      vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] },
     },
   }),
 };
-const external = { workCompletion: 'externalSettlement' as const };
+const external = {
+  workCompletionPolicy: 'requireExternalWorkSettlement' as const,
+};
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
-  test.each(['lazy', 'eager'] as const)(
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
+  test.each([
+    'incrementalDuringTraversal',
+    'completeBeforeAnyVisitor',
+  ] as const)(
     `${Constructor.name} empty %s frontier requires guarded settlement`,
     async (discovery) => {
       const runner = new Constructor<G>({
-        traversableGraph: catalog,
-        syntheticRoot: true,
-        discovery,
+        dagDiscoverySource: catalog,
+        sourceRootIsHiddenEntryHolder: true,
+        discoveryTiming: discovery,
         ...external,
-      }).createRunner();
-      await runner.run();
-      expect(runner.summary().completedWorkIds).toEqual([]);
-      expect(runner.summary().deferredWorkIds).toEqual(['A']);
-      expect(runner.getStopReason()).toBe('awaitingSettlement');
-      expect(runner.summary().vertices.get('B')!.work).toBe('pending');
-      const generation = runner.summary().vertices.get('A')!.generation!;
+      }).createIndependentRunnerFromCurrentOptions();
+      await runner.runUntilSuspendedOrTerminal();
+      expect(
+        runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+      ).toEqual([]);
+      expect(
+        runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+      ).toEqual(['A']);
+      expect(runner.getTraversalStopReason()).toBe('awaitingSettlement');
+      expect(
+        runner.captureProgressSnapshot().progressByVertexId.get('B')!.workState,
+      ).toBe('waitingForPrerequisiteMilestones');
+      const generation = runner
+        .captureProgressSnapshot()
+        .progressByVertexId.get('A')!.settlementToken!;
       expect(() =>
-        runner.settle('A', { kind: 'workCompleted' }, Symbol()),
+        runner.settleDeferredWork('A', { kind: 'workCompleted' }, Symbol()),
       ).toThrow();
-      runner.settle('A', { kind: 'workCompleted' }, generation);
-      expect(runner.getStopReason()).toBe('awaitingSettlement');
-      await runner.run();
-      expect(runner.summary().completedWorkIds).toEqual(['A']);
-      expect(runner.summary().deferredWorkIds).toEqual(['B']);
-      runner.settle(
+      runner.settleDeferredWork('A', { kind: 'workCompleted' }, generation);
+      expect(runner.getTraversalStopReason()).toBe('awaitingSettlement');
+      await runner.runUntilSuspendedOrTerminal();
+      expect(
+        runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+      ).toEqual(['A']);
+      expect(
+        runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+      ).toEqual(['B']);
+      runner.settleDeferredWork(
         'B',
         { kind: 'workCompleted' },
-        runner.summary().vertices.get('B')!.generation!,
+        runner.captureProgressSnapshot().progressByVertexId.get('B')!
+          .settlementToken!,
       );
-      await runner.run();
-      expect(runner.summary().completedSubgraphIds).toEqual(['A', 'B']);
+      await runner.runUntilSuspendedOrTerminal();
+      expect(
+        runner.captureProgressSnapshot().subgraphCompletionCommittedVertexIds,
+      ).toEqual(['A', 'B']);
     },
   );
 
   test(`${Constructor.name} tree source defers parent work before admitting children`, async () => {
     const runner = new Constructor<G>({
-      traversableTree: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
-            vertexContent: { $data: 'A', $childHints: ['B'] },
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'A',
+              $childDiscoveryHints: ['B'],
+            },
           },
         }),
-        resolveChild: () => ({
-          kind: 'found' as const,
-          vertex: {
-            vertexContent: { $data: 'B', $childHints: [] },
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: { $vertexData: 'B', $childDiscoveryHints: [] },
           },
         }),
       },
       ...external,
-    }).createRunner();
-    await runner.run();
-    expect(runner.summary().completedWorkIds).toEqual([]);
-    expect(runner.summary().deferredWorkIds).toHaveLength(1);
-    const first = runner.summary().deferredWorkIds[0];
-    runner.settle(
+    }).createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
+    expect(
+      runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+    ).toEqual([]);
+    expect(
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toHaveLength(1);
+    const first =
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds[0];
+    runner.settleDeferredWork(
       first,
       { kind: 'workCompleted' },
-      runner.summary().vertices.get(first)!.generation!,
+      runner.captureProgressSnapshot().progressByVertexId.get(first)!
+        .settlementToken!,
     );
-    await runner.run();
-    expect(runner.summary().completedWorkIds).toEqual([first]);
-    expect(runner.summary().deferredWorkIds).toHaveLength(1);
+    await runner.runUntilSuspendedOrTerminal();
+    expect(
+      runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+    ).toEqual([first]);
+    expect(
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toHaveLength(1);
   });
 
   test(`${Constructor.name} external completion commits callbacks and commands before deferral`, async () => {
     const seen: string[] = [];
     const traversal = new Constructor<G>({
-      traversableGraph: catalog,
-      syntheticRoot: true,
-      discovery: 'eager',
+      dagDiscoverySource: catalog,
+      sourceRootIsHiddenEntryHolder: true,
+      discoveryTiming: 'completeBeforeAnyVisitor',
       ...external,
     });
-    traversal.addVisitorFor(
+    traversal.registerVisitorCallbackForPhase(
       Order.ON_WORK_READY,
       (vertex) => {
-        seen.push(vertex.getData());
+        seen.push(vertex.getVertexData());
         return {
           commands: [
             {
-              commandName: Command.REWRITE_VERTEX_DATA,
-              commandArguments: { newData: 'committed' },
+              commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+              commandArguments: { replacementVertexData: 'committed' },
             },
           ],
         };
       },
-      { commandCommitMode: 'afterGroup' as const },
+      { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
     );
-    const runner = traversal.createRunner();
-    await runner.run();
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
     expect(seen).toEqual(['A']);
-    expect(runner.summary().completedWorkIds).toEqual([]);
-    const id = runner.summary().deferredWorkIds[0];
-    runner.settle(
+    expect(
+      runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+    ).toEqual([]);
+    const id =
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds[0];
+    runner.settleDeferredWork(
       id,
       { kind: 'workCompleted' },
-      runner.summary().vertices.get(id)!.generation!,
+      runner.captureProgressSnapshot().progressByVertexId.get(id)!
+        .settlementToken!,
     );
     const events: string[] = [];
-    for await (const event of runner.iterateEvents())
-      events.push(`${event.kind}:${event.vertex.getData()}`);
-    expect(events).toContain('workCompleted:committed');
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+      events.push(`${event.eventKind}:${event.vertex.getVertexData()}`);
+    expect(events).toContain('workCompletionCommitted:committed');
     expect(seen).toEqual(['A', 'B']);
   });
 
   test(`${Constructor.name} filtered callbacks cannot complete external work and seeds stay completed`, async () => {
     const traversal = new Constructor<G>({
-      traversableGraph: catalog,
-      syntheticRoot: true,
-      discovery: 'eager',
-      completedWork: new Set(['A']),
+      dagDiscoverySource: catalog,
+      sourceRootIsHiddenEntryHolder: true,
+      discoveryTiming: 'completeBeforeAnyVisitor',
+      acceptedCompletedWorkVertexIds: new Set(['A']),
       ...external,
     });
-    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
+    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
       throw new Error('filtered callback ran');
     });
-    const runner = traversal.createRunner();
-    await runner.run({ visitorPhases: { include: [] } });
-    expect(runner.summary().completedWorkIds).toEqual(['A']);
-    expect(runner.summary().deferredWorkIds).toEqual(['B']);
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal({
+      admittedVisitorCallbackPhases: { include: [] },
+    });
+    expect(
+      runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+    ).toEqual(['A']);
+    expect(
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual(['B']);
   });
 
-  test(`${Constructor.name} rejects invalid completion policies before execution and preserves configure state`, () => {
-    const invalid = { workCompletion: 'invalid' as 'afterWorkReadyChain' };
+  test(`${Constructor.name} rejects invalid completion policies before execution and preserves patchOptionsForFutureRunners state`, () => {
+    const invalid = {
+      workCompletionPolicy: 'invalid' as 'afterWorkReadyVisitorChain',
+    };
     expect(
-      () => new Constructor<G>({ traversableGraph: catalog, ...invalid }),
+      () => new Constructor<G>({ dagDiscoverySource: catalog, ...invalid }),
     ).toThrow(TypeError);
     const traversal = new Constructor<G>({
-      traversableGraph: catalog,
+      dagDiscoverySource: catalog,
       ...external,
     });
     expect(() =>
-      traversal.configure({ ...invalid, discovery: 'eager' }),
+      traversal.patchOptionsForFutureRunners({
+        ...invalid,
+        discoveryTiming: 'completeBeforeAnyVisitor',
+      }),
     ).toThrow(TypeError);
-    expect(traversalInternals(traversal).icfg.workCompletion).toBe(
-      'externalSettlement',
+    expect(traversalInternals(traversal).icfg.workCompletionPolicy).toBe(
+      'requireExternalWorkSettlement',
     );
   });
 }
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test(`${Constructor.name} explicit deferral retains exclusive early-chain semantics in external mode`, async () => {
     const traversal = new Constructor<G>({
-      traversableGraph: catalog,
-      syntheticRoot: true,
+      dagDiscoverySource: catalog,
+      sourceRootIsHiddenEntryHolder: true,
       ...external,
     });
-    traversal.addVisitorFor(
+    traversal.registerVisitorCallbackForPhase(
       Order.ON_WORK_READY,
       () => ({
         commands: [
           {
-            commandName: Command.REWRITE_VERTEX_DATA,
-            commandArguments: { newData: 'discarded' },
+            commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+            commandArguments: { replacementVertexData: 'discarded' },
           },
         ],
       }),
-      { commandCommitMode: 'afterGroup' as const },
+      { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
     );
-    traversal.addVisitorFor(
+    traversal.registerVisitorCallbackForPhase(
       Order.ON_WORK_READY,
-      () => ({ commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] }),
-      { commandCommitMode: 'afterGroup' as const },
+      () => ({
+        commands: [
+          {
+            commandName:
+              Command.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION,
+          },
+        ],
+      }),
+      { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
     );
-    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
+    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
       throw new Error('must skip later callback');
     });
-    const runner = traversal.createRunner();
-    await runner.run();
-    const generation = runner.summary().vertices.get('A')!.generation!;
-    await runner.run();
-    expect(runner.summary().vertices.get('A')!.generation).toBe(generation);
-    runner.settle('A', { kind: 'workCompleted' }, generation);
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
+    const generation = runner
+      .captureProgressSnapshot()
+      .progressByVertexId.get('A')!.settlementToken!;
+    await runner.runUntilSuspendedOrTerminal();
+    expect(
+      runner.captureProgressSnapshot().progressByVertexId.get('A')!
+        .settlementToken,
+    ).toBe(generation);
+    runner.settleDeferredWork('A', { kind: 'workCompleted' }, generation);
     const events: string[] = [];
-    for await (const event of runner.iterateEvents())
-      events.push(`${event.kind}:${event.vertex.getData()}`);
-    expect(events).toEqual(['workCompleted:A', 'subgraphCompleted:A']);
-    expect(runner.summary().deferredWorkIds).toEqual(['B']);
-    expect(runner.settle('A', { kind: 'workCompleted' }, generation)).toBe(
-      false,
-    );
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+      events.push(`${event.eventKind}:${event.vertex.getVertexData()}`);
+    expect(events).toEqual([
+      'workCompletionCommitted:A',
+      'subgraphCompletionCommitted:A',
+    ]);
+    expect(
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual(['B']);
+    expect(
+      runner.settleDeferredWork('A', { kind: 'workCompleted' }, generation),
+    ).toBe(false);
   });
 
   test(`${Constructor.name} external W and C joins require their distinct milestones`, async () => {
     const traversal = new Constructor<G>({
-      discovery: 'eager',
-      syntheticRoot: true,
+      discoveryTiming: 'completeBeforeAnyVisitor',
+      sourceRootIsHiddenEntryHolder: true,
       ...external,
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
-            vertexContent: { $data: '', $childHints: ['A', 'W', 'C'] },
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: '',
+              $childDiscoveryHints: ['A', 'W', 'C'],
+            },
           },
         }),
-        resolveChild: (id) => ({
-          kind: 'found' as const,
-          vertex: {
+        resolveChildHint: (id) => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: id,
-            dependsOnWork: id === 'W' ? ['A'] : [],
-            dependsOnSubgraphCompletion: id === 'C' ? ['A'] : [],
-            vertexContent: {
-              $data: id,
-              $childHints: id === 'A' ? ['child'] : [],
+            workWaitsForWorkOf: id === 'W' ? ['A'] : [],
+            workWaitsForSubgraphCompletionOf: id === 'C' ? ['A'] : [],
+            vertexContentInput: {
+              $vertexData: id,
+              $childDiscoveryHints: id === 'A' ? ['child'] : [],
             },
           },
         }),
       },
     });
-    const runner = traversal.createRunner();
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
     const settle = (id: string) =>
-      runner.settle(
+      runner.settleDeferredWork(
         id,
         { kind: 'workCompleted' },
-        runner.summary().vertices.get(id)!.generation!,
+        runner.captureProgressSnapshot().progressByVertexId.get(id)!
+          .settlementToken!,
       );
-    await runner.run();
-    expect(runner.summary().deferredWorkIds).toEqual(['A', 'child']);
+    await runner.runUntilSuspendedOrTerminal();
+    expect(
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual(['A', 'child']);
     settle('A');
-    await runner.run();
-    expect(runner.summary().deferredWorkIds).toEqual(['W', 'child']);
-    expect(runner.summary().vertices.get('C')!.work).toBe('pending');
-    expect(runner.summary().vertices.get('A')!.subgraphComplete).toBe(false);
+    await runner.runUntilSuspendedOrTerminal();
+    expect(
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual(['W', 'child']);
+    expect(
+      runner.captureProgressSnapshot().progressByVertexId.get('C')!.workState,
+    ).toBe('waitingForPrerequisiteMilestones');
+    expect(
+      runner.captureProgressSnapshot().progressByVertexId.get('A')!
+        .subgraphCompletionCommitted,
+    ).toBe(false);
     settle('child');
-    await runner.run();
-    expect(runner.summary().vertices.get('A')!.subgraphComplete).toBe(true);
-    expect(runner.summary().deferredWorkIds).toEqual(['W', 'C']);
+    await runner.runUntilSuspendedOrTerminal();
+    expect(
+      runner.captureProgressSnapshot().progressByVertexId.get('A')!
+        .subgraphCompletionCommitted,
+    ).toBe(true);
+    expect(
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual(['W', 'C']);
     settle('W');
     settle('C');
-    await runner.run();
-    expect(runner.getStopReason()).toBe('finished');
+    await runner.runUntilSuspendedOrTerminal();
+    expect(runner.getTraversalStopReason()).toBe('finished');
   });
 
   test(`${Constructor.name} halt preserves a normal command continuation before external deferral`, async () => {
     const seen: string[] = [];
     const traversal = new Constructor<G>({
-      traversableGraph: catalog,
-      syntheticRoot: true,
+      dagDiscoverySource: catalog,
+      sourceRootIsHiddenEntryHolder: true,
       ...external,
     });
-    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => ({
-      commands: [
-        {
-          commandName: Command.REWRITE_VERTEX_DATA,
-          commandArguments: { newData: vertex.getData() + '!' },
-        },
-        { commandName: Command.PAUSE_TRAVERSAL },
-      ],
-    }));
-    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
-      seen.push(vertex.getData());
+    traversal.registerVisitorCallbackForPhase(
+      Order.ON_WORK_READY,
+      (vertex) => ({
+        commands: [
+          {
+            commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+            commandArguments: {
+              replacementVertexData: vertex.getVertexData() + '!',
+            },
+          },
+          { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+        ],
+      }),
+    );
+    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+      seen.push(vertex.getVertexData());
     });
-    const runner = traversal.createRunner();
-    await runner.run();
-    expect(runner.getStopReason()).toBe('paused');
-    expect(runner.summary().deferredWorkIds).toEqual([]);
-    expect(runner.summary().completedWorkIds).toEqual([]);
-    await runner.run();
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
+    expect(runner.getTraversalStopReason()).toBe('paused');
+    expect(
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual([]);
+    expect(
+      runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+    ).toEqual([]);
+    await runner.runUntilSuspendedOrTerminal();
     expect(seen).toEqual(['A!']);
-    expect(runner.summary().deferredWorkIds).toEqual(['A']);
-    expect(runner.getStopReason()).toBe('awaitingSettlement');
+    expect(
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual(['A']);
+    expect(runner.getTraversalStopReason()).toBe('awaitingSettlement');
   });
 
   test(`${Constructor.name} deleted external work never receives a deferred generation`, async () => {
     const traversal = new Constructor<G>({
-      traversableGraph: catalog,
-      syntheticRoot: true,
+      dagDiscoverySource: catalog,
+      sourceRootIsHiddenEntryHolder: true,
       ...external,
     });
-    traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
-      commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
+    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+      commands: [
+        {
+          commandName:
+            Command.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+        },
+      ],
     }));
-    const runner = traversal.createRunner();
-    await runner.run();
-    expect(runner.summary().deferredWorkIds).toEqual([]);
-    expect(runner.summary().vertices.size).toBe(0);
-    expect(runner.getStopReason()).toBe('finished');
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
+    expect(
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual([]);
+    expect(runner.captureProgressSnapshot().progressByVertexId.size).toBe(0);
+    expect(runner.getTraversalStopReason()).toBe('finished');
   });
 
   test.each([undefined, null, NaN, { cause: 'external' }])(
     `${Constructor.name} external failure settlement preserves exact error %p`,
     async (error) => {
       const runner = new Constructor<G>({
-        traversableGraph: catalog,
-        syntheticRoot: true,
+        dagDiscoverySource: catalog,
+        sourceRootIsHiddenEntryHolder: true,
         ...external,
-      }).createRunner();
-      await runner.run();
-      runner.settle(
+      }).createIndependentRunnerFromCurrentOptions();
+      await runner.runUntilSuspendedOrTerminal();
+      runner.settleDeferredWork(
         'A',
         { kind: 'traversalFailed', error },
-        runner.summary().vertices.get('A')!.generation!,
+        runner.captureProgressSnapshot().progressByVertexId.get('A')!
+          .settlementToken!,
       );
-      expect(runner.getStopReason()).toBe('failed');
-      expect(runner.inspect().stopReason).toBe('failed');
+      expect(runner.getTraversalStopReason()).toBe('failed');
+      expect(runner.captureExecutionSnapshot().traversalStopReason).toBe(
+        'failed',
+      );
       await expect(async () => {
-        await runner.run();
+        await runner.runUntilSuspendedOrTerminal();
       }).rejects.toBe(error);
     },
   );
@@ -333,91 +437,112 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 test('async external settlement frees logical chain capacity while a physical callback remains active', async () => {
   const release = deferred<void>();
   const seen: string[] = [];
-  const traversal = new AsyncDagTraversal<G>({
-    concurrency: 2,
-    discovery: 'eager',
-    syntheticRoot: true,
+  const traversal = new AsyncDagTraversalBuilder<G>({
+    maxConcurrentCallbackInvocations: 2,
+    discoveryTiming: 'completeBeforeAnyVisitor',
+    sourceRootIsHiddenEntryHolder: true,
     ...external,
-    traversableGraph: {
+    dagDiscoverySource: {
       ...catalog,
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
-          vertexContent: { $data: '', $childHints: ['A', 'busy', 'B'] },
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: {
+            $vertexData: '',
+            $childDiscoveryHints: ['A', 'busy', 'B'],
+          },
         },
       }),
     },
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
-    seen.push(vertex.getData());
-    return vertex.getData() === 'busy' ? release.promise : undefined;
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+    seen.push(vertex.getVertexData());
+    return vertex.getVertexData() === 'busy' ? release.promise : undefined;
   });
-  const runner = traversal.createRunner();
-  const running = runner.run();
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  const running = runner.runUntilSuspendedOrTerminal();
   await eventLoopTurn();
   expect(seen).toEqual(['A', 'busy']);
-  expect(runner.getStopReason()).toBeNull();
-  runner.settle(
+  expect(runner.getTraversalStopReason()).toBeNull();
+  runner.settleDeferredWork(
     'A',
     { kind: 'workCompleted' },
-    runner.summary().vertices.get('A')!.generation!,
+    runner.captureProgressSnapshot().progressByVertexId.get('A')!
+      .settlementToken!,
   );
   await eventLoopTurn();
   expect(seen).toEqual(['A', 'busy', 'B']);
-  expect(runner.inspect().inFlightCallbackCount).toBe(1);
-  expect(runner.getStopReason()).toBeNull();
+  expect(runner.captureExecutionSnapshot().inFlightInvocationCount).toBe(1);
+  expect(runner.getTraversalStopReason()).toBeNull();
   release.resolve();
   await running;
-  expect(runner.summary().deferredWorkIds).toEqual(['busy', 'B']);
-  expect(runner.getStopReason()).toBe('awaitingSettlement');
+  expect(
+    runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+  ).toEqual(['busy', 'B']);
+  expect(runner.getTraversalStopReason()).toBe('awaitingSettlement');
 });
 
 test('external async close drains callbacks before recording pause and retains generations through settlement', async () => {
   const release = deferred<void>();
-  const traversal = new AsyncDagTraversal<G>({
-    concurrency: 2,
-    discovery: 'eager',
-    syntheticRoot: true,
+  const traversal = new AsyncDagTraversalBuilder<G>({
+    maxConcurrentCallbackInvocations: 2,
+    discoveryTiming: 'completeBeforeAnyVisitor',
+    sourceRootIsHiddenEntryHolder: true,
     ...external,
-    traversableGraph: {
+    dagDiscoverySource: {
       ...catalog,
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
-          vertexContent: { $data: '', $childHints: ['A', 'busy', 'B'] },
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: {
+            $vertexData: '',
+            $childDiscoveryHints: ['A', 'busy', 'B'],
+          },
         },
       }),
     },
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
-    vertex.getData() === 'busy' ? release.promise : undefined,
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) =>
+    vertex.getVertexData() === 'busy' ? release.promise : undefined,
   );
-  const runner = traversal.createRunner();
-  const iterator = runner.iterateEvents();
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const pending = iterator.next();
   await eventLoopTurn();
-  const generation = runner.summary().vertices.get('A')!.generation!;
+  const generation = runner
+    .captureProgressSnapshot()
+    .progressByVertexId.get('A')!.settlementToken!;
   const closing = iterator.return();
   await eventLoopTurn();
-  expect(runner.getStopReason()).toBeNull();
-  expect(runner.inspect().inFlightCallbackCount).toBe(1);
+  expect(runner.getTraversalStopReason()).toBeNull();
+  expect(runner.captureExecutionSnapshot().inFlightInvocationCount).toBe(1);
   release.resolve();
   await closing;
   await pending;
-  expect(runner.getStopReason()).toBe('paused');
-  expect(runner.summary().vertices.get('A')!.generation).toBe(generation);
-  runner.settle('A', { kind: 'workCompleted' }, generation);
-  expect(runner.getStopReason()).toBe('paused');
-  await runner.run();
-  expect(runner.summary().deferredWorkIds).toEqual(['busy', 'B']);
-  expect(runner.getStopReason()).toBe('awaitingSettlement');
+  expect(runner.getTraversalStopReason()).toBe('paused');
+  expect(
+    runner.captureProgressSnapshot().progressByVertexId.get('A')!
+      .settlementToken,
+  ).toBe(generation);
+  runner.settleDeferredWork('A', { kind: 'workCompleted' }, generation);
+  expect(runner.getTraversalStopReason()).toBe('paused');
+  await runner.runUntilSuspendedOrTerminal();
+  expect(
+    runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+  ).toEqual(['busy', 'B']);
+  expect(runner.getTraversalStopReason()).toBe('awaitingSettlement');
 });
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test(`${Constructor.name} rejects an invalid retained policy before source execution`, () => {
-    const traversal = new Constructor<G>({ traversableGraph: catalog });
+    const traversal = new Constructor<G>({ dagDiscoverySource: catalog });
     // JavaScript callers can mutate the advanced configuration record.
-    Object.assign(traversalInternals(traversal).icfg, { workCompletion: null });
-    expect(() => traversal.createRunner()).toThrow(TypeError);
+    Object.assign(traversalInternals(traversal).icfg, {
+      workCompletionPolicy: null,
+    });
+    expect(() => traversal.createIndependentRunnerFromCurrentOptions()).toThrow(
+      TypeError,
+    );
   });
 }

@@ -1,7 +1,7 @@
-import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
+import type { ObjectPropertyKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
 
-export type TraversableObject<K extends TraversableObjectPropKey, PV> =
-  | Array<TraversableObject<K, PV> | PV>
+export type NestedObjectOrArray<K extends ObjectPropertyKey, PV> =
+  | Array<NestedObjectOrArray<K, PV> | PV>
   | {
-      [KK in K]: TraversableObject<K, PV> | PV;
+      [KK in K]: NestedObjectOrArray<K, PV> | PV;
     };

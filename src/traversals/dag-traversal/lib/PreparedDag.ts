@@ -1,76 +1,101 @@
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { AsyncDagWorkSession, DagWorkSession } from '../coordinateDag';
-import type { AsyncDagOptionsPatch } from './AsyncDagTraversalInstanceConfig';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
+import type {
+  AsyncDagExternalWorkSession,
+  DagExternalWorkSession,
+} from '../coordinateDag';
+import type { AsyncDagTraversalBuilderOptionsPatch } from './AsyncDagTraversalInstanceConfig';
 import type { AsyncDagTraversalRunner } from './AsyncDagTraversalRunner';
 import type { DagDefinition } from './DagDefinition';
-import type { DagOptionsPatch } from './DagTraversalInstanceConfig';
+import type { DagTraversalBuilderOptionsPatch } from './DagTraversalInstanceConfig';
 import type { DagTraversalRunner } from './DagTraversalRunner';
 
-export type PreparedDagVertexSummary<Data, ID> = Readonly<{
-  vertexId: ID;
+export type ValidatedDagTopologyLiveVertexSummary<Data, VertexId> = Readonly<{
+  vertexId: VertexId;
   data: Data;
-  children: readonly ID[];
-  dependsOnWork: readonly ID[];
-  dependsOnSubgraphCompletion: readonly ID[];
+  liveStructuralChildVertexIds: readonly VertexId[];
+  workWaitsForWorkOf: readonly VertexId[];
+  workWaitsForSubgraphCompletionOf: readonly VertexId[];
 }>;
 
 type OwnedOptions = {
-  traversableGraph?: never;
-  traversableTree?: never;
-  syntheticRoot?: never;
-  discovery?: never;
-  rootWorkDependencies?: never;
-  dependsOnWorkDefault?: never;
-  transformChildHints?: never;
+  dagDiscoverySource?: never;
+  treeDiscoverySource?: never;
+  sourceRootIsHiddenEntryHolder?: never;
+  discoveryTiming?: never;
+  rootWorkPrerequisitePolicy?: never;
+  undeclaredWorkPrerequisitePolicy?: never;
+  transformChildHintsBeforeResolution?: never;
   traversalRunnerInternalObjects?: never;
 };
 
-export type PreparedDagRunnerOptions<Data, ID> = Pick<
-  DagOptionsPatch<VertexTypes<Data, ID>, VertexTypes<Data, ID>, ID>,
+export type ValidatedDagTopologyRunnerOptions<Data, VertexId> = Pick<
+  DagTraversalBuilderOptionsPatch<
+    VertexDataAndChildHintTypes<Data, VertexId>,
+    VertexDataAndChildHintTypes<Data, VertexId>,
+    VertexId
+  >,
   | 'visitors'
-  | 'completedWork'
-  | 'workCompletion'
-  | 'retainOriginalGraphStructure'
+  | 'acceptedCompletedWorkVertexIds'
+  | 'workCompletionPolicy'
+  | 'retainDiscoveredGraphBeforeVisitorCommands'
 > &
   OwnedOptions;
 
-export type PreparedAsyncDagRunnerOptions<Data, ID> = Pick<
-  AsyncDagOptionsPatch<VertexTypes<Data, ID>, VertexTypes<Data, ID>, ID>,
+export type ValidatedDagTopologyAsyncRunnerOptions<Data, VertexId> = Pick<
+  AsyncDagTraversalBuilderOptionsPatch<
+    VertexDataAndChildHintTypes<Data, VertexId>,
+    VertexDataAndChildHintTypes<Data, VertexId>,
+    VertexId
+  >,
   | 'visitors'
-  | 'completedWork'
-  | 'workCompletion'
-  | 'retainOriginalGraphStructure'
-  | 'concurrency'
+  | 'acceptedCompletedWorkVertexIds'
+  | 'workCompletionPolicy'
+  | 'retainDiscoveredGraphBeforeVisitorCommands'
+  | 'maxConcurrentCallbackInvocations'
 > &
   OwnedOptions;
 
-export type DagWorkSessionOptions<ID> = OwnedOptions & {
-  completedWork?: ReadonlySet<ID>;
+export type DagExternalWorkSessionOptions<VertexId> = OwnedOptions & {
+  acceptedCompletedWorkVertexIds?: ReadonlySet<VertexId>;
   visitors?: never;
-  workCompletion?: never;
-  retainOriginalGraphStructure?: never;
+  workCompletionPolicy?: never;
+  retainDiscoveredGraphBeforeVisitorCommands?: never;
 };
 
-export type AsyncDagWorkSessionOptions<ID> = DagWorkSessionOptions<ID> & {
-  concurrency?: number;
-};
+export type AsyncDagExternalWorkSessionOptions<VertexId> =
+  DagExternalWorkSessionOptions<VertexId> & {
+    maxConcurrentCallbackInvocations?: number;
+  };
 
 /** An in-memory validated topology; data and identities remain shallow caller values. */
-export interface PreparedDag<Data, ID = unknown> {
+export interface ValidatedReusableDagTopology<Data, VertexId = unknown> {
   /** Live-child convenience projection; omission slots are absent. Do not use for round-trip reconstruction. */
-  readonly liveVertexSummaries: readonly PreparedDagVertexSummary<Data, ID>[];
+  readonly liveVertexSummaries: readonly ValidatedDagTopologyLiveVertexSummary<
+    Data,
+    VertexId
+  >[];
   /** Faithful ordered entry, slots, omissions, and W/C declarations for reconstruction or revision. */
-  readonly definition: DagDefinition<Data, ID>;
-  createRunner(
-    options?: PreparedDagRunnerOptions<Data, ID>,
-  ): DagTraversalRunner<VertexTypes<Data, ID>, VertexTypes<Data, ID>, ID>;
-  createAsyncRunner(
-    options?: PreparedAsyncDagRunnerOptions<Data, ID>,
-  ): Promise<
-    AsyncDagTraversalRunner<VertexTypes<Data, ID>, VertexTypes<Data, ID>, ID>
+  readonly definition: DagDefinition<Data, VertexId>;
+  createIndependentRunnerFromValidatedTopology(
+    options?: ValidatedDagTopologyRunnerOptions<Data, VertexId>,
+  ): DagTraversalRunner<
+    VertexDataAndChildHintTypes<Data, VertexId>,
+    VertexDataAndChildHintTypes<Data, VertexId>,
+    VertexId
   >;
-  createWorkSession(options?: DagWorkSessionOptions<ID>): DagWorkSession<ID>;
-  createAsyncWorkSession(
-    options?: AsyncDagWorkSessionOptions<ID>,
-  ): Promise<AsyncDagWorkSession<ID>>;
+  createIndependentAsyncRunnerFromValidatedTopology(
+    options?: ValidatedDagTopologyAsyncRunnerOptions<Data, VertexId>,
+  ): Promise<
+    AsyncDagTraversalRunner<
+      VertexDataAndChildHintTypes<Data, VertexId>,
+      VertexDataAndChildHintTypes<Data, VertexId>,
+      VertexId
+    >
+  >;
+  createExternalWorkSession(
+    options?: DagExternalWorkSessionOptions<VertexId>,
+  ): DagExternalWorkSession<VertexId>;
+  createAsyncExternalWorkSession(
+    options?: AsyncDagExternalWorkSessionOptions<VertexId>,
+  ): Promise<AsyncDagExternalWorkSession<VertexId>>;
 }

@@ -1,17 +1,17 @@
 import type {
   Outcome,
-  OwnerToken,
+  SchedulingOwnerValidityToken,
   VisitMetadata,
-  VisitPhase,
+  TreeOrDagVisitorPhase,
 } from '@core/effects/types';
 import type { VisitorExecutionState } from '@core/executeVisitors';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type {
-  HintVertexId,
+  ChildHintVertexIdentity,
   VertexId,
   InternalVertexRef,
 } from '@core/graph/types';
-import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
+import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
 import type { EligibleVisit } from '@core/scheduling/types';
 import type { MakeVertexResult } from '@core/TraversableTree';
 import type {
@@ -27,79 +27,105 @@ import type {
   TraversalVisitorCommand,
   TraversalVisitorCommandName,
 } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { RegistrationMetadata } from '@core/visitors/types';
-import type { InOrderOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
+import type { DepthFirstChildBoundaryVisitOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 
-export type KernelStateBridge<T extends VertexTypes> = {
+export type KernelStateBridge<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = {
   status: TraversalRunnerStatus;
-  traversalRootVertexRef: InternalVertexRef<T> | null;
-  subtreeTraversalDisabledRefs: Set<InternalVertexRef<T>>;
-  visitorsState: Partial<Record<VisitPhase, VisitorExecutionState<T>>>;
+  traversalRootVertexRef: InternalVertexRef<InputVertexTypes> | null;
+  subtreeTraversalDisabledRefs: Set<InternalVertexRef<InputVertexTypes>>;
+  visitorsState: Partial<
+    Record<TreeOrDagVisitorPhase, VisitorExecutionState<InputVertexTypes>>
+  >;
 };
 
-export type KernelOptions<T extends VertexTypes, R extends VertexTypes = T> = {
+export type KernelOptions<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> = {
   kind: 'depth-first' | 'breadth-first' | 'dag';
   execution: 'sync' | 'async';
   sourceMode: 'tree' | 'graph';
-  container: ResolvedGraphsContainer<T, R>;
-  stateBridge: KernelStateBridge<T | R>;
-  visitorMetadata: Partial<Record<VisitPhase, readonly RegistrationMetadata[]>>;
-  iterableConfig: TraversalRunnerIterableConfig<VisitPhase>;
-  inOrderConfig: InOrderOptions | null;
-  hasHintTransformer: boolean;
-  hasHintIds: boolean;
+  container: ResolvedGraphsContainer<InputVertexTypes, RewrittenVertexTypes>;
+  stateBridge: KernelStateBridge<InputVertexTypes | RewrittenVertexTypes>;
+  visitorMetadata: Partial<
+    Record<TreeOrDagVisitorPhase, readonly RegistrationMetadata[]>
+  >;
+  iterableConfig: TraversalRunnerIterableConfig<TreeOrDagVisitorPhase>;
+  inOrderConfig: DepthFirstChildBoundaryVisitOptions | null;
+  hasChildHintsListTransformer: boolean;
+  hasChildHintVertexIdResolver: boolean;
   hasPrerequisiteResolver?: boolean;
-  concurrency: number;
-  discovery?: 'lazy' | 'eager';
+  maxConcurrentCallbackInvocations: number;
+  discoveryTiming?: 'incrementalDuringTraversal' | 'completeBeforeAnyVisitor';
   canPrepare?: boolean;
-  workCompletion?: 'afterWorkReadyChain' | 'externalSettlement';
-  rootWorkDependencies?: 'honor' | 'ignore';
-  dependsOnWorkDefault?: 'none' | 'discoveryParentWork';
-  completedWork?: ReadonlySet<VertexId>;
+  workCompletionPolicy?:
+    | 'afterWorkReadyVisitorChain'
+    | 'requireExternalWorkSettlement';
+  rootWorkPrerequisitePolicy?: 'honor' | 'ignore';
+  undeclaredWorkPrerequisitePolicy?: 'none' | 'waitForDiscoveringParentWork';
+  acceptedCompletedWorkVertexIds?: ReadonlySet<VertexId>;
   dagSeed?: {
-    readyVisits: readonly EligibleVisit<T | R>[];
-    expansionQueue: readonly InternalVertexRef<T | R>[];
+    dependencyEligiblePhaseVisits: readonly EligibleVisit<
+      InputVertexTypes | RewrittenVertexTypes
+    >[];
+    expansionQueue: readonly InternalVertexRef<
+      InputVertexTypes | RewrittenVertexTypes
+    >[];
   };
 };
 
-export type FrameState<T extends VertexTypes, R extends VertexTypes = T> = {
-  owner: OwnerToken;
-  ref: InternalVertexRef<T | R>;
+export type FrameState<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> = {
+  owner: SchedulingOwnerValidityToken;
+  ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>;
   depth: number;
   stage: 'transformHints' | 'identify' | 'resolve';
-  hints: (T | R)['VertexHint'][];
+  hints: (InputVertexTypes | RewrittenVertexTypes)['ChildHint'][];
   nextIdentityIndex: number;
   nextAdmissionIndex: number;
   nextConsumeIndex: number;
-  hintIds: Map<number, HintVertexId>;
+  hintIds: Map<number, ChildHintVertexIdentity>;
   knownIndices: Set<number>;
-  contexts: Map<number, InternalVertexResolutionContext<T | R>>;
+  contexts: Map<
+    number,
+    InternalChildDiscoveryContext<InputVertexTypes | RewrittenVertexTypes>
+  >;
   pendingIndices: Set<number>;
-  identityOutcomes: Map<number, Outcome<HintVertexId | undefined>>;
-  outcomes: Map<number, Outcome<MakeVertexResult<T>>>;
-  sortOutcome: Outcome<(T | R)['VertexHint'][]> | null;
+  identityOutcomes: Map<number, Outcome<ChildHintVertexIdentity | undefined>>;
+  outcomes: Map<number, Outcome<MakeVertexResult<InputVertexTypes>>>;
+  sortOutcome: Outcome<
+    (InputVertexTypes | RewrittenVertexTypes)['ChildHint'][]
+  > | null;
 };
 
-export type ChainState<T extends VertexTypes, R extends VertexTypes = T> = {
-  owner: OwnerToken;
-  ref: InternalVertexRef<T | R>;
-  order: VisitPhase;
+export type ChainState<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> = {
+  owner: SchedulingOwnerValidityToken;
+  ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>;
+  order: TreeOrDagVisitorPhase;
   phase: 'running' | 'paused' | 'done' | 'invalid';
   group: 'concurrent' | 'sequential';
   position: number;
   waitingFor: 'none' | 'callback' | 'batch';
   commands: TraversalVisitorCommand<
-    R,
+    RewrittenVertexTypes,
     TraversalVisitorCommandName,
-    T['VertexHint']
+    InputVertexTypes['ChildHint']
   >[];
-  metadata: VisitMetadata<T | R>;
-  config: ResolvedTraversalExecutionOptions<VisitPhase>;
+  metadata: VisitMetadata<InputVertexTypes | RewrittenVertexTypes>;
+  config: ResolvedTraversalExecutionOptions<TreeOrDagVisitorPhase>;
 };
 
-export type VertexWork<T extends VertexTypes> = {
-  ref: InternalVertexRef<T>;
+export type VertexWork<InputVertexTypes extends VertexDataAndChildHintTypes> = {
+  ref: InternalVertexRef<InputVertexTypes>;
   unmet: Set<VertexId>;
   unmetComplete: Set<VertexId>;
   expansion: 'unprepared' | 'open' | 'closed';
@@ -113,7 +139,7 @@ export type VertexWork<T extends VertexTypes> = {
 
 export type SessionProgress<E> =
   | { kind: 'EVENT'; event: E; boundaryId: number }
-  | { kind: 'WAIT' | 'HALTED' | 'FINISHED' }
+  | { kind: 'WAIT' | 'SUSPENDED' | 'FINISHED' }
   | { kind: 'FAILED'; error: unknown };
 
 export interface AsyncSessionControl<E> {
@@ -123,12 +149,12 @@ export interface AsyncSessionControl<E> {
   requestHalt(): void;
   isHaltRequested(): boolean;
   resume(
-    config?: TraversalIterableConfigInput<VisitPhase>,
+    config?: TraversalIterableConfigInput<TreeOrDagVisitorPhase>,
     preparation?: boolean,
   ): void;
-  getStatus(): TraversalRunnerStatus;
-  getStopReason(): TraversalStopReason | null;
+  getTraversalLifecycleStatus(): TraversalRunnerStatus;
+  getTraversalStopReason(): TraversalStopReason | null;
   getFailure(): { error: unknown } | null;
-  inspect(): import('@core/CoreInspection').DriverInspection;
+  captureExecutionSnapshot(): import('@core/CoreInspection').TreeOrDagCallbackDriverSnapshot;
   waitForProgress(): Promise<void>;
 }

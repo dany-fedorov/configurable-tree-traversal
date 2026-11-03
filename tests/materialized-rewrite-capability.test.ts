@@ -1,22 +1,22 @@
 import {
-  AsyncDagTraversal,
-  DagTraversal,
+  AsyncDagTraversalBuilder,
+  DagTraversalBuilder,
   DagVisitorPhase,
   TraversalVisitorCommandName as Command,
-  materializeDagInputFromRecords,
-  materializeDagInputFromRecordsAsync,
-  materializeDagInputFromRoots,
-  materializeDagInputFromRootsAsync,
-  prepareDag,
-  prepareDagAsync,
-  type VertexTypes,
+  materializeMultiEntryDagInputFromRecordCatalog,
+  materializeMultiEntryDagInputFromRecordCatalogAsync,
+  materializeDagInputFromRootRecords,
+  materializeDagInputFromRootRecordsAsync,
+  discoverValidateAndCaptureDag,
+  discoverValidateAndCaptureDagAsync,
+  type VertexDataAndChildHintTypes,
   type DagVisitor,
 } from '../src';
 
 type ID = object | undefined;
 type Item = { id: ID; label: string; children: Item[] };
-type Input = VertexTypes<Item, ID>;
-type Output = VertexTypes<string, ID>;
+type Input = VertexDataAndChildHintTypes<Item, ID>;
+type Output = VertexDataAndChildHintTypes<string, ID>;
 
 for (const factory of ['records', 'roots', 'asyncRecords', 'asyncRoots']) {
   for (const asyncRunner of [false, true]) {
@@ -28,26 +28,30 @@ for (const factory of ['records', 'roots', 'asyncRecords', 'asyncRoots']) {
       const root: Item = { id: rootId, label: 'root', children: [child] };
       const records = [root, child];
       const recordSelectors = {
-        id: (item: Item) => item.id,
-        children: (item: Item) => item.children.map((item) => item.id),
+        selectVertexId: (item: Item) => item.id,
+        selectStructuralChildVertexIds: (item: Item) =>
+          item.children.map((item) => item.id),
       };
       const rootSelectors = {
-        id: (item: Item) => item.id,
-        children: (item: Item) => item.children,
+        selectVertexId: (item: Item) => item.id,
+        selectStructuralChildRecords: (item: Item) => item.children,
       };
       const input =
         factory === 'records'
-          ? materializeDagInputFromRecords(records, recordSelectors)
+          ? materializeMultiEntryDagInputFromRecordCatalog(
+              records,
+              recordSelectors,
+            )
           : factory === 'roots'
-          ? materializeDagInputFromRoots([root], rootSelectors)
+          ? materializeDagInputFromRootRecords([root], rootSelectors)
           : factory === 'asyncRecords'
-          ? await materializeDagInputFromRecordsAsync(records, {
+          ? await materializeMultiEntryDagInputFromRecordCatalogAsync(records, {
               ...recordSelectors,
-              id: async (item) => item.id,
+              selectVertexId: async (item) => item.id,
             })
-          : await materializeDagInputFromRootsAsync([root], {
+          : await materializeDagInputFromRootRecordsAsync([root], {
               ...rootSelectors,
-              id: async (item) => item.id,
+              selectVertexId: async (item) => item.id,
             });
       // Mutating caller topology after materialization cannot drop captured discovery.
       root.children.length = 0;
@@ -59,73 +63,93 @@ for (const factory of ['records', 'roots', 'asyncRecords', 'asyncRoots']) {
         DagVisitorPhase.ON_WORK_READY,
         ID
       > = (vertex) => {
-        const item = vertex.getData();
+        const item = vertex.getVertexData();
         if (typeof item === 'string')
           throw new Error('Expected each discovered input record once');
         visited.push(item);
         return {
           commands: [
             {
-              commandName: Command.REWRITE_VERTEX_DATA,
-              commandArguments: { newData: `artifact:${item.label}` },
+              commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+              commandArguments: {
+                replacementVertexData: `artifact:${item.label}`,
+              },
             },
           ],
         };
       };
       const options = {
         ...input,
-        retainOriginalGraphStructure: true,
+        retainDiscoveredGraphBeforeVisitorCommands: true,
         visitors: { [DagVisitorPhase.ON_WORK_READY]: rewrite },
       };
       const runner = asyncRunner
-        ? new AsyncDagTraversal<Input, Output, ID>(options).createRunner()
-        : new DagTraversal<Input, Output, ID>(options).createRunner();
-      await runner.run();
-      const graph = runner.getResolvedGraphView();
-      expect(graph.getVertexRefs()).toHaveLength(2);
-      const rootRef = graph.getVertexRefById(rootId)!;
-      const childRef = graph.getVertexRefById(undefined)!;
-      expect(rootRef.getValue().getData()).toBe('artifact:root');
-      expect(childRef.getValue().getData()).toBe('artifact:child');
+        ? new AsyncDagTraversalBuilder<Input, Output, ID>(
+            options,
+          ).createIndependentRunnerFromCurrentOptions()
+        : new DagTraversalBuilder<Input, Output, ID>(
+            options,
+          ).createIndependentRunnerFromCurrentOptions();
+      await runner.runUntilSuspendedOrTerminal();
+      const graph = runner.getLiveResolvedGraphView();
+      expect(graph.getVertexHandles()).toHaveLength(2);
+      const rootRef = graph.getVertexHandleByIdOrNull(rootId)!;
+      const childRef = graph.getVertexHandleByIdOrNull(undefined)!;
+      expect(rootRef.getCurrentVertexView().getVertexData()).toBe(
+        'artifact:root',
+      );
+      expect(childRef.getCurrentVertexView().getVertexData()).toBe(
+        'artifact:child',
+      );
       expect(graph.requireVertexId(rootRef)).toBe(rootId);
       expect(graph.requireVertexId(childRef)).toBeUndefined();
       expect(visited).toEqual([root, child]);
       expect(visited[0]).toBe(root);
       expect(visited[1]).toBe(child);
-      const original = runner.originalGraphView!;
-      expect(original.getVertexRefById(rootId)!.getValue().getData()).toBe(
-        root,
+      const original = runner.preCommandDiscoveredGraphView!;
+      expect(
+        original
+          .getVertexHandleByIdOrNull(rootId)!
+          .getCurrentVertexView()
+          .getVertexData(),
+      ).toBe(root);
+      expect(
+        original
+          .getVertexHandleByIdOrNull(undefined)!
+          .getCurrentVertexView()
+          .getVertexData(),
+      ).toBe(child);
+      expect(graph.getStructuralChildHandlesInSlotOrderOrNull(rootRef)).toEqual(
+        [childRef],
       );
-      expect(original.getVertexRefById(undefined)!.getValue().getData()).toBe(
-        child,
-      );
-      expect(graph.getChildrenOf(rootRef)).toEqual([childRef]);
 
       // Reusing the materialized catalog in preparation retains input data and captured slots.
       const prepared = asyncRunner
-        ? await prepareDagAsync(input)
-        : prepareDag(input);
+        ? await discoverValidateAndCaptureDagAsync(input)
+        : discoverValidateAndCaptureDag(input);
       if (prepared.kind !== 'valid')
         throw new Error('Expected a valid materialized input');
-      const replay = prepared.dag.createRunner().run();
+      const replay = prepared.validatedTopology
+        .createIndependentRunnerFromValidatedTopology()
+        .runUntilSuspendedOrTerminal();
       expect(
         replay
-          .getResolvedGraphView()
-          .getVertexRefById(rootId)!
-          .getValue()
-          .getData(),
+          .getLiveResolvedGraphView()
+          .getVertexHandleByIdOrNull(rootId)!
+          .getCurrentVertexView()
+          .getVertexData(),
       ).toBe(root);
       expect(
         replay
-          .getResolvedGraphView()
-          .getVertexRefById(undefined)!
-          .getValue()
-          .getData(),
+          .getLiveResolvedGraphView()
+          .getVertexHandleByIdOrNull(undefined)!
+          .getCurrentVertexView()
+          .getVertexData(),
       ).toBe(child);
       expect(
-        prepared.dag.definition.vertices.find(
+        prepared.validatedTopology.definition.vertexDeclarations.find(
           (vertex) => vertex.vertexId === rootId,
-        )!.slots,
+        )!.childDiscoverySlots,
       ).toEqual([{ kind: 'vertex', vertexId: undefined }]);
     });
   }

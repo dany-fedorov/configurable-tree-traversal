@@ -1,73 +1,79 @@
 import {
-  defineDag,
+  copyAndNormalizeDagDefinition,
   type DagDefinition,
-  type DagDefinitionSlot,
+  type DagStructuralDiscoverySlot,
   type DagDefinitionVertex,
-  prepareDag,
-  prepareDagDefinition,
+  discoverValidateAndCaptureDag,
+  validateAndPrepareDagDefinition,
   type DagDefinitionIssue,
-  type PrepareDagResult,
-  materializeDagInputFromRecords,
+  type DagTopologyValidationResult,
+  materializeMultiEntryDagInputFromRecordCatalog,
 } from '../src';
 
-import { prepareDagDefinition as requirePrepareDagDefinition } from '../src/traversals/dag-traversal';
+import { validateAndPrepareDagDefinition as requirePrepareDagDefinition } from '../src/traversals/dag-traversal';
 
 type ID = 'a' | 'b';
 type Data = { label: string };
-const slot: DagDefinitionSlot<ID> = {
+const slot: DagStructuralDiscoverySlot<ID> = {
   kind: 'omitted',
-  identity: { vertexId: 'b' },
+  omittedVertexIdentity: { vertexId: 'b' },
 };
 const vertex: DagDefinitionVertex<Data, ID> = {
   vertexId: 'a',
   data: { label: 'A' },
-  slots: [slot],
-  dependsOnWork: [],
-  dependsOnSubgraphCompletion: [],
+  childDiscoverySlots: [slot],
+  workWaitsForWorkOf: [],
+  workWaitsForSubgraphCompletionOf: [],
 };
-const definition: DagDefinition<Data, ID> = defineDag({
-  vertices: [vertex],
-  omittedIds: ['b'],
+const definition: DagDefinition<Data, ID> = copyAndNormalizeDagDefinition({
+  vertexDeclarations: [vertex],
+  omittedVertexIds: ['b'],
   entry: { kind: 'root', vertexId: 'a' },
 });
 // @ts-expect-error Definition vertices are immutable.
-definition.vertices.push(vertex);
+definition.vertexDeclarations.push(vertex);
 // @ts-expect-error Definition slot wrappers are immutable.
-slot.identity = null;
-defineDag<Data, ID>({
-  vertices: [],
+slot.omittedVertexIdentity = null;
+copyAndNormalizeDagDefinition<Data, ID>({
+  vertexDeclarations: [],
   // @ts-expect-error Definitions retain their identity domain.
-  omittedIds: ['wrong'],
+  omittedVertexIds: ['wrong'],
   entry: { kind: 'empty' },
 });
-const prepared = prepareDag(
-  materializeDagInputFromRecords<Data, ID>([], { id: () => 'a' }),
+const prepared = discoverValidateAndCaptureDag(
+  materializeMultiEntryDagInputFromRecordCatalog<Data, ID>([], {
+    selectVertexId: () => 'a',
+  }),
 );
 if (prepared.kind === 'valid') {
-  const captured: DagDefinition<Data, ID> = prepared.dag.definition;
-  const runner = prepared.dag.createRunner();
-  for (const event of runner.iterateEvents()) {
-    const hints: readonly ID[] = event.vertex.getChildHints();
+  const captured: DagDefinition<Data, ID> =
+    prepared.validatedTopology.definition;
+  const runner =
+    prepared.validatedTopology.createIndependentRunnerFromValidatedTopology();
+  for (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal()) {
+    const hints: readonly ID[] = event.vertex.getDetachedChildDiscoveryHints();
     void hints;
   }
   void captured;
 }
 void definition;
 
-const validated: PrepareDagResult<Data, ID> = prepareDagDefinition(definition);
+const validated: DagTopologyValidationResult<Data, ID> =
+  validateAndPrepareDagDefinition(definition);
 if (validated.kind === 'valid') {
-  const id: ID = validated.dag.liveVertexSummaries[0]!.vertexId;
-  const data: Data = validated.dag.liveVertexSummaries[0]!.data;
+  const id: ID = validated.validatedTopology.liveVertexSummaries[0]!.vertexId;
+  const data: Data = validated.validatedTopology.liveVertexSummaries[0]!.data;
   // @ts-expect-error Valid results have no issues.
   validated.issues;
   void [id, data];
 } else {
   const issues: readonly DagDefinitionIssue<ID>[] = validated.issues;
   // @ts-expect-error Invalid results have no executable DAG.
-  validated.dag;
+  validated.validatedTopology;
   for (const issue of issues) {
-    if (issue.kind === 'milestone') {
-      const ids: readonly ID[] = issue.diagnostics.unknownPrerequisiteIds;
+    if (issue.kind === 'milestoneDependencyStall') {
+      const ids: readonly ID[] =
+        issue.diagnostics.unresolvedPrerequisiteVertexIds;
       void ids;
     } else if (issue.kind === 'missingStructuralEndpoint') {
       const parent: { vertexId: ID } | null = issue.parent;
@@ -75,11 +81,12 @@ if (validated.kind === 'valid') {
     }
   }
 }
-prepareDagDefinition<Data, ID>({
-  vertices: [],
-  omittedIds: [],
+validateAndPrepareDagDefinition<Data, ID>({
+  vertexDeclarations: [],
+  omittedVertexIds: [],
   // @ts-expect-error Preparation retains the definition's identity domain.
   entry: { kind: 'root', vertexId: 'wrong' },
 });
-const subpathPrepare: typeof prepareDagDefinition = requirePrepareDagDefinition;
+const subpathPrepare: typeof validateAndPrepareDagDefinition =
+  requirePrepareDagDefinition;
 void subpathPrepare;

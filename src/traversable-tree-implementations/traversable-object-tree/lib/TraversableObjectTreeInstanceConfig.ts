@@ -1,87 +1,129 @@
-import type { ObjectCurrentVertexTypes } from '@traversable-object-tree/lib/ObjectCurrentVertexTypes';
+import type { LiveObjectPropertyVertexTypes } from '@traversable-object-tree/lib/ObjectCurrentVertexTypes';
 import type {
-  TreeChildResolutionContext,
-  TreeVertexFound,
-  TreeVertexOmitted,
+  TreeChildResolverContext,
+  TreeVertexResolutionFound,
+  TreeVertexResolutionOmitted,
 } from '@core/TraversableTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
-import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
-import type { ObjectTreeVertexTypes } from '@traversable-object-tree/lib/ObjectTreeVertexTypes';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
+import type { ObjectPropertyRecord } from '@traversable-object-tree/lib/TraversableObjectProp';
+import type { ObjectPropertyKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
+import type { ObjectPropertyTreeVertexTypes } from '@traversable-object-tree/lib/ObjectTreeVertexTypes';
 
-export type ObjectChildHookResult<T extends VertexTypes> =
+export type ObjectChildPropertyResolutionOverrideResult<
+  T extends VertexDataAndChildHintTypes,
+> =
   | {
-      kind: 'useDefault';
+      kind: 'useDefaultChildPropertyResolution';
       vertexId?: never;
+      omittedVertexIdentity?: never;
+      workWaitsForWorkOf?: never;
+      workWaitsForSubgraphCompletionOf?: never;
+      satisfiesWorkAndSubgraphCompletionPrerequisites?: never;
       dependsOnWork?: never;
       dependsOnSubgraphCompletion?: never;
       satisfiesDependencies?: never;
     }
-  | TreeVertexFound<T>
-  | TreeVertexOmitted;
+  | TreeVertexResolutionFound<T>
+  | TreeVertexResolutionOmitted;
 
-export type ObjectTreeBaseOptions<
-  In,
-  InK extends TraversableObjectPropKey,
-  InV,
-  OutK extends TraversableObjectPropKey,
-  OutV,
+export type ObjectPropertyTreeBaseOptions<
+  InputValue,
+  InputPropertyKey extends ObjectPropertyKey,
+  InputPropertyValue,
+  RewrittenPropertyKey extends ObjectPropertyKey,
+  RewrittenPropertyValue,
 > = {
-  getChildrenOfProperty?: (
-    prop: TraversableObjectProp<InK, InV>,
-  ) => ObjectTreeVertexTypes<InK, InV>['VertexHint'][];
-  getRootPropertyFromInputObject?: (
-    inputObj: In,
-  ) => TraversableObjectProp<InK, InV>;
-  resolveChildHook?: (
-    vertexHint: ObjectTreeVertexTypes<InK, InV>['VertexHint'],
-    context: TreeChildResolutionContext<
-      ObjectTreeVertexTypes<InK, InV>,
-      ObjectCurrentVertexTypes<
-        ObjectTreeVertexTypes<InK, InV>,
-        ObjectTreeVertexTypes<OutK, OutV>
+  enumerateChildPropertyHints?: (
+    prop: ObjectPropertyRecord<InputPropertyKey, InputPropertyValue>,
+  ) => ObjectPropertyTreeVertexTypes<
+    InputPropertyKey,
+    InputPropertyValue
+  >['ChildHint'][];
+  mapInputToRootProperty?: (
+    inputObj: InputValue,
+  ) => ObjectPropertyRecord<InputPropertyKey, InputPropertyValue>;
+  resolveChildPropertyOrUseDefault?: (
+    childDiscoveryHint: ObjectPropertyTreeVertexTypes<
+      InputPropertyKey,
+      InputPropertyValue
+    >['ChildHint'],
+    context: TreeChildResolverContext<
+      ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>,
+      LiveObjectPropertyVertexTypes<
+        ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>,
+        ObjectPropertyTreeVertexTypes<
+          RewrittenPropertyKey,
+          RewrittenPropertyValue
+        >
       >
     >,
-  ) => ObjectChildHookResult<ObjectTreeVertexTypes<InK, InV>>;
+  ) => ObjectChildPropertyResolutionOverrideResult<
+    ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>
+  >;
 };
 
 /** Both adapters establish a narrow discovery domain, including its root. */
-export type ObjectTreePropertyAdapters<
-  In,
-  InK extends TraversableObjectPropKey,
-  InV,
+export type ObjectPropertyTreeAdapters<
+  InputValue,
+  InputPropertyKey extends ObjectPropertyKey,
+  InputPropertyValue,
 > = Required<
   Pick<
-    ObjectTreeBaseOptions<In, InK, InV, InK, InV>,
-    'getRootPropertyFromInputObject' | 'getChildrenOfProperty'
+    ObjectPropertyTreeBaseOptions<
+      InputValue,
+      InputPropertyKey,
+      InputPropertyValue,
+      InputPropertyKey,
+      InputPropertyValue
+    >,
+    'mapInputToRootProperty' | 'enumerateChildPropertyHints'
   >
 >;
 
-export type ObjectTreeOptions<
-  In,
-  InK extends TraversableObjectPropKey,
-  InV,
-  OutK extends TraversableObjectPropKey,
-  OutV,
-> = ObjectTreeBaseOptions<In, InK, InV, OutK, OutV> &
-  ([TraversableObjectPropKey, unknown] extends [InK, InV]
+export type ObjectPropertyTreeSourceOptions<
+  InputValue,
+  InputPropertyKey extends ObjectPropertyKey,
+  InputPropertyValue,
+  RewrittenPropertyKey extends ObjectPropertyKey,
+  RewrittenPropertyValue,
+> = ObjectPropertyTreeBaseOptions<
+  InputValue,
+  InputPropertyKey,
+  InputPropertyValue,
+  RewrittenPropertyKey,
+  RewrittenPropertyValue
+> &
+  ([ObjectPropertyKey, unknown] extends [InputPropertyKey, InputPropertyValue]
     ? unknown
-    : ObjectTreePropertyAdapters<In, InK, InV>);
+    : ObjectPropertyTreeAdapters<
+        InputValue,
+        InputPropertyKey,
+        InputPropertyValue
+      >);
 
-export type ObjectTreeResolvedOptions<
-  In,
-  InK extends TraversableObjectPropKey,
-  InV,
-  OutK extends TraversableObjectPropKey,
-  OutV,
+export type NormalizedObjectPropertyTreeSourceOptions<
+  InputValue,
+  InputPropertyKey extends ObjectPropertyKey,
+  InputPropertyValue,
+  RewrittenPropertyKey extends ObjectPropertyKey,
+  RewrittenPropertyValue,
 > = Required<
-  Omit<ObjectTreeBaseOptions<In, InK, InV, OutK, OutV>, 'resolveChildHook'>
+  Omit<
+    ObjectPropertyTreeBaseOptions<
+      InputValue,
+      InputPropertyKey,
+      InputPropertyValue,
+      RewrittenPropertyKey,
+      RewrittenPropertyValue
+    >,
+    'resolveChildPropertyOrUseDefault'
+  >
 > & {
-  resolveChildHook: ObjectTreeBaseOptions<
-    In,
-    InK,
-    InV,
-    OutK,
-    OutV
-  >['resolveChildHook'];
+  resolveChildPropertyOrUseDefault: ObjectPropertyTreeBaseOptions<
+    InputValue,
+    InputPropertyKey,
+    InputPropertyValue,
+    RewrittenPropertyKey,
+    RewrittenPropertyValue
+  >['resolveChildPropertyOrUseDefault'];
 };

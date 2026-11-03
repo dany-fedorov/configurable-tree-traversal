@@ -1,50 +1,63 @@
 import {
-  AsyncDagTraversal,
-  DagTraversal,
+  AsyncDagTraversalBuilder,
+  DagTraversalBuilder,
   DagVisitorPhase as D,
   TraversalVisitorCommandName as C,
 } from '../src';
 import { traversalInternals } from './internal-runner-fixtures';
-type T = { VertexData: string; VertexHint: string };
-const traversableGraph = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
+type T = { VertexData: string; ChildHint: string };
+const dagDiscoverySource = {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId: 'root',
-      vertexContent: { $data: 'root', $childHints: [] as string[] },
+      vertexContentInput: {
+        $vertexData: 'root',
+        $childDiscoveryHints: [] as string[],
+      },
     },
   }),
-  resolveChild: () => ({
-    identity: null,
-    satisfiesDependencies: true as const,
-    kind: 'omitted' as const,
+  resolveChildHint: () => ({
+    omittedVertexIdentity: null,
+    satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+    kind: 'vertexIntentionallyOmitted' as const,
   }),
 };
-for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
+for (const Ctor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test(`${Ctor.name}: flat priority order precedes batching mode`, async () => {
     const seen: string[] = [];
-    const t = new (Ctor as typeof DagTraversal)<T>({ traversableGraph });
-    t.addVisitorFor(
+    const t = new (Ctor as typeof DagTraversalBuilder)<T>({
+      dagDiscoverySource,
+    });
+    t.registerVisitorCallbackForPhase(
       D.ON_WORK_READY,
       () => {
         seen.push('high');
       },
-      { priority: 1000, commandCommitMode: 'afterEachVisitor' as const },
+      {
+        descendingExecutionPriorityWithinGroup: 1000,
+        visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
+      },
     );
-    t.addVisitorFor(
+    t.registerVisitorCallbackForPhase(
       D.ON_WORK_READY,
       () => {
         seen.push('low');
       },
-      { priority: 1, commandCommitMode: 'afterGroup' as const },
+      {
+        descendingExecutionPriorityWithinGroup: 1,
+        visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
+      },
     );
-    await t.createRunner().run();
+    await t
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal();
     expect(seen).toEqual(['high', 'low']);
   });
   test(`${Ctor.name}: groups preserve boundaries, committed state and list/set append order`, async () => {
     const seen: unknown[] = [];
-    const t = new (Ctor as typeof DagTraversal)<T>({
-      traversableGraph,
+    const t = new (Ctor as typeof DagTraversalBuilder)<T>({
+      dagDiscoverySource,
       visitors: {
         [D.ON_WORK_READY]: {
           groups: [
@@ -53,9 +66,9 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
                 () => ({
                   commands: [
                     {
-                      commandName: C.SET_VISITOR_CHAIN_STATE,
+                      commandName: C.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
                       commandArguments: {
-                        state: 'committed',
+                        phaseChainState: 'committed',
                       },
                     },
                   ],
@@ -63,24 +76,25 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
               ],
             },
             {
-              commandCommitMode: 'afterGroup' as const,
+              visitorCommandCommitTiming:
+                'afterContiguousVisitorBatch' as const,
               visitors: [
                 {
-                  priority: 1,
+                  descendingExecutionPriorityWithinGroup: 1,
                   visitor: (_v, o) => {
-                    seen.push(['low', o.visitorChainState]);
+                    seen.push(['low', o.currentVertexPhaseChainState]);
                   },
                 },
                 {
-                  priority: 2,
+                  descendingExecutionPriorityWithinGroup: 2,
                   visitor: (_v, o) => {
-                    seen.push(['high', o.visitorChainState]);
+                    seen.push(['high', o.currentVertexPhaseChainState]);
                     return {
                       commands: [
                         {
-                          commandName: C.SET_VISITOR_CHAIN_STATE,
+                          commandName: C.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
                           commandArguments: {
-                            state: 'buffered',
+                            phaseChainState: 'buffered',
                           },
                         },
                       ],
@@ -93,32 +107,41 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    t.setVisitorsFor(D.ON_WORK_READY, t.listVisitorsFor(D.ON_WORK_READY));
-    t.addVisitorFor(
+    t.replaceVisitorDefinitionsForPhase(
+      D.ON_WORK_READY,
+      t.getDetachedVisitorRegistrationRecordsForPhase(D.ON_WORK_READY),
+    );
+    t.registerVisitorCallbackForPhase(
       D.ON_WORK_READY,
       (_v, o) => {
-        seen.push(['implicit', o.visitorChainState]);
+        seen.push(['implicit', o.currentVertexPhaseChainState]);
       },
-      { priority: 1000 },
+      { descendingExecutionPriorityWithinGroup: 1000 },
     );
-    t.addVisitorGroupFor(D.ON_WORK_READY, {
+    t.appendVisitorGroupForPhase(D.ON_WORK_READY, {
       visitors: [
         () => {
           seen.push('explicit');
         },
       ],
     });
-    t.addVisitorFor(
+    t.registerVisitorCallbackForPhase(
       D.ON_WORK_READY,
       () => {
         seen.push('tail');
       },
-      { priority: 9999 },
+      { descendingExecutionPriorityWithinGroup: 9999 },
     );
-    t.configure({
-      visitors: { [D.ON_WORK_READY]: t.listVisitorsFor(D.ON_WORK_READY) },
+    t.patchOptionsForFutureRunners({
+      visitors: {
+        [D.ON_WORK_READY]: t.getDetachedVisitorRegistrationRecordsForPhase(
+          D.ON_WORK_READY,
+        ),
+      },
     });
-    await t.createRunner().run();
+    await t
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal();
     expect(seen).toEqual([
       ['high', 'committed'],
       ['low', 'committed'],
@@ -129,43 +152,49 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
   });
 }
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   // Sync callbacks work on both runtimes. Separate compile fixtures cover async callback signatures.
-  const Ctor = Constructor as typeof DagTraversal;
+  const Ctor = Constructor as typeof DagTraversalBuilder;
   test(`${Constructor.name}: flat afterGroup entries commit in contiguous sorted batches`, async () => {
     const seen: string[] = [];
-    const t = new Ctor<T>({ traversableGraph });
+    const t = new Ctor<T>({ dagDiscoverySource });
     const add = (
-      priority: number,
-      mode: 'afterEachVisitor' | 'afterGroup',
+      descendingExecutionPriorityWithinGroup: number,
+      mode: 'afterEachVisitorCallback' | 'afterContiguousVisitorBatch',
       next: string,
     ) =>
-      t.addVisitorFor(
+      t.registerVisitorCallbackForPhase(
         D.ON_WORK_READY,
         (v) => {
-          seen.push(v.getData());
+          seen.push(v.getVertexData());
           return {
             commands: [
               {
-                commandName: C.REWRITE_VERTEX_DATA,
-                commandArguments: { newData: next },
+                commandName: C.REPLACE_CURRENT_VERTEX_DATA,
+                commandArguments: { replacementVertexData: next },
               },
             ],
           };
         },
-        { priority, commandCommitMode: mode },
+        {
+          descendingExecutionPriorityWithinGroup:
+            descendingExecutionPriorityWithinGroup,
+          visitorCommandCommitTiming: mode,
+        },
       );
-    add(1, 'afterGroup', 'last');
-    add(4, 'afterGroup', 'first');
-    add(3, 'afterGroup', 'second');
-    add(2, 'afterEachVisitor', 'third');
-    await t.createRunner().run();
+    add(1, 'afterContiguousVisitorBatch', 'last');
+    add(4, 'afterContiguousVisitorBatch', 'first');
+    add(3, 'afterContiguousVisitorBatch', 'second');
+    add(2, 'afterEachVisitorCallback', 'third');
+    await t
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal();
     expect(seen).toEqual(['root', 'root', 'second', 'third']);
   });
   test(`${Constructor.name}: stable equal priorities ignore deprecated caller indexes`, async () => {
     const seen: string[] = [];
     const t = new Ctor<T>({
-      traversableGraph,
+      dagDiscoverySource,
       visitors: {
         [D.ON_WORK_READY]: {
           groups: [
@@ -175,13 +204,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
                   visitor: () => {
                     seen.push('first');
                   },
-                  priority: 1,
+                  descendingExecutionPriorityWithinGroup: 1,
                 },
                 {
                   visitor: () => {
                     seen.push('second');
                   },
-                  priority: 1,
+                  descendingExecutionPriorityWithinGroup: 1,
                 },
               ],
             },
@@ -191,7 +220,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
                   visitor: () => {
                     seen.push('third');
                   },
-                  priority: 9999,
+                  descendingExecutionPriorityWithinGroup: 9999,
                 },
               ],
             },
@@ -199,104 +228,124 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    t.addVisitorFor(D.ON_WORK_READY, () => {
+    t.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => {
       seen.push('fourth');
     });
-    t.addVisitorFor(D.ON_WORK_READY, () => {
+    t.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => {
       seen.push('fifth');
     });
-    await t.createRunner().run();
+    await t
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal();
     expect(seen).toEqual(['first', 'second', 'third', 'fourth', 'fifth']);
-    t.setVisitorsFor(D.ON_WORK_READY, [
+    t.replaceVisitorDefinitionsForPhase(D.ON_WORK_READY, [
       {
         visitor: () => {
           seen.push('legacy-first');
         },
-        priority: 1,
+        descendingExecutionPriorityWithinGroup: 1,
       },
       {
         visitor: () => {
           seen.push('legacy-second');
         },
-        priority: 1,
+        descendingExecutionPriorityWithinGroup: 1,
       },
     ]);
-    await t.createRunner().run();
+    await t
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal();
     expect(seen.slice(-2)).toEqual(['legacy-first', 'legacy-second']);
   });
   test(`${Constructor.name}: explicit deferral rolls back only its current batch`, async () => {
     const seen: string[] = [];
     const t = new Ctor<T>({
-      traversableGraph,
-      workCompletion: 'externalSettlement',
+      dagDiscoverySource,
+      workCompletionPolicy: 'requireExternalWorkSettlement',
     });
-    t.addVisitorGroupFor(D.ON_WORK_READY, {
-      commandCommitMode: 'afterGroup' as const,
+    t.appendVisitorGroupForPhase(D.ON_WORK_READY, {
+      visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
       visitors: [
         () => ({
           commands: [
             {
-              commandName: C.REWRITE_VERTEX_DATA,
-              commandArguments: { newData: 'committed' },
+              commandName: C.REPLACE_CURRENT_VERTEX_DATA,
+              commandArguments: { replacementVertexData: 'committed' },
             },
           ],
         }),
       ],
     });
-    t.addVisitorGroupFor(D.ON_WORK_READY, {
-      commandCommitMode: 'afterGroup' as const,
+    t.appendVisitorGroupForPhase(D.ON_WORK_READY, {
+      visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
       visitors: [
         (v) => {
-          seen.push(v.getData());
+          seen.push(v.getVertexData());
           return {
             commands: [
               {
-                commandName: C.REWRITE_VERTEX_DATA,
-                commandArguments: { newData: 'discarded' },
+                commandName: C.REPLACE_CURRENT_VERTEX_DATA,
+                commandArguments: { replacementVertexData: 'discarded' },
               },
             ],
           };
         },
-        () => ({ commands: [{ commandName: C.DEFER_WORK_COMPLETION }] }),
+        () => ({
+          commands: [
+            { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+          ],
+        }),
       ],
     });
-    t.addVisitorGroupFor(D.ON_WORK_READY, {
+    t.appendVisitorGroupForPhase(D.ON_WORK_READY, {
       visitors: [
         () => {
           seen.push('must skip');
         },
       ],
     });
-    const runner = t.createRunner();
-    await runner.run();
+    const runner = t.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
     expect(seen).toEqual(['committed']);
-    expect(runner.getResolvedGraphView().getRoot()!.getValue().getData()).toBe(
-      'committed',
-    );
-    const generation = runner.summary().vertices.get('root')!.generation!;
-    await runner.run();
-    expect(runner.summary().vertices.get('root')!.generation).toBe(generation);
-    runner.settle('root', { kind: 'workCompleted' }, generation);
-    await runner.run();
-    expect(runner.summary().completedWorkIds).toEqual(['root']);
+    expect(
+      runner
+        .getLiveResolvedGraphView()
+        .getDesignatedRootHandleOrNull()!
+        .getCurrentVertexView()
+        .getVertexData(),
+    ).toBe('committed');
+    const generation = runner
+      .captureProgressSnapshot()
+      .progressByVertexId.get('root')!.settlementToken!;
+    await runner.runUntilSuspendedOrTerminal();
+    expect(
+      runner.captureProgressSnapshot().progressByVertexId.get('root')!
+        .settlementToken,
+    ).toBe(generation);
+    runner.settleDeferredWork('root', { kind: 'workCompleted' }, generation);
+    await runner.runUntilSuspendedOrTerminal();
+    expect(
+      runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+    ).toEqual(['root']);
     expect(seen).toEqual(['committed']);
   });
   test(`${Constructor.name}: normally completed groups commit before external settlement`, async () => {
     const seen: string[] = [];
     const t = new Ctor<T>({
-      traversableGraph,
-      workCompletion: 'externalSettlement',
+      dagDiscoverySource,
+      workCompletionPolicy: 'requireExternalWorkSettlement',
       visitors: {
         [D.ON_WORK_READY]: {
           groups: [
             {
-              commandCommitMode: 'afterGroup' as const,
+              visitorCommandCommitTiming:
+                'afterContiguousVisitorBatch' as const,
               visitors: [
                 () => ({
                   commands: [
                     {
-                      commandName: C.REWRITE_VERTEX_DATA,
-                      commandArguments: { newData: 'committed' },
+                      commandName: C.REPLACE_CURRENT_VERTEX_DATA,
+                      commandArguments: { replacementVertexData: 'committed' },
                     },
                   ],
                 }),
@@ -305,7 +354,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             {
               visitors: [
                 (v) => {
-                  seen.push(v.getData());
+                  seen.push(v.getVertexData());
                 },
               ],
             },
@@ -313,35 +362,45 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    const runner = t.createRunner();
-    await runner.run();
+    const runner = t.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
     expect(seen).toEqual(['committed']);
-    expect(runner.summary().completedWorkIds).toEqual([]);
-    expect(runner.getStopReason()).toBe('awaitingSettlement');
-    runner.settle(
+    expect(
+      runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+    ).toEqual([]);
+    expect(runner.getTraversalStopReason()).toBe('awaitingSettlement');
+    runner.settleDeferredWork(
       'root',
       { kind: 'workCompleted' },
-      runner.summary().vertices.get('root')!.generation!,
+      runner.captureProgressSnapshot().progressByVertexId.get('root')!
+        .settlementToken!,
     );
-    await runner.run();
-    expect(runner.getStopReason()).toBe('finished');
+    await runner.runUntilSuspendedOrTerminal();
+    expect(runner.getTraversalStopReason()).toBe('finished');
   });
   test(`${Constructor.name}: halt resumes the remaining groups after committing its batch`, async () => {
     const seen: string[] = [];
     const t = new Ctor<T>({
-      traversableGraph,
+      dagDiscoverySource,
       visitors: {
         [D.ON_WORK_READY]: {
           groups: [
             {
-              commandCommitMode: 'afterGroup' as const,
+              visitorCommandCommitTiming:
+                'afterContiguousVisitorBatch' as const,
               visitors: [
-                () => ({ commands: [{ commandName: C.PAUSE_TRAVERSAL }] }),
                 () => ({
                   commands: [
                     {
-                      commandName: C.REWRITE_VERTEX_DATA,
-                      commandArguments: { newData: 'after-halt' },
+                      commandName: C.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY,
+                    },
+                  ],
+                }),
+                () => ({
+                  commands: [
+                    {
+                      commandName: C.REPLACE_CURRENT_VERTEX_DATA,
+                      commandArguments: { replacementVertexData: 'after-halt' },
                     },
                   ],
                 }),
@@ -350,7 +409,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             {
               visitors: [
                 (v) => {
-                  seen.push(v.getData());
+                  seen.push(v.getVertexData());
                 },
               ],
             },
@@ -358,26 +417,32 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    const runner = t.createRunner();
-    await runner.run();
+    const runner = t.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
     expect(seen).toEqual([]);
-    expect(runner.getStopReason()).toBe('paused');
-    await runner.run();
+    expect(runner.getTraversalStopReason()).toBe('paused');
+    await runner.runUntilSuspendedOrTerminal();
     expect(seen).toEqual(['after-halt']);
-    expect(runner.getStopReason()).toBe('finished');
+    expect(runner.getTraversalStopReason()).toBe('finished');
   });
   test(`${Constructor.name}: deletion ends the chain before later groups`, async () => {
     const seen: string[] = [];
     const t = new Ctor<T>({
-      traversableGraph,
+      dagDiscoverySource,
       visitors: {
         [D.ON_WORK_READY]: {
           groups: [
             {
-              commandCommitMode: 'afterGroup' as const,
+              visitorCommandCommitTiming:
+                'afterContiguousVisitorBatch' as const,
               visitors: [
                 () => ({
-                  commands: [{ commandName: C.DELETE_DAG_VERTEX_CASCADE }],
+                  commands: [
+                    {
+                      commandName:
+                        C.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+                    },
+                  ],
                 }),
                 () => {
                   seen.push('same batch');
@@ -395,20 +460,23 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    const runner = t.createRunner();
-    await runner.run();
+    const runner = t.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
     expect(seen).toEqual(['same batch']);
-    expect(runner.getResolvedGraphView().getRoot()).toBeNull();
+    expect(
+      runner.getLiveResolvedGraphView().getDesignatedRootHandleOrNull(),
+    ).toBeNull();
   });
   test(`${Constructor.name}: invalid group replacements are atomic and normalized policy remains owned by the group`, async () => {
     const seen: string[] = [];
     const t = new Ctor<T>({
-      traversableGraph,
+      dagDiscoverySource,
       visitors: {
         [D.ON_WORK_READY]: {
           groups: [
             {
-              commandCommitMode: 'afterGroup' as const,
+              visitorCommandCommitTiming:
+                'afterContiguousVisitorBatch' as const,
               visitors: [
                 () => {
                   seen.push('original');
@@ -419,7 +487,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    const original = t.listVisitorsFor(D.ON_WORK_READY);
+    const original = t.getDetachedVisitorRegistrationRecordsForPhase(
+      D.ON_WORK_READY,
+    );
     const malformed: unknown[] = [
       null,
       7,
@@ -436,7 +506,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             visitors: [
               {
                 visitor: () => undefined,
-                commandCommitMode: 'afterGroup' as const,
+                visitorCommandCommitTiming:
+                  'afterContiguousVisitorBatch' as const,
               },
             ],
           },
@@ -446,7 +517,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         groups: [
           {
             visitors: [
-              { visitor: () => undefined, commandCommitMode: undefined },
+              {
+                visitor: () => undefined,
+                visitorCommandCommitTiming: undefined,
+              },
             ],
           },
         ],
@@ -454,33 +528,37 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     ];
     for (const input of malformed) {
       expect(() =>
-        t.configure({
-          workCompletion: 'externalSettlement',
+        t.patchOptionsForFutureRunners({
+          workCompletionPolicy: 'requireExternalWorkSettlement',
           visitors: { [D.ON_WORK_READY]: input as never },
         }),
       ).toThrow(TypeError);
-      expect(t.listVisitorsFor(D.ON_WORK_READY)).toEqual(original);
-      expect(traversalInternals(t).icfg.workCompletion).toBeUndefined();
+      expect(
+        t.getDetachedVisitorRegistrationRecordsForPhase(D.ON_WORK_READY),
+      ).toEqual(original);
+      expect(traversalInternals(t).icfg.workCompletionPolicy).toBeUndefined();
     }
     expect(() =>
-      t.addVisitorGroupFor(D.ON_WORK_READY, {
+      t.appendVisitorGroupForPhase(D.ON_WORK_READY, {
         visitors: [original[0]!],
       } as never),
     ).toThrow(/own/);
     const changed = original.map((record) => ({
       ...record,
-      commandCommitMode: 'afterEachVisitor' as const,
+      visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
     }));
-    expect(() => t.setVisitorsFor(D.ON_WORK_READY, changed)).toThrow(
-      /conflicting/,
-    );
+    expect(() =>
+      t.replaceVisitorDefinitionsForPhase(D.ON_WORK_READY, changed),
+    ).toThrow(/conflicting/);
     expect(Object.isFrozen(original[0]!.visitorGroup)).toBe(true);
-    await t.createRunner().run();
+    await t
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal();
     expect(seen).toEqual(['original']);
   });
 }
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test.each(['definition', 'group'] as const)(
     `${Constructor.name}: captures a %s callback getter once before registration`,
     async (shape) => {
@@ -502,15 +580,20 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           : {
               groups: [
                 {
-                  commandCommitMode: 'afterGroup' as const,
+                  visitorCommandCommitTiming:
+                    'afterContiguousVisitorBatch' as const,
                   visitors: [member],
                 },
               ],
             };
-      const t = new Constructor<T>({ traversableGraph });
-      t.configure({ visitors: { [D.ON_WORK_READY]: input as never } });
+      const t = new Constructor<T>({ dagDiscoverySource });
+      t.patchOptionsForFutureRunners({
+        visitors: { [D.ON_WORK_READY]: input as never },
+      });
       expect(reads).toBe(1);
-      await t.createRunner().run();
+      await t
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal();
       expect(calls).toEqual(['captured']);
       expect(reads).toBe(1);
     },

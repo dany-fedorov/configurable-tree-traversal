@@ -1,59 +1,77 @@
 import {
-  GraphWalk,
-  GraphWalkPhase,
-  materializeWalkSourceFromRecords,
+  GraphWalkBuilder,
+  GraphWalkObservationKind,
+  materializeGraphWalkSourceFromVertexRecords,
 } from '../src';
 import assert from 'node:assert/strict';
 
-const source = materializeWalkSourceFromRecords(
+const source = materializeGraphWalkSourceFromVertexRecords(
   [
     { id: 'claim', links: ['evidence', 'evidence'] }, // Distinct provenance links.
     { id: 'evidence', links: ['claim'] },
   ],
   {
-    id: (item) => item.id,
-    outgoing: (item) =>
-      item.links.map((to) => ({ to, data: { kind: 'cites' } })),
-    roots: ['claim'],
+    getVertexId: (item) => item.id,
+    enumerateOutgoingLinks: (item) =>
+      item.links.map((to) => ({ toVertexId: to, edgeData: { kind: 'cites' } })),
+    rootVertexIds: ['claim'],
   },
 );
-for (const revisit of ['simplePaths', 'walks'] as const) {
-  const runner = new GraphWalk({
-    source,
-    revisit,
-    limits: { maxDepth: 2 },
-  }).createRunner();
+for (const revisit of [
+  'allVertexSimpleRoutePrefixes',
+  'allRoutePrefixesAllowingRepeatedVertices',
+] as const) {
+  const runner = new GraphWalkBuilder({
+    graphWalkDiscoverySource: source,
+    routeEnumerationPolicy: revisit,
+    limits: { maxRouteHopDepth: 2 },
+  }).createIndependentRunnerFromCurrentOptions();
   const paths = [
-    ...runner.iterateEvents({ emitEvents: [GraphWalkPhase.PATH] }),
+    ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: [GraphWalkObservationKind.ROUTE_PREFIX],
+    }),
   ];
   // Paths include the zero-edge root and every admitted prefix, not only leaves.
-  assert.equal(paths[0]!.depth, 0);
-  assert.equal(paths[1]!.edges[0]!.outgoingIndex, 0);
-  assert.equal(paths[2]!.edges[0]!.outgoingIndex, 1);
-  assert.equal(paths.length, revisit === 'simplePaths' ? 3 : 5);
-  const outcome = runner.summary().outcome;
+  assert.equal(paths[0]!.routeHopLength, 0);
+  assert.equal(
+    paths[1]!.edgesInRootToTargetOrder[0]!
+      .sourceOutgoingLinkIndexBeforeFiltering,
+    0,
+  );
+  assert.equal(
+    paths[2]!.edgesInRootToTargetOrder[0]!
+      .sourceOutgoingLinkIndexBeforeFiltering,
+    1,
+  );
+  assert.equal(
+    paths.length,
+    revisit === 'allVertexSimpleRoutePrefixes' ? 3 : 5,
+  );
+  const outcome = runner.captureProgressSnapshot().terminalOutcome;
   assert.deepEqual(
     outcome,
-    revisit === 'simplePaths'
-      ? { kind: 'exhausted' }
-      : { kind: 'limited', reasons: ['maxDepth'] },
+    revisit === 'allVertexSimpleRoutePrefixes'
+      ? { kind: 'sourceRoutesExhausted' }
+      : { kind: 'traversalLimitsReached', reachedLimits: ['maxRouteHopDepth'] },
   );
   console.log(
     revisit,
-    paths.map((path) => path.vertices.map((vertex) => vertex.vertexId)),
+    paths.map((path) =>
+      path.verticesInRootToTargetOrder.map((vertex) => vertex.vertexId),
+    ),
     outcome,
   );
 }
 // A step budget also terminates repeated walks; truncation is part of the result.
-const capped = new GraphWalk({
-  source,
-  revisit: 'walks',
-  limits: { maxCandidateReadAttempts: 4 },
+const capped = new GraphWalkBuilder({
+  graphWalkDiscoverySource: source,
+  routeEnumerationPolicy: 'allRoutePrefixesAllowingRepeatedVertices',
+  limits: { maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 4 },
 })
-  .createRunner()
-  .run();
-assert.deepEqual(capped.summary().outcome, {
-  kind: 'limited',
-  reasons: ['maxCandidateReadAttempts'],
+  .createIndependentRunnerFromCurrentOptions()
+  .runUntilSuspendedOrTerminal();
+assert.deepEqual(capped.captureProgressSnapshot().terminalOutcome, {
+  kind: 'traversalLimitsReached',
+  reachedLimits: ['maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay'],
 });
-console.log('Step budget:', capped.summary());
+console.log('Step budget:', capped.captureProgressSnapshot());

@@ -1,15 +1,33 @@
-import { AsyncGraphWalk, GraphWalk, GraphWalkPhase as Phase } from '../src';
+import {
+  AsyncGraphWalkBuilder,
+  GraphWalkBuilder,
+  GraphWalkObservationKind as Phase,
+} from '../src';
 
 it.each([
   {},
-  { hydration: 'resolver' },
-  { hydration: 'unknown', resolveVertex: () => ({ kind: 'omitted' }) },
-  { hydration: 'inlineOrCached', resolveVertex: () => ({ kind: 'omitted' }) },
+  { vertexResolutionMode: 'resolverWithOptionalInlineResolution' },
+  {
+    vertexResolutionMode: 'unknown',
+    resolveVertexDataById: () => ({ kind: 'omitted' }),
+  },
+  {
+    vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+    resolveVertexDataById: () => ({ kind: 'omitted' }),
+  },
 ])('rejects invalid hydration declarations before discovery %#', (mode) => {
   const roots = jest.fn(() => []);
-  const source = { roots, outgoing: () => [], ...mode } as any;
-  expect(() => new GraphWalk({ source })).toThrow(TypeError);
-  expect(() => new AsyncGraphWalk({ source })).toThrow(TypeError);
+  const source = {
+    rootVertexIds: roots,
+    enumerateOutgoingLinks: () => [],
+    ...mode,
+  } as any;
+  expect(
+    () => new GraphWalkBuilder({ graphWalkDiscoverySource: source }),
+  ).toThrow(TypeError);
+  expect(
+    () => new AsyncGraphWalkBuilder({ graphWalkDiscoverySource: source }),
+  ).toThrow(TypeError);
   expect(roots).not.toHaveBeenCalled();
 });
 
@@ -19,57 +37,77 @@ it.each(['sync', 'async'] as const)(
     const root = {};
     const omitted = Symbol('omitted');
     const source = {
-      hydration: 'inlineOrCached',
-      roots: () => [
+      vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+      enumerateRootTargets: () => [
         {
-          kind: 'inline',
+          kind: 'inlineResolution',
           vertexId: root,
-          resolution: { kind: 'found', data: 'root' },
+          resolutionIfNotPreviouslyAdmitted: {
+            kind: 'found',
+            vertexData: 'root',
+          },
         },
       ],
-      outgoing: () => [
-        { target: { kind: 'cached', vertexId: root }, data: 'self' },
+      enumerateOutgoingLinks: () => [
         {
-          target: {
-            kind: 'inline',
-            vertexId: omitted,
-            resolution: { kind: 'omitted' },
+          targetToResolveOnAdmission: {
+            kind: 'previouslyAdmittedVertex',
+            vertexId: root,
           },
-          data: 'omit',
+          edgeData: 'self',
         },
         {
-          target: {
-            kind: 'inline',
+          targetToResolveOnAdmission: {
+            kind: 'inlineResolution',
             vertexId: omitted,
-            get resolution() {
+            resolutionIfNotPreviouslyAdmitted: { kind: 'omitted' },
+          },
+          edgeData: 'omit',
+        },
+        {
+          targetToResolveOnAdmission: {
+            kind: 'inlineResolution',
+            vertexId: omitted,
+            get resolutionIfNotPreviouslyAdmitted() {
               throw new Error('must keep first');
             },
           },
-          data: 'again',
+          edgeData: 'again',
         },
         {
-          target: { kind: 'cached', vertexId: omitted },
-          data: 'cached omission',
+          targetToResolveOnAdmission: {
+            kind: 'previouslyAdmittedVertex',
+            vertexId: omitted,
+          },
+          edgeData: 'cached omission',
         },
       ],
     } as any;
     const runner =
       execution === 'sync'
-        ? new GraphWalk({ source }).createRunner()
-        : new AsyncGraphWalk({ source }).createRunner();
+        ? new GraphWalkBuilder({
+            graphWalkDiscoverySource: source,
+          }).createIndependentRunnerFromCurrentOptions()
+        : new AsyncGraphWalkBuilder({
+            graphWalkDiscoverySource: source,
+          }).createIndependentRunnerFromCurrentOptions();
     const events = [];
-    for await (const event of runner.iterateEvents({
-      emitEvents: [Phase.EDGE],
-    }))
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+      {
+        deliveredEventKinds: [Phase.ADMITTED_EDGE_OCCURRENCE],
+      },
+    ))
       events.push(event);
     expect(
       events.map((event) =>
-        event.kind === 'edge' ? event.target.kind : event.kind,
+        event.eventKind === 'admittedEdgeOccurrence'
+          ? event.targetResolution.kind
+          : event.eventKind,
       ),
     ).toEqual(['found', 'omitted', 'omitted', 'omitted']);
-    expect(runner.summary().counts).toMatchObject({
-      uniqueFoundVertices: 1,
-      uniqueOmittedVertices: 1,
+    expect(runner.captureProgressSnapshot().counts).toMatchObject({
+      resolvedFoundVertexIdCount: 1,
+      resolvedOmittedVertexIdCount: 1,
     });
   },
 );
@@ -78,70 +116,93 @@ it.each(['sync', 'async'] as const)(
   'rejects first-use cached targets at admission and ignores rejected inline links (%s)',
   async (execution) => {
     const source = {
-      hydration: 'inlineOrCached',
-      roots: () => [
+      vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+      enumerateRootTargets: () => [
         {
-          kind: 'inline',
+          kind: 'inlineResolution',
           vertexId: 'a',
-          resolution: { kind: 'found', data: 'a' },
+          resolutionIfNotPreviouslyAdmitted: { kind: 'found', vertexData: 'a' },
         },
       ],
-      outgoing: () => [
+      enumerateOutgoingLinks: () => [
         {
-          target: {
-            kind: 'inline',
+          targetToResolveOnAdmission: {
+            kind: 'inlineResolution',
             vertexId: 'b',
-            resolution: { kind: 'found', data: 'rejected' },
+            resolutionIfNotPreviouslyAdmitted: {
+              kind: 'found',
+              vertexData: 'rejected',
+            },
           },
-          data: 'reject',
+          edgeData: 'reject',
         },
-        { target: { kind: 'cached', vertexId: 'b' }, data: 'accept' },
+        {
+          targetToResolveOnAdmission: {
+            kind: 'previouslyAdmittedVertex',
+            vertexId: 'b',
+          },
+          edgeData: 'accept',
+        },
       ],
     } as any;
     const options = {
-      source,
-      shouldFollowEdge: (edge: { data: unknown }) => edge.data !== 'reject',
+      graphWalkDiscoverySource: source,
+      shouldAdmitOutgoingLinkTarget: (edge: { edgeData: unknown }) =>
+        edge.edgeData !== 'reject',
     };
     const runner =
       execution === 'sync'
-        ? new GraphWalk(options).createRunner()
-        : new AsyncGraphWalk(options).createRunner();
+        ? new GraphWalkBuilder(
+            options,
+          ).createIndependentRunnerFromCurrentOptions()
+        : new AsyncGraphWalkBuilder(
+            options,
+          ).createIndependentRunnerFromCurrentOptions();
     await expect(
       (async () => {
-        for await (const event of runner.iterateEvents()) void event;
+        for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+          void event;
       })(),
     ).rejects.toThrow('Cached walking target has no admitted resolution');
-    expect(runner.summary().counts.uniqueFoundVertices).toBe(1);
+    expect(
+      runner.captureProgressSnapshot().counts.resolvedFoundVertexIdCount,
+    ).toBe(1);
   },
 );
 
 it('awaits async resolver roots and links without eagerly resolving inline targets', async () => {
-  const resolveVertex = jest.fn(async (vertexId: string) => ({
+  const resolveVertexDataById = jest.fn(async (vertexId: string) => ({
     kind: 'found',
-    data: vertexId,
+    vertexData: vertexId,
   }));
-  const runner = new AsyncGraphWalk({
-    source: {
-      hydration: 'resolver',
-      roots: async () =>
+  const runner = new AsyncGraphWalkBuilder({
+    graphWalkDiscoverySource: {
+      vertexResolutionMode: 'resolverWithOptionalInlineResolution',
+      enumerateRootTargets: async () =>
         (async function* () {
           yield {
             vertexId: 'a',
-            resolution: { kind: 'found', data: 'inline' },
+            resolutionIfNotPreviouslyAdmitted: {
+              kind: 'found',
+              vertexData: 'inlineResolution',
+            },
           };
         })(),
-      resolveVertex,
-      outgoing: async (vertex: { vertexId: string }) =>
+      resolveVertexDataById,
+      enumerateOutgoingLinks: async (vertex: { vertexId: string }) =>
         (async function* () {
           if (vertex.vertexId === 'a')
-            yield { target: { vertexId: 'b' }, data: null };
+            yield {
+              targetToResolveOnAdmission: { vertexId: 'b' },
+              edgeData: null,
+            };
         })(),
     } as any,
-  }).createRunner();
-  expect(resolveVertex).not.toHaveBeenCalled();
-  await runner.run();
-  expect(resolveVertex).toHaveBeenCalledTimes(1);
-  expect(resolveVertex).toHaveBeenCalledWith('b');
+  }).createIndependentRunnerFromCurrentOptions();
+  expect(resolveVertexDataById).not.toHaveBeenCalled();
+  await runner.runUntilSuspendedOrTerminal();
+  expect(resolveVertexDataById).toHaveBeenCalledTimes(1);
+  expect(resolveVertexDataById).toHaveBeenCalledWith('b');
 });
 
 it.each(['sync', 'async'] as const)(
@@ -150,20 +211,25 @@ it.each(['sync', 'async'] as const)(
     for (const target of [
       { vertexId: 'a' },
       { kind: 'other', vertexId: 'a' },
-      { kind: 'inline', vertexId: 'a' },
+      { kind: 'inlineResolution', vertexId: 'a' },
     ]) {
       const source = {
-        hydration: 'inlineOrCached',
-        roots: () => [target],
-        outgoing: () => [],
+        vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+        enumerateRootTargets: () => [target],
+        enumerateOutgoingLinks: () => [],
       } as any;
       const runner =
         execution === 'sync'
-          ? new GraphWalk({ source }).createRunner()
-          : new AsyncGraphWalk({ source }).createRunner();
+          ? new GraphWalkBuilder({
+              graphWalkDiscoverySource: source,
+            }).createIndependentRunnerFromCurrentOptions()
+          : new AsyncGraphWalkBuilder({
+              graphWalkDiscoverySource: source,
+            }).createIndependentRunnerFromCurrentOptions();
       await expect(
         (async () => {
-          for await (const event of runner.iterateEvents()) void event;
+          for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+            void event;
         })(),
       ).rejects.toThrow(TypeError);
     }
@@ -172,42 +238,61 @@ it.each(['sync', 'async'] as const)(
 
 it('awaits promised async iterables in inlineOrCached mode and retains backedges', async () => {
   const source = {
-    hydration: 'inlineOrCached' as const,
-    roots: async () =>
+    vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+    enumerateRootTargets: async () =>
       (async function* () {
         yield {
-          kind: 'inline' as const,
+          kind: 'inlineResolution' as const,
           vertexId: 'a',
-          resolution: { kind: 'found' as const, data: 'first' },
+          resolutionIfNotPreviouslyAdmitted: {
+            kind: 'found' as const,
+            vertexData: 'first',
+          },
         };
       })(),
-    outgoing: async (vertex: { vertexId: string }) =>
+    enumerateOutgoingLinks: async (vertex: { vertexId: string }) =>
       (async function* () {
         if (vertex.vertexId === 'a')
           yield {
-            target: {
-              kind: 'inline' as const,
+            targetToResolveOnAdmission: {
+              kind: 'inlineResolution' as const,
               vertexId: 'b',
-              resolution: { kind: 'found' as const, data: 'second' },
+              resolutionIfNotPreviouslyAdmitted: {
+                kind: 'found' as const,
+                vertexData: 'second',
+              },
             },
-            data: 'forward',
+            edgeData: 'forward',
           };
         else
           yield {
-            target: { kind: 'cached' as const, vertexId: 'a' },
-            data: 'back',
+            targetToResolveOnAdmission: {
+              kind: 'previouslyAdmittedVertex' as const,
+              vertexId: 'a',
+            },
+            edgeData: 'back',
           };
       })(),
   };
-  const runner = new AsyncGraphWalk({ source }).createRunner();
+  const runner = new AsyncGraphWalkBuilder({
+    graphWalkDiscoverySource: source,
+  }).createIndependentRunnerFromCurrentOptions();
   const events = [];
-  for await (const event of runner.iterateEvents({ emitEvents: [Phase.EDGE] }))
+  for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    {
+      deliveredEventKinds: [Phase.ADMITTED_EDGE_OCCURRENCE],
+    },
+  ))
     events.push(event);
-  expect(events.map((event) => [event.edge.from, event.edge.to])).toEqual([
+  expect(
+    events.map((event) => [event.edge.fromVertexId, event.edge.toVertexId]),
+  ).toEqual([
     ['a', 'b'],
     ['b', 'a'],
   ]);
-  expect(runner.summary().counts.uniqueFoundVertices).toBe(2);
+  expect(
+    runner.captureProgressSnapshot().counts.resolvedFoundVertexIdCount,
+  ).toBe(2);
 });
 
 it.each(['sync', 'async'] as const)(
@@ -216,21 +301,31 @@ it.each(['sync', 'async'] as const)(
     for (const accessor of [false, true]) {
       let reads = 0;
       const source = {
-        hydration: 'inlineOrCached' as const,
-        roots: () => [
+        vertexResolutionMode:
+          'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+        enumerateRootTargets: () => [
           {
-            kind: 'inline' as const,
+            kind: 'inlineResolution' as const,
             vertexId: 'a',
-            resolution: { kind: 'found' as const, data: 'a' },
+            resolutionIfNotPreviouslyAdmitted: {
+              kind: 'found' as const,
+              vertexData: 'a',
+            },
           },
         ],
-        outgoing: () => [
-          { target: { kind: 'cached' as const, vertexId: 'a' }, data: null },
+        enumerateOutgoingLinks: () => [
+          {
+            targetToResolveOnAdmission: {
+              kind: 'previouslyAdmittedVertex' as const,
+              vertexId: 'a',
+            },
+            edgeData: null,
+          },
         ],
-        resolveVertex: undefined,
+        resolveVertexDataById: undefined,
       };
       if (accessor) {
-        Object.defineProperty(source, 'resolveVertex', {
+        Object.defineProperty(source, 'resolveVertexDataById', {
           get() {
             reads++;
             return undefined;
@@ -239,12 +334,14 @@ it.each(['sync', 'async'] as const)(
       }
       const factory =
         execution === 'sync'
-          ? new GraphWalk({ source })
-          : new AsyncGraphWalk({ source });
-      const runner = factory.createRunner();
-      await runner.run();
+          ? new GraphWalkBuilder({ graphWalkDiscoverySource: source })
+          : new AsyncGraphWalkBuilder({ graphWalkDiscoverySource: source });
+      const runner = factory.createIndependentRunnerFromCurrentOptions();
+      await runner.runUntilSuspendedOrTerminal();
       expect(reads).toBe(accessor ? 1 : 0);
-      expect(runner.summary().counts.uniqueFoundVertices).toBe(1);
+      expect(
+        runner.captureProgressSnapshot().counts.resolvedFoundVertexIdCount,
+      ).toBe(1);
     }
   },
 );

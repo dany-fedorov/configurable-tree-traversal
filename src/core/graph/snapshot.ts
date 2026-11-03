@@ -1,90 +1,112 @@
 import { normalizePathOptions } from '@core/normalizePathOptions';
-import { MutableRef } from '@core/CTTRef';
+import { MutableValueReference } from '@core/CTTRef';
 import type { InternalResolvedGraphView } from '@core/ResolvedGraphView';
-import type { GetPathToOptions } from '@core/ResolvedTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { StructuralAncestorPathOptions } from '@core/ResolvedTree';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import { Vertex } from '@core/Vertex';
 import type { InternalVertexRef, VertexId } from '@core/graph/types';
 
-type SnapshotEntry<T extends VertexTypes> = {
-  ref: InternalVertexRef<T>;
+type SnapshotEntry<InputVertexTypes extends VertexDataAndChildHintTypes> = {
+  ref: InternalVertexRef<InputVertexTypes>;
   id: VertexId;
-  incoming: SnapshotEdge<T>[];
-  children: SnapshotEdge<T>[];
+  incoming: SnapshotEdge<InputVertexTypes>[];
+  children: SnapshotEdge<InputVertexTypes>[];
 };
 
-type SnapshotEdge<T extends VertexTypes> = {
-  parentRef: InternalVertexRef<T>;
-  childRef: InternalVertexRef<T>;
+type SnapshotEdge<InputVertexTypes extends VertexDataAndChildHintTypes> = {
+  parentRef: InternalVertexRef<InputVertexTypes>;
+  childRef: InternalVertexRef<InputVertexTypes>;
   hintIndex: number;
 };
 
 export type StagedSnapshotVertex<
-  T extends VertexTypes,
-  R extends VertexTypes,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 > = {
-  activeRef: InternalVertexRef<T | R>;
-  snapshotRef: InternalVertexRef<T>;
+  activeRef: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>;
+  snapshotRef: InternalVertexRef<InputVertexTypes>;
   id: VertexId;
 };
 
-export type StagedSnapshotEdge<T extends VertexTypes> = {
-  parent: SnapshotEntry<T>;
-  child: SnapshotEntry<T>;
+export type StagedSnapshotEdge<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = {
+  parent: SnapshotEntry<InputVertexTypes>;
+  child: SnapshotEntry<InputVertexTypes>;
   hintIndex: number;
   idempotent: boolean;
 };
 
 export class StructuralGraphSnapshot<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > {
-  readonly graph: Omit<InternalResolvedGraphView<T>, 'get' | 'getVisitStageOf'>;
-  readonly refsMap = new Map<InternalVertexRef<T | R>, InternalVertexRef<T>>();
-  private readonly entries = new Map<InternalVertexRef<T>, SnapshotEntry<T>>();
-  private readonly ids = new Map<VertexId, InternalVertexRef<T>>();
-  private root: InternalVertexRef<T> | null = null;
+  readonly graph: Omit<
+    InternalResolvedGraphView<InputVertexTypes>,
+    'get' | 'getVertexVisitSchedulingStageOrNull'
+  >;
+  readonly refsMap = new Map<
+    InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+    InternalVertexRef<InputVertexTypes>
+  >();
+  private readonly entries = new Map<
+    InternalVertexRef<InputVertexTypes>,
+    SnapshotEntry<InputVertexTypes>
+  >();
+  private readonly ids = new Map<
+    VertexId,
+    InternalVertexRef<InputVertexTypes>
+  >();
+  private root: InternalVertexRef<InputVertexTypes> | null = null;
 
   constructor() {
     const getVertexRefById = (id: VertexId) => this.ids.get(id) ?? null;
-    const requireVertexId = (ref: InternalVertexRef<T>) =>
+    const requireVertexId = (ref: InternalVertexRef<InputVertexTypes>) =>
       this.getEntry(ref).id;
     this.graph = Object.freeze({
-      has: (ref: InternalVertexRef<T>) => this.entries.has(ref),
+      has: (ref: InternalVertexRef<InputVertexTypes>) => this.entries.has(ref),
       getRoot: () => this.root,
       getVertexRefs: () => Array.from(this.entries.keys()),
       getVertexRefById,
       requireVertexId,
-      getParentsOf: (ref: InternalVertexRef<T>) => this.getParents(ref),
-      getChildrenOf: (ref: InternalVertexRef<T>) => this.getChildren(ref),
-      requirePathsTo: (ref: InternalVertexRef<T>, options?: GetPathToOptions) =>
-        this.getPaths(ref, options),
+      getParentsOf: (ref: InternalVertexRef<InputVertexTypes>) =>
+        this.getParents(ref),
+      getChildrenOf: (ref: InternalVertexRef<InputVertexTypes>) =>
+        this.getChildren(ref),
+      requirePathsTo: (
+        ref: InternalVertexRef<InputVertexTypes>,
+        options?: StructuralAncestorPathOptions,
+      ) => this.getPaths(ref, options),
     });
   }
 
   stageVertex(
-    ref: InternalVertexRef<T | R>,
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
     id: VertexId,
-  ): StagedSnapshotVertex<T, R> {
+  ): StagedSnapshotVertex<InputVertexTypes, RewrittenVertexTypes> {
     if (this.refsMap.has(ref)) {
       throw new Error('Vertex reference is already captured');
     }
     if (this.ids.has(id)) throw new Error('Vertex id is already captured');
-    const vertex = ref.getValue();
+    const vertex = ref.getReferencedValue();
     return {
       activeRef: ref,
-      snapshotRef: new MutableRef(
-        new Vertex<T>({
-          $data: vertex.getData() as T['VertexData'],
-          $childHints: vertex.getChildHints().slice() as T['VertexHint'][],
+      snapshotRef: new MutableValueReference(
+        new Vertex<InputVertexTypes>({
+          $vertexData: vertex.getVertexData() as InputVertexTypes['VertexData'],
+          $childDiscoveryHints: vertex
+            .getMutableChildDiscoveryHints()
+            .slice() as InputVertexTypes['ChildHint'][],
         }),
       ),
       id,
     };
   }
 
-  commitVertex(staged: StagedSnapshotVertex<T, R>): void {
-    const entry: SnapshotEntry<T> = {
+  commitVertex(
+    staged: StagedSnapshotVertex<InputVertexTypes, RewrittenVertexTypes>,
+  ): void {
+    const entry: SnapshotEntry<InputVertexTypes> = {
       ref: staged.snapshotRef,
       id: staged.id,
       incoming: [],
@@ -95,7 +117,9 @@ export class StructuralGraphSnapshot<
     this.refsMap.set(staged.activeRef, staged.snapshotRef);
   }
 
-  setRoot(ref: InternalVertexRef<T | R>): void {
+  setRoot(
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ): void {
     const snapshotRef = this.refsMap.get(ref);
     if (snapshotRef === undefined) {
       throw new Error('Could not find original root reference');
@@ -104,10 +128,10 @@ export class StructuralGraphSnapshot<
   }
 
   stageEdge(
-    parentRef: InternalVertexRef<T | R>,
+    parentRef: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
     hintIndex: number,
-    childRef: InternalVertexRef<T | R>,
-  ): StagedSnapshotEdge<T> {
+    childRef: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ): StagedSnapshotEdge<InputVertexTypes> {
     if (!Number.isInteger(hintIndex) || hintIndex < 0) {
       throw new Error('Unknown vertex slot');
     }
@@ -129,7 +153,7 @@ export class StructuralGraphSnapshot<
     };
   }
 
-  commitEdge(staged: StagedSnapshotEdge<T>): void {
+  commitEdge(staged: StagedSnapshotEdge<InputVertexTypes>): void {
     if (staged.idempotent) return;
     const edge = {
       parentRef: staged.parent.ref,
@@ -140,16 +164,18 @@ export class StructuralGraphSnapshot<
     staged.child.incoming.push(edge);
   }
 
-  private getEntry(ref: InternalVertexRef<T>): SnapshotEntry<T> {
+  private getEntry(
+    ref: InternalVertexRef<InputVertexTypes>,
+  ): SnapshotEntry<InputVertexTypes> {
     const entry = this.entries.get(ref);
     if (entry === undefined) throw new Error('Unknown vertex reference');
     return entry;
   }
 
   private getMappedEntry(
-    ref: InternalVertexRef<T | R>,
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
     role: 'parent' | 'child',
-  ): SnapshotEntry<T> {
+  ): SnapshotEntry<InputVertexTypes> {
     const snapshotRef = this.refsMap.get(ref);
     if (snapshotRef === undefined) {
       throw new Error(`Could not find original ${role} reference`);
@@ -157,11 +183,13 @@ export class StructuralGraphSnapshot<
     return this.getEntry(snapshotRef);
   }
 
-  private getParents(ref: InternalVertexRef<T>): InternalVertexRef<T>[] | null {
+  private getParents(
+    ref: InternalVertexRef<InputVertexTypes>,
+  ): InternalVertexRef<InputVertexTypes>[] | null {
     const entry = this.entries.get(ref);
     if (entry === undefined) return null;
-    const seen = new Set<InternalVertexRef<T>>();
-    const parents: InternalVertexRef<T>[] = [];
+    const seen = new Set<InternalVertexRef<InputVertexTypes>>();
+    const parents: InternalVertexRef<InputVertexTypes>[] = [];
     for (const edge of entry.incoming) {
       if (!seen.has(edge.parentRef)) {
         seen.add(edge.parentRef);
@@ -172,8 +200,8 @@ export class StructuralGraphSnapshot<
   }
 
   private getChildren(
-    ref: InternalVertexRef<T>,
-  ): InternalVertexRef<T>[] | null {
+    ref: InternalVertexRef<InputVertexTypes>,
+  ): InternalVertexRef<InputVertexTypes>[] | null {
     const entry = this.entries.get(ref);
     if (entry === undefined) return null;
     return entry.children
@@ -183,16 +211,17 @@ export class StructuralGraphSnapshot<
   }
 
   private getPaths(
-    ref: InternalVertexRef<T>,
-    options?: GetPathToOptions,
-  ): InternalVertexRef<T>[][] {
+    ref: InternalVertexRef<InputVertexTypes>,
+    options?: StructuralAncestorPathOptions,
+  ): InternalVertexRef<InputVertexTypes>[][] {
     const pathOptions = normalizePathOptions(options);
     this.getEntry(ref);
-    const paths: InternalVertexRef<T>[][] = [];
-    const reversedPath: InternalVertexRef<T>[] = [ref];
-    const stack: Array<{ parents: InternalVertexRef<T>[]; index: number }> = [
-      { parents: this.getParents(ref)!, index: 0 },
-    ];
+    const paths: InternalVertexRef<InputVertexTypes>[][] = [];
+    const reversedPath: InternalVertexRef<InputVertexTypes>[] = [ref];
+    const stack: Array<{
+      parents: InternalVertexRef<InputVertexTypes>[];
+      index: number;
+    }> = [{ parents: this.getParents(ref)!, index: 0 }];
     while (stack.length > 0) {
       const frame = stack[stack.length - 1]!;
       if (frame.parents.length === 0) {
@@ -220,10 +249,16 @@ export class StructuralGraphSnapshot<
     });
     return paths.map((path) => {
       let result = path;
-      if (pathOptions.noRoot === true && result[0] === this.root) {
+      if (
+        pathOptions.includeDesignatedRoot === false &&
+        result[0] === this.root
+      ) {
         result = result.slice(1);
       }
-      if (pathOptions.noSelf === true && result[result.length - 1] === ref) {
+      if (
+        pathOptions.includeTargetVertex === false &&
+        result[result.length - 1] === ref
+      ) {
         result = result.slice(0, -1);
       }
       return result;

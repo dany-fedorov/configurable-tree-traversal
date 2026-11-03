@@ -1,1 +1,1 @@
-export type TraversableObjectPropKey = number | string | symbol;
+export type ObjectPropertyKey = number | string | symbol;

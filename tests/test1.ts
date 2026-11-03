@@ -15,15 +15,15 @@ const main = () => {
   console.log(jsonStringifySafe(host, 8));
   const outputAtReturn = capturedOutputValue(
     rewriteObject(host, {
-      assembleCompositesBeforeRewrite: true,
-      rewrite: ({ key, value }, options) => {
+      includeAssembledValueInRewriteInput: true,
+      rewritePropertyAfterChildTraversal: ({ propertyKey: key, propertyValue: value }, options) => {
         const depth =
-          options.resolvedTreeView.getResolutionContextOf(options.vertexRef)
-            ?.depth ?? 0;
+          options.liveResolvedTreeView.getChildDiscoveryContextOrNull(options.vertexHandle)
+            ?.discoveryDepthInEdges ?? 0;
         console.log(
           depth,
           // p.map((ps) => ps.getValue().getData().key),
-          options.getKeyPath({ noRoot: true }),
+          options.requirePropertyKeyPathFromRoot({ includeDesignatedRoot: false }),
           // '=====>',
           // value,
           // '---->',
@@ -31,19 +31,19 @@ const main = () => {
         );
         if (value === 2) {
           return {
-            kind: 'delete',
+            kind: "deletePropertySubtree",
           };
         } else if (value === 1) {
           return {
-            kind: 'rewrite',
-            patch: { value: 1000 },
+            kind: "patchPropertyKeyOrValue",
+            propertyPatch: { propertyValue: 1000 },
           };
         } else if (depth % 2 === 0 && typeof key === 'string') {
           const newKey = [key, depth].join('__');
           return {
-            kind: 'rewrite',
-            patch: {
-              key: newKey,
+            kind: "patchPropertyKeyOrValue",
+            propertyPatch: {
+              propertyKey: newKey,
             },
           };
         }

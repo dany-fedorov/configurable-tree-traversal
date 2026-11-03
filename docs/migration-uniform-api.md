@@ -1,5 +1,7 @@
 # Migrate to the uniform API
 
+> Historical release guide: the tables and examples below describe the released 0.12 API and its earlier migration. They are not the API of this unreleased checkout. Start with the [explicit API migration](migration-explicit-api.md) to move from released 0.12 to this checkout; use the [current reference](reference.md) for the implemented contracts.
+
 Upgrade-only reading. Start from the [final upgrade checklist](migration-api-distinctions.md); this guide keeps the detailed tables and examples for one earlier stage and is not a step you apply in sequence. First-time readers should use the [README](../README.md) and [reference](reference.md) instead.
 
 [Documentation map](index.md) · [Agent workflows](agent-workflows.md) · [API reference](reference.md)
@@ -121,7 +123,7 @@ The current contract and this recipe now live in the reference under [ordered vi
 
 The same phase input configures a class, `configure`, `setVisitorsFor`, or a helper: callback, `{ visitor, priority?, commandCommitMode? }`, readonly flat definitions, or `{ groups: [...] }`. Caller definitions have no `addedIndex` policy. Query records describe assigned indexes; list/set round trips retain callbacks and group metadata while assigning fresh indexes. This standalone example uses one definition in both entry points and verifies an explicit ordering boundary:
 
-<!-- standalone -->
+<!-- historical 0.12 example; not a current standalone program -->
 
 ```ts
 import {
@@ -220,7 +222,7 @@ The table below applies to graph sources and prerequisite lookup. Tree sources u
 
 An anonymous graph omission uses `identity: null`; a known identity uses its own `vertexId` wrapper. A real undefined ID remains distinct from anonymity. Tree omission has no graph identity or acknowledgement fields.
 
-<!-- standalone -->
+<!-- historical 0.12 example; not a current standalone program -->
 
 ```ts
 import {
@@ -259,7 +261,7 @@ if (
 
 `found` contains non-null content. `omitted` deliberately excludes a vertex and satisfies its W and C prerequisites. `missing` cannot satisfy prerequisites and is valid only from `resolvePrerequisite`; it is invalid from `resolveRoot`/`resolveChild`. Bare `null` and `undefined` are invalid everywhere. Untagged results and bare lookup `undefined` reject. These rules add no silent omission path.
 
-<!-- standalone -->
+<!-- historical 0.12 example; not a current standalone program -->
 
 ```ts
 import type {

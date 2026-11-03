@@ -3,14 +3,14 @@ import {
   detachTraversalExecutionOptions,
 } from '@core/normalizeTraversalExecutionOptions';
 import type {
-  SelectedTraversalEvent,
+  TraversalEventNarrowedToSelectedKinds,
   AsyncTraversalExecution,
 } from '@core/TraversalExecution';
-import type { TreeDagExecutionInspection } from '@core/CoreInspection';
+import type { TreeOrDagExecutionSnapshot } from '@core/CoreInspection';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
-import type { PumpMode, VisitPhase } from '@core/effects/types';
+import type { PumpMode, TreeOrDagVisitorPhase } from '@core/effects/types';
 import type { AsyncSessionControl } from '@core/kernelTypes';
 import { Wakeup } from '@core/drivers/Wakeup';
 
@@ -27,7 +27,7 @@ type CloseWaiter = {
 
 type IteratorState<E> = {
   phase: 'unopened' | 'active' | 'closing' | 'closed';
-  config: TraversalIterableConfigInput<VisitPhase> | undefined;
+  config: TraversalIterableConfigInput<TreeOrDagVisitorPhase> | undefined;
   preparation?: () => void;
   nextWaiters: NextWaiter<E>[];
   closeWaiters: CloseWaiter[];
@@ -43,10 +43,10 @@ const done = Object.freeze({ done: true, value: undefined }) as IteratorResult<
 export class AsyncRunnerSession<E>
   implements
     AsyncTraversalExecution<
-      VisitPhase,
+      TreeOrDagVisitorPhase,
       E,
-      TreeDagExecutionInspection,
-      import('../TraversalRunnerIterableConfig').EmissionKind<VisitPhase>
+      TreeOrDagExecutionSnapshot,
+      import('../TraversalRunnerIterableConfig').TraversalEventKindForVisitorPhase<TreeOrDagVisitorPhase>
     >
 {
   private readonly bufferedEvents: BufferedEvent<E>[] = [];
@@ -58,25 +58,27 @@ export class AsyncRunnerSession<E>
 
   public constructor(private readonly control: AsyncSessionControl<E>) {}
 
-  public getStatus(): TraversalRunnerStatus {
+  public getTraversalLifecycleStatus(): TraversalRunnerStatus {
     return this.observedFailure === null
-      ? this.control.getStatus()
+      ? this.control.getTraversalLifecycleStatus()
       : TraversalRunnerStatus.FAILED;
   }
 
-  public getStopReason(): TraversalStopReason | null {
+  public getTraversalStopReason(): TraversalStopReason | null {
     return this.observedFailure === null
-      ? this.control.getStopReason()
+      ? this.control.getTraversalStopReason()
       : 'failed';
   }
 
-  public isHalted(): boolean {
-    return this.getStatus() === TraversalRunnerStatus.HALTED;
+  public isSuspended(): boolean {
+    return (
+      this.getTraversalLifecycleStatus() === TraversalRunnerStatus.SUSPENDED
+    );
   }
 
-  public requestPause(): boolean {
+  public requestPauseAfterAdmittedCallbacksDrain(): boolean {
     if (
-      this.getStatus() !== TraversalRunnerStatus.RUNNING ||
+      this.getTraversalLifecycleStatus() !== TraversalRunnerStatus.RUNNING ||
       this.control.isHaltRequested()
     )
       return false;
@@ -85,28 +87,36 @@ export class AsyncRunnerSession<E>
     return true;
   }
 
-  public inspect(): TreeDagExecutionInspection {
+  public captureExecutionSnapshot(): TreeOrDagExecutionSnapshot {
     return Object.freeze({
-      ...this.control.inspect(),
-      status: this.getStatus(),
-      stopReason: this.getStopReason(),
-      bufferedEventCount: this.bufferedEvents.length,
+      ...this.control.captureExecutionSnapshot(),
+      traversalLifecycleStatus: this.getTraversalLifecycleStatus(),
+      traversalStopReason: this.getTraversalStopReason(),
+      bufferedDeliveryEventCount: this.bufferedEvents.length,
     });
   }
 
-  public iterateEvents(): AsyncGenerator<E, void, unknown>;
-  public iterateEvents<
-    Kind extends import('../TraversalRunnerIterableConfig').EmissionKind<VisitPhase>,
+  public runAndIterateObservationEventsUntilSuspendedOrTerminal(): AsyncGenerator<
+    E,
+    void,
+    unknown
+  >;
+  public runAndIterateObservationEventsUntilSuspendedOrTerminal<
+    Kind extends import('../TraversalRunnerIterableConfig').TraversalEventKindForVisitorPhase<TreeOrDagVisitorPhase>,
   >(
-    config: TraversalIterableConfigInput<VisitPhase, Kind> & {
-      emitEvents: readonly Kind[];
+    config: TraversalIterableConfigInput<TreeOrDagVisitorPhase, Kind> & {
+      deliveredEventKinds: readonly Kind[];
     },
-  ): AsyncGenerator<SelectedTraversalEvent<E, Kind>, void, unknown>;
-  public iterateEvents(
-    config?: TraversalIterableConfigInput<VisitPhase>,
+  ): AsyncGenerator<
+    TraversalEventNarrowedToSelectedKinds<E, Kind>,
+    void,
+    unknown
+  >;
+  public runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    config?: TraversalIterableConfigInput<TreeOrDagVisitorPhase>,
   ): AsyncGenerator<E, void, unknown>;
-  public iterateEvents(
-    config?: TraversalIterableConfigInput<VisitPhase>,
+  public runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    config?: TraversalIterableConfigInput<TreeOrDagVisitorPhase>,
   ): AsyncGenerator<E, void, unknown> {
     return this.makeIterator(config);
   }
@@ -119,7 +129,7 @@ export class AsyncRunnerSession<E>
   }
 
   private makeIterator(
-    config?: TraversalIterableConfigInput<VisitPhase>,
+    config?: TraversalIterableConfigInput<TreeOrDagVisitorPhase>,
     preparation?: () => void,
   ): AsyncGenerator<E, void, unknown> {
     const state: IteratorState<E> = {
@@ -140,10 +150,11 @@ export class AsyncRunnerSession<E>
     return iterator;
   }
 
-  public async run(
-    config?: TraversalIterableConfigInput<VisitPhase>,
+  public async runUntilSuspendedOrTerminal(
+    config?: TraversalIterableConfigInput<TreeOrDagVisitorPhase>,
   ): Promise<this> {
-    const iterator = this.iterateEvents(config);
+    const iterator =
+      this.runAndIterateObservationEventsUntilSuspendedOrTerminal(config);
     while (!(await iterator.next()).done) {
       // Draining through next() preserves the same lease and boundaries as consumers.
     }
@@ -173,21 +184,25 @@ export class AsyncRunnerSession<E>
           this.release(state);
           return Promise.reject(error);
         }
-        if (this.control.getStatus() === TraversalRunnerStatus.FINISHED) {
+        if (
+          this.control.getTraversalLifecycleStatus() ===
+          TraversalRunnerStatus.FINISHED
+        ) {
           this.release(state);
           return Promise.resolve(done);
         }
         if (state.config !== undefined) {
           const phases = getTraversalExecutionPhases(
-            this.control.inspect().kind,
+            this.control.captureExecutionSnapshot().traversalAlgorithm,
           );
           try {
             // Validate caller input before claiming the underlying runtime. Keep
             // internal control failures on the normal terminal failure path.
-            state.config = detachTraversalExecutionOptions<VisitPhase>(
-              phases,
-              state.config,
-            );
+            state.config =
+              detachTraversalExecutionOptions<TreeOrDagVisitorPhase>(
+                phases,
+                state.config,
+              );
           } catch (error) {
             this.release(state);
             return Promise.reject(error);
@@ -306,7 +321,7 @@ export class AsyncRunnerSession<E>
           this.bufferedEvents.push(progress);
           continue;
         }
-        if (progress.kind === 'HALTED' || progress.kind === 'FINISHED') {
+        if (progress.kind === 'SUSPENDED' || progress.kind === 'FINISHED') {
           this.complete(state);
           continue;
         }

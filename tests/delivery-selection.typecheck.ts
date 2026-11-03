@@ -5,24 +5,24 @@ import type {
   AsyncGraphWalkRunner,
   AsyncTraversalExecution,
   BreadthFirstTreeRunner,
-  DagEvent,
+  DagCommittedMilestoneEvent,
   DagTraversalRunner,
   DepthFirstTreeRunner,
   GraphWalkRunner,
   GraphWalkEvent,
-  GraphWalkPhase,
+  GraphWalkObservationKind,
   SyncTraversalExecution,
-  TraversalExecutionOptions,
+  TraversalExecutionSelectionPatch,
   TreeTraversalEvent,
-  VertexTypes,
+  VertexDataAndChildHintTypes,
 } from '../src';
 import {
-  BreadthFirstPhase as BFS,
+  BreadthFirstTreeVisitPhase as BFS,
   DagVisitorPhase as DAG,
-  DepthFirstPhase as DFS,
+  DepthFirstTreeVisitPhase as DFS,
 } from '../src';
 
-type Data = VertexTypes<{ value: string }, string>;
+type Data = VertexDataAndChildHintTypes<{ value: string }, string>;
 type ID = { readonly id: unique symbol };
 
 type Events<E> = Iterable<E> | AsyncIterable<E>;
@@ -43,127 +43,281 @@ declare const syncDag: DagTraversalRunner<Data, Data, ID>;
 declare const asyncDag: AsyncDagTraversalRunner<Data, Data, ID>;
 declare const syncDagCapability: SyncTraversalExecution<
   DAG,
-  DagEvent<Data, ID>
+  DagCommittedMilestoneEvent<Data, ID>
 >;
 declare const asyncDagCapability: AsyncTraversalExecution<
   DAG,
-  DagEvent<Data, ID>
+  DagCommittedMilestoneEvent<Data, ID>
 >;
 declare const syncWalk: GraphWalkRunner<Data, string, ID>;
 declare const asyncWalk: AsyncGraphWalkRunner<Data, string, ID>;
 declare const syncWalkCapability: SyncTraversalExecution<
-  GraphWalkPhase,
+  GraphWalkObservationKind,
   GraphWalkEvent<Data, string, ID>
 >;
 declare const asyncWalkCapability: AsyncTraversalExecution<
-  GraphWalkPhase,
+  GraphWalkObservationKind,
   GraphWalkEvent<Data, string, ID>
 >;
-expectEvents<TreeTraversalEvent<DFS.POST_ORDER, Data, Data>>(
-  syncTree.iterateEvents({ emitEvents: [DFS.POST_ORDER] }),
+expectEvents<TreeTraversalEvent<DFS.AFTER_CHILD_SUBTREES, Data, Data>>(
+  syncTree.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [DFS.AFTER_CHILD_SUBTREES],
+  }),
 );
-expectEvents<never>(syncTree.iterateEvents({ emitEvents: [] }));
-// @ts-expect-error Omitted selectors retain policy and stay broad.
-expectEvents<{ phase: DFS.POST_ORDER }>(syncTree.iterateEvents());
-expectEvents<{ phase: DFS.POST_ORDER }>(
+expectEvents<never>(
+  syncTree.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
+);
+expectEvents<{ eventKind: DFS.AFTER_CHILD_SUBTREES }>(
+  // @ts-expect-error Omitted selectors retain policy and stay broad.
+  syncTree.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+);
+expectEvents<{ eventKind: DFS.AFTER_CHILD_SUBTREES }>(
   // @ts-expect-error Undefined selectors retain policy and stay broad.
-  syncTree.iterateEvents({ emitEvents: undefined }),
+  syncTree.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: undefined,
+  }),
 );
-expectEvents<TreeTraversalEvent<DFS.POST_ORDER, Data, Data>>(
-  asyncTree.iterateEvents({ emitEvents: [DFS.POST_ORDER] }),
+expectEvents<TreeTraversalEvent<DFS.AFTER_CHILD_SUBTREES, Data, Data>>(
+  asyncTree.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [DFS.AFTER_CHILD_SUBTREES],
+  }),
 );
-expectEvents<never>(asyncTree.iterateEvents({ emitEvents: [] }));
-// @ts-expect-error Omitted selectors retain policy and stay broad.
-expectEvents<{ phase: DFS.POST_ORDER }>(asyncTree.iterateEvents());
-expectEvents<{ phase: DFS.POST_ORDER }>(
+expectEvents<never>(
+  asyncTree.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
+);
+expectEvents<{ eventKind: DFS.AFTER_CHILD_SUBTREES }>(
+  // @ts-expect-error Omitted selectors retain policy and stay broad.
+  asyncTree.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+);
+expectEvents<{ eventKind: DFS.AFTER_CHILD_SUBTREES }>(
   // @ts-expect-error Undefined selectors retain policy and stay broad.
-  asyncTree.iterateEvents({ emitEvents: undefined }),
+  asyncTree.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: undefined,
+  }),
 );
-expectEvents<TreeTraversalEvent<DFS.POST_ORDER, Data, Data>>(
-  syncTreeCapability.iterateEvents({ emitEvents: [DFS.POST_ORDER] }),
+expectEvents<TreeTraversalEvent<DFS.AFTER_CHILD_SUBTREES, Data, Data>>(
+  syncTreeCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [DFS.AFTER_CHILD_SUBTREES],
+  }),
 );
-expectEvents<never>(syncTreeCapability.iterateEvents({ emitEvents: [] }));
-// @ts-expect-error Omitted selectors retain policy and stay broad.
-expectEvents<{ phase: DFS.POST_ORDER }>(syncTreeCapability.iterateEvents());
-expectEvents<{ phase: DFS.POST_ORDER }>(
+expectEvents<never>(
+  syncTreeCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
+);
+expectEvents<{ eventKind: DFS.AFTER_CHILD_SUBTREES }>(
+  // @ts-expect-error Omitted selectors retain policy and stay broad.
+  syncTreeCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+);
+expectEvents<{ eventKind: DFS.AFTER_CHILD_SUBTREES }>(
   // @ts-expect-error Undefined selectors retain policy and stay broad.
-  syncTreeCapability.iterateEvents({ emitEvents: undefined }),
+  syncTreeCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: undefined,
+  }),
 );
-expectEvents<TreeTraversalEvent<DFS.POST_ORDER, Data, Data>>(
-  asyncTreeCapability.iterateEvents({ emitEvents: [DFS.POST_ORDER] }),
+expectEvents<TreeTraversalEvent<DFS.AFTER_CHILD_SUBTREES, Data, Data>>(
+  asyncTreeCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [DFS.AFTER_CHILD_SUBTREES],
+  }),
 );
-expectEvents<never>(asyncTreeCapability.iterateEvents({ emitEvents: [] }));
-// @ts-expect-error Omitted selectors retain policy and stay broad.
-expectEvents<{ phase: DFS.POST_ORDER }>(asyncTreeCapability.iterateEvents());
-expectEvents<{ phase: DFS.POST_ORDER }>(
+expectEvents<never>(
+  asyncTreeCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
+);
+expectEvents<{ eventKind: DFS.AFTER_CHILD_SUBTREES }>(
+  // @ts-expect-error Omitted selectors retain policy and stay broad.
+  asyncTreeCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+);
+expectEvents<{ eventKind: DFS.AFTER_CHILD_SUBTREES }>(
   // @ts-expect-error Undefined selectors retain policy and stay broad.
-  asyncTreeCapability.iterateEvents({ emitEvents: undefined }),
+  asyncTreeCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: undefined,
+  }),
 );
-const optional: TraversalExecutionOptions<DFS> = {
-  emitEvents: [DFS.POST_ORDER],
+const optional: TraversalExecutionSelectionPatch<DFS> = {
+  deliveredEventKinds: [DFS.AFTER_CHILD_SUBTREES],
 };
-// @ts-expect-error An optional selection does not guarantee narrowing.
-expectEvents<{ phase: DFS.POST_ORDER }>(syncTree.iterateEvents(optional));
-expectEvents<never>(syncBreadth.iterateEvents({ emitEvents: [] }));
-expectEvents<{ phase: BFS.LEVEL_ORDER }>(
-  syncBreadth.iterateEvents({ emitEvents: [BFS.LEVEL_ORDER] }),
+expectEvents<{ eventKind: DFS.AFTER_CHILD_SUBTREES }>(
+  // @ts-expect-error An optional selection does not guarantee narrowing.
+  syncTree.runAndIterateObservationEventsUntilSuspendedOrTerminal(optional),
 );
-expectEvents<never>(asyncBreadth.iterateEvents({ emitEvents: [] }));
-expectEvents<{ phase: BFS.LEVEL_ORDER }>(
-  asyncBreadth.iterateEvents({ emitEvents: [BFS.LEVEL_ORDER] }),
+expectEvents<never>(
+  syncBreadth.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
 );
-expectEvents<DagEvent<Data, ID> & { kind: 'subgraphCompleted' }>(
-  syncDag.iterateEvents({ emitEvents: ['subgraphCompleted'] }),
+expectEvents<{ eventKind: BFS.AT_LEVEL_ORDER_VERTEX }>(
+  syncBreadth.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [BFS.AT_LEVEL_ORDER_VERTEX],
+  }),
 );
-// @ts-expect-error Omitted selection stays broad.
-expectEvents<{ kind: 'subgraphCompleted' }>(syncDag.iterateEvents());
-expectEvents<never>(syncDag.iterateEvents({ emitEvents: [] }));
-expectEvents<DagEvent<Data, ID> & { kind: 'subgraphCompleted' }>(
-  asyncDag.iterateEvents({ emitEvents: ['subgraphCompleted'] }),
+expectEvents<never>(
+  asyncBreadth.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
 );
-// @ts-expect-error Omitted selection stays broad.
-expectEvents<{ kind: 'subgraphCompleted' }>(asyncDag.iterateEvents());
-expectEvents<never>(asyncDag.iterateEvents({ emitEvents: [] }));
-expectEvents<DagEvent<Data, ID> & { kind: 'subgraphCompleted' }>(
-  syncDagCapability.iterateEvents({ emitEvents: ['subgraphCompleted'] }),
+expectEvents<{ eventKind: BFS.AT_LEVEL_ORDER_VERTEX }>(
+  asyncBreadth.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [BFS.AT_LEVEL_ORDER_VERTEX],
+  }),
 );
-// @ts-expect-error Omitted selection stays broad.
-expectEvents<{ kind: 'subgraphCompleted' }>(syncDagCapability.iterateEvents());
-expectEvents<never>(syncDagCapability.iterateEvents({ emitEvents: [] }));
-expectEvents<DagEvent<Data, ID> & { kind: 'subgraphCompleted' }>(
-  asyncDagCapability.iterateEvents({ emitEvents: ['subgraphCompleted'] }),
+expectEvents<
+  DagCommittedMilestoneEvent<Data, ID> & {
+    eventKind: 'subgraphCompletionCommitted';
+  }
+>(
+  syncDag.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: ['subgraphCompletionCommitted'],
+  }),
 );
-// @ts-expect-error Omitted selection stays broad.
-expectEvents<{ kind: 'subgraphCompleted' }>(asyncDagCapability.iterateEvents());
-expectEvents<never>(asyncDagCapability.iterateEvents({ emitEvents: [] }));
-expectEvents<Extract<GraphWalkEvent<Data, string, ID>, { kind: 'edge' }>>(
-  syncWalk.iterateEvents({ emitEvents: ['edge'] }),
+expectEvents<{ eventKind: 'subgraphCompletionCommitted' }>(
+  // @ts-expect-error Omitted selection stays broad.
+  syncDag.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
 );
-expectEvents<never>(syncWalk.iterateEvents({ emitEvents: [] }));
-expectEvents<Extract<GraphWalkEvent<Data, string, ID>, { kind: 'edge' }>>(
-  asyncWalk.iterateEvents({ emitEvents: ['edge'] }),
+expectEvents<never>(
+  syncDag.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
 );
-expectEvents<never>(asyncWalk.iterateEvents({ emitEvents: [] }));
-expectEvents<Extract<GraphWalkEvent<Data, string, ID>, { kind: 'edge' }>>(
-  syncWalkCapability.iterateEvents({ emitEvents: ['edge'] }),
+expectEvents<
+  DagCommittedMilestoneEvent<Data, ID> & {
+    eventKind: 'subgraphCompletionCommitted';
+  }
+>(
+  asyncDag.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: ['subgraphCompletionCommitted'],
+  }),
 );
-expectEvents<never>(syncWalkCapability.iterateEvents({ emitEvents: [] }));
-expectEvents<Extract<GraphWalkEvent<Data, string, ID>, { kind: 'edge' }>>(
-  asyncWalkCapability.iterateEvents({ emitEvents: ['edge'] }),
+expectEvents<{ eventKind: 'subgraphCompletionCommitted' }>(
+  // @ts-expect-error Omitted selection stays broad.
+  asyncDag.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
 );
-expectEvents<never>(asyncWalkCapability.iterateEvents({ emitEvents: [] }));
+expectEvents<never>(
+  asyncDag.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
+);
+expectEvents<
+  DagCommittedMilestoneEvent<Data, ID> & {
+    eventKind: 'subgraphCompletionCommitted';
+  }
+>(
+  syncDagCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: ['subgraphCompletionCommitted'],
+  }),
+);
+expectEvents<{ eventKind: 'subgraphCompletionCommitted' }>(
+  // @ts-expect-error Omitted selection stays broad.
+  syncDagCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+);
+expectEvents<never>(
+  syncDagCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
+);
+expectEvents<
+  DagCommittedMilestoneEvent<Data, ID> & {
+    eventKind: 'subgraphCompletionCommitted';
+  }
+>(
+  asyncDagCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: ['subgraphCompletionCommitted'],
+  }),
+);
+expectEvents<{ eventKind: 'subgraphCompletionCommitted' }>(
+  // @ts-expect-error Omitted selection stays broad.
+  asyncDagCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+);
+expectEvents<never>(
+  asyncDagCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
+);
+expectEvents<
+  Extract<
+    GraphWalkEvent<Data, string, ID>,
+    { eventKind: 'admittedEdgeOccurrence' }
+  >
+>(
+  syncWalk.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: ['admittedEdgeOccurrence'],
+  }),
+);
+expectEvents<never>(
+  syncWalk.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
+);
+expectEvents<
+  Extract<
+    GraphWalkEvent<Data, string, ID>,
+    { eventKind: 'admittedEdgeOccurrence' }
+  >
+>(
+  asyncWalk.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: ['admittedEdgeOccurrence'],
+  }),
+);
+expectEvents<never>(
+  asyncWalk.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
+);
+expectEvents<
+  Extract<
+    GraphWalkEvent<Data, string, ID>,
+    { eventKind: 'admittedEdgeOccurrence' }
+  >
+>(
+  syncWalkCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: ['admittedEdgeOccurrence'],
+  }),
+);
+expectEvents<never>(
+  syncWalkCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
+);
+expectEvents<
+  Extract<
+    GraphWalkEvent<Data, string, ID>,
+    { eventKind: 'admittedEdgeOccurrence' }
+  >
+>(
+  asyncWalkCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: ['admittedEdgeOccurrence'],
+  }),
+);
+expectEvents<never>(
+  asyncWalkCapability.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  }),
+);
 
-for (const event of syncTree.iterateEvents({ emitEvents: [DFS.POST_ORDER] })) {
+for (const event of syncTree.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+  { deliveredEventKinds: [DFS.AFTER_CHILD_SUBTREES] },
+)) {
   // @ts-expect-error Narrowing must not restore editing authority.
-  event.vertexRef.setValue(event.vertex);
+  event.vertexHandle.replaceReferencedValue(
+    event.vertex.createEditableShallowCloneWithContentOverrides(),
+  );
 }
-for (const event of syncWalk.iterateEvents({ emitEvents: ['edge'] })) {
+for (const event of syncWalk.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+  { deliveredEventKinds: ['admittedEdgeOccurrence'] },
+)) {
   // @ts-expect-error Narrowing preserves readonly discriminants.
-  event.kind = 'edge';
-  const data: string = event.edge.data;
+  event.eventKind = 'admittedEdgeOccurrence';
+  const data: string = event.edge.edgeData;
   void data;
 }
 // Heterogeneous families retain no-argument and empty-selection iteration.
 declare const mixed: typeof syncTree | typeof asyncDag | typeof syncWalk;
-mixed.iterateEvents();
-mixed.iterateEvents({ emitEvents: [] });
+mixed.runAndIterateObservationEventsUntilSuspendedOrTerminal();
+mixed.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+  deliveredEventKinds: [],
+});

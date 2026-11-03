@@ -1,34 +1,34 @@
 import { treeResolution } from './source-result-fixtures';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
-import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
-import type { InOrderOptions as Config } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
-import { DepthFirstPhase as Order } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
+import { DepthFirstTreeTraversalBuilder } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import type { DepthFirstChildBoundaryVisitOptions as Config } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
+import { DepthFirstTreeVisitPhase as Order } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 
-type Node = { $data: string; $childHints: (Node | null)[] };
-type Tree = VertexTypes<string, Node | null>;
+type Node = { $vertexData: string; $childDiscoveryHints: (Node | null)[] };
+type Tree = VertexDataAndChildHintTypes<string, Node | null>;
 function walk(
   hints: (string | null)[],
   config: Partial<Config> = {},
 ): string[] {
   const root: Node = {
-    $data: 'root',
-    $childHints: hints.map((value) =>
-      value === null ? null : { $data: value, $childHints: [] },
+    $vertexData: 'root',
+    $childDiscoveryHints: hints.map((value) =>
+      value === null ? null : { $vertexData: value, $childDiscoveryHints: [] },
     ),
   };
-  const t = new DepthFirstTreeTraversal<Tree>({
-    traversableTree: {
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: { vertexContent: root },
+  const t = new DepthFirstTreeTraversalBuilder<Tree>({
+    treeDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: "vertexResolved" as const,
+        resolvedVertexInput: { vertexContentInput: root },
       }),
-      resolveChild: (hint) => treeResolution(hint),
+      resolveChildVertexFromHint: (hint) => treeResolution(hint),
     },
-    inOrder: config,
+    childBoundaryVisits: config,
   });
   return [
-    ...t.createRunner().iterateEvents({ emitEvents: [Order.IN_ORDER] }),
-  ].map((v) => v.vertex.getData());
+    ...t.createIndependentRunnerFromCurrentOptions().runAndIterateObservationEventsUntilSuspendedOrTerminal({ deliveredEventKinds: [Order.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES] }),
+  ].map((v) => v.vertex.getVertexData());
 }
 
 test('default n-ary in-order visits between each pair of children', () => {
@@ -45,29 +45,29 @@ test('default n-ary in-order visits between each pair of children', () => {
 test('multiple explicit child positions are independent of ranges', () => {
   expect(
     walk(['a', 'b', 'c', 'd'], {
-      afterChildIndices: { indices: [0, 2] },
+      visitAfterChildIndices: { indices: [0, 2] },
     }),
   ).toEqual(['a', 'root', 'b', 'c', 'root', 'd']);
 });
 test('out-of-bounds primary ranges use the fallback', () => {
   expect(
     walk(['a', 'b', 'c'], {
-      afterChildIndices: { indices: [99] },
-      fallbackChildIndices: { indices: [-1] },
+      visitAfterChildIndices: { indices: [99] },
+      visitAfterChildIndicesWhenPrimarySelectionIsEmpty: { indices: [-1] },
     }),
   ).toEqual(['a', 'b', 'c', 'root']);
 });
 test('negative positions are relative to the end', () => {
   expect(
-    walk(['a', 'b', 'c'], { afterChildIndices: { indices: [-2] } }),
+    walk(['a', 'b', 'c'], { visitAfterChildIndices: { indices: [-2] } }),
   ).toEqual(['a', 'b', 'root', 'c']);
 });
 test('one-child parent visits can be disabled', () => {
-  expect(walk(['a'], { visitSingleChildParent: false })).toEqual(['a']);
+  expect(walk(['a'], { alsoVisitAfterOnlyChild: false })).toEqual(['a']);
 });
 test('null positions can count for in-order boundaries', () => {
   expect(walk([null, 'a'])).toEqual(['root', 'a']);
-  expect(walk([null, 'a'], { visitAfterOmittedChildren: false })).toEqual([
+  expect(walk([null, 'a'], { allowBoundaryVisitsAfterOmittedChildSlots: false })).toEqual([
     'a',
   ]);
 });
@@ -77,17 +77,17 @@ test('all null positions still finish traversal', () => {
 
 test('tagged indices differ from inclusive intervals', () => {
   expect(
-    walk(['a', 'b', 'c', 'd'], { afterChildIndices: { indices: [0, 2] } }),
+    walk(['a', 'b', 'c', 'd'], { visitAfterChildIndices: { indices: [0, 2] } }),
   ).toEqual(['a', 'root', 'b', 'c', 'root', 'd']);
   expect(
     walk(['a', 'b', 'c', 'd'], {
-      afterChildIndices: { ranges: [{ from: 0, through: 2 }] },
+      visitAfterChildIndices: { ranges: [{ fromInclusive: 0, throughInclusive: 2 }] },
     }),
   ).toEqual(['a', 'root', 'b', 'root', 'c', 'root', 'd']);
   expect(
     walk(['a', 'b', 'c'], {
-      afterChildIndices: { indices: [99, -99] },
-      fallbackChildIndices: { indices: [-1] },
+      visitAfterChildIndices: { indices: [99, -99] },
+      visitAfterChildIndicesWhenPrimarySelectionIsEmpty: { indices: [-1] },
     }),
   ).toEqual(['a', 'b', 'c', 'root']);
 });
@@ -102,6 +102,6 @@ test.each([
   { ranges: [{ from: 0, through: Infinity }] },
 ])('rejects malformed or ambiguous child selection %p', (selection) => {
   expect(() =>
-    walk(['a', 'b'], { afterChildIndices: selection } as never),
+    walk(['a', 'b'], { visitAfterChildIndices: selection } as never),
   ).toThrow(TypeError);
 });

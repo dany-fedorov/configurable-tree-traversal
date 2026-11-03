@@ -1,14 +1,17 @@
 import type { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { BreadthFirstTraversalRunnerState } from './BreadthFirstTraversalRunnerState';
 
 export type BreadthFirstTraversalRunnerInternalObjects<
-  TTP extends VertexTypes = VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
+  InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > = {
   resolvedTreesContainer: DepthFirstTraversalResolvedTreesContainer<
-    TTP,
-    RW_TTP
+    InputVertexTypes,
+    RewrittenVertexTypes
   >;
-  state: BreadthFirstTraversalRunnerState<TTP, RW_TTP>;
+  state: BreadthFirstTraversalRunnerState<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
 };

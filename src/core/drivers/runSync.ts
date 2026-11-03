@@ -1,4 +1,4 @@
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type {
   CallbackBindings,
   CallbackReply,
@@ -8,14 +8,17 @@ import type {
   RawCallbackResult,
 } from '@core/effects/types';
 
-export type SyncDriverState = { inFlightCallbackCount: number };
+export type SyncDriverState = { inFlightInvocationCount: number };
 
-export function* runSync<T extends VertexTypes, R extends VertexTypes = T>(
-  kernel: KernelPort<T, R>,
-  bindings: CallbackBindings<T, R>,
+export function* runSync<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+>(
+  kernel: KernelPort<InputVertexTypes, RewrittenVertexTypes>,
+  bindings: CallbackBindings<InputVertexTypes, RewrittenVertexTypes>,
   runtimeState: SyncDriverState,
   runnerName?: string,
-): Generator<KernelEvent<T | R> | null> {
+): Generator<KernelEvent<InputVertexTypes | RewrittenVertexTypes> | null> {
   for (;;) {
     const action = kernel.poll('drive');
     switch (action.kind) {
@@ -32,7 +35,7 @@ export function* runSync<T extends VertexTypes, R extends VertexTypes = T>(
         if (kernel.shouldEmit(action.event.order)) yield action.event;
         kernel.acknowledgeEvent(action.boundaryId);
         break;
-      case 'HALTED':
+      case 'SUSPENDED':
         yield null;
         break;
       case 'FINISHED':
@@ -47,15 +50,18 @@ export function* runSync<T extends VertexTypes, R extends VertexTypes = T>(
   }
 }
 
-function invokeAndSubmit<T extends VertexTypes, R extends VertexTypes>(
-  kernel: KernelPort<T, R>,
-  bindings: CallbackBindings<T, R>,
+function invokeAndSubmit<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+>(
+  kernel: KernelPort<InputVertexTypes, RewrittenVertexTypes>,
+  bindings: CallbackBindings<InputVertexTypes, RewrittenVertexTypes>,
   runtimeState: SyncDriverState,
-  call: CallSpec<T, R>,
+  call: CallSpec<InputVertexTypes, RewrittenVertexTypes>,
   runnerName?: string,
 ): void {
-  let raw: RawCallbackResult<T, R>;
-  runtimeState.inFlightCallbackCount += 1;
+  let raw: RawCallbackResult<InputVertexTypes, RewrittenVertexTypes>;
+  runtimeState.inFlightInvocationCount += 1;
   try {
     raw = bindings.invoke(call);
   } catch (error) {
@@ -63,10 +69,10 @@ function invokeAndSubmit<T extends VertexTypes, R extends VertexTypes>(
       requestId: call.requestId,
       kind: call.kind,
       outcome: { ok: false, error },
-    } as CallbackReply<T, R>);
+    } as CallbackReply<InputVertexTypes, RewrittenVertexTypes>);
     return;
   } finally {
-    runtimeState.inFlightCallbackCount -= 1;
+    runtimeState.inFlightInvocationCount -= 1;
   }
 
   if (raw.kind !== call.kind) {
@@ -82,7 +88,7 @@ function invokeAndSubmit<T extends VertexTypes, R extends VertexTypes>(
       misuse === null
         ? { ok: true, value: raw.value }
         : { ok: false, error: misuse },
-  } as CallbackReply<T, R>);
+  } as CallbackReply<InputVertexTypes, RewrittenVertexTypes>);
 }
 
 function observeThenable(

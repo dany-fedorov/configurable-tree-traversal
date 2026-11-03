@@ -1,64 +1,67 @@
 import {
-  DepthFirstTreeTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  AsyncBreadthFirstTreeTraversal,
-  DagTraversal,
-  AsyncDagTraversal,
-  type TreeSource,
-  type VertexTypes,
+  DepthFirstTreeTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  type TreeDiscoverySource,
+  type VertexDataAndChildHintTypes,
 } from '../src';
 
-type T = VertexTypes<string, string>;
-const content = { $data: 'root', $childHints: [] };
-const root = { $data: 'root', $childHints: ['child'] };
+type T = VertexDataAndChildHintTypes<string, string>;
+const content = { $vertexData: 'root', $childDiscoveryHints: [] };
+const root = { $vertexData: 'root', $childDiscoveryHints: ['child'] };
 for (const Constructor of [
-  DepthFirstTreeTraversal<T>,
-  AsyncDepthFirstTreeTraversal<T>,
-  BreadthFirstTreeTraversal<T>,
-  AsyncBreadthFirstTreeTraversal<T>,
-  DagTraversal<T>,
-  AsyncDagTraversal<T>,
+  DepthFirstTreeTraversalBuilder<T>,
+  AsyncDepthFirstTreeTraversalBuilder<T>,
+  BreadthFirstTreeTraversalBuilder<T>,
+  AsyncBreadthFirstTreeTraversalBuilder<T>,
+  DagTraversalBuilder<T>,
+  AsyncDagTraversalBuilder<T>,
 ]) {
   describe(Constructor.name, () => {
     test.each([
       'vertexId',
-      'dependsOnWork',
-      'dependsOnSubgraphCompletion',
-      'satisfiesDependencies',
+      'workWaitsForWorkOf',
+      'workWaitsForSubgraphCompletionOf',
+      'satisfiesWorkAndSubgraphCompletionPrerequisites',
     ])(
       'rejects own %s, including undefined, before tagged results discard it',
       async (field) => {
         for (const value of [undefined, true, false, []]) {
           for (const result of [
-            { kind: 'omitted' as const, [field]: value },
+            { kind: 'vertexIntentionallyOmitted' as const, [field]: value },
             {
-              kind: 'found',
-              vertex: { vertexContent: content, [field]: value },
+              kind: 'vertexResolved',
+              resolvedVertexInput: {
+                vertexContentInput: content,
+                [field]: value,
+              },
             },
             {
-              kind: 'found',
-              vertex: { vertexContent: content },
+              kind: 'vertexResolved',
+              resolvedVertexInput: { vertexContentInput: content },
               [field]: value,
             },
-            { kind: 'omitted', [field]: value },
+            { kind: 'vertexIntentionallyOmitted', [field]: value },
           ]) {
             for (const atRoot of [true, false]) {
               const source = {
-                resolveRoot: () =>
+                resolveRootVertex: () =>
                   atRoot
                     ? result
                     : {
-                        kind: 'found' as const,
-                        vertex: { vertexContent: root },
+                        kind: 'vertexResolved' as const,
+                        resolvedVertexInput: { vertexContentInput: root },
                       },
-                resolveChild: () => result,
-              } as TreeSource<T>;
+                resolveChildVertexFromHint: () => result,
+              } as TreeDiscoverySource<T>;
               const runner = new Constructor({
-                traversableTree: source,
-              }).createRunner();
+                treeDiscoverySource: source,
+              }).createIndependentRunnerFromCurrentOptions();
               await expect(async () => {
-                await runner.run();
+                await runner.runUntilSuspendedOrTerminal();
               }).rejects.toThrow(/graph metadata/i);
             }
           }

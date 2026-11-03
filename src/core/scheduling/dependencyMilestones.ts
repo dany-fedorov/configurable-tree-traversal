@@ -1,5 +1,5 @@
 import type {
-  DagWaitEdge,
+  DagMilestoneConstraint,
   DagMilestone,
 } from '@core/errors/DagTraversalStallError';
 import type { VertexId } from '@core/graph/types';
@@ -18,7 +18,7 @@ type Milestones = {
 
 /** One labelled model of original constraints, independent of accepted work seeds. */
 export function dependencyMilestones(declarations: readonly Declaration[]): {
-  edges: DagWaitEdge[];
+  edges: DagMilestoneConstraint[];
   cycles: VertexId[][];
 } {
   const tokens = new Map<VertexId, Milestones>();
@@ -27,7 +27,7 @@ export function dependencyMilestones(declarations: readonly Declaration[]): {
     let pair = tokens.get(vertexId);
     if (pair === undefined) {
       pair = {
-        work: { vertexId, milestone: 'work' },
+        work: { vertexId, milestone: 'workCompletion' },
         completion: { vertexId, milestone: 'subgraphCompletion' },
       };
       tokens.set(vertexId, pair);
@@ -39,32 +39,32 @@ export function dependencyMilestones(declarations: readonly Declaration[]): {
     positions.set(id, index);
   }
   const ids = Array.from(tokens.keys());
-  const edges: DagWaitEdge[] = [];
+  const edges: DagMilestoneConstraint[] = [];
   for (const declaration of declarations) {
     const own = milestones(declaration.id);
     for (const id of declaration.work) {
       edges.push({
-        waiter: own.work,
-        prerequisite: milestones(id).work,
+        waitingMilestone: own.work,
+        prerequisiteMilestone: milestones(id).work,
         reason: 'workDependency',
       });
     }
     for (const id of declaration.complete) {
       edges.push({
-        waiter: own.work,
-        prerequisite: milestones(id).completion,
+        waitingMilestone: own.work,
+        prerequisiteMilestone: milestones(id).completion,
         reason: 'subgraphCompletionDependency',
       });
     }
     edges.push({
-      waiter: own.completion,
-      prerequisite: own.work,
+      waitingMilestone: own.completion,
+      prerequisiteMilestone: own.work,
       reason: 'ownWork',
     });
     for (const id of declaration.children) {
       edges.push({
-        waiter: own.completion,
-        prerequisite: milestones(id).completion,
+        waitingMilestone: own.completion,
+        prerequisiteMilestone: milestones(id).completion,
         reason: 'structuralChild',
       });
     }
@@ -75,7 +75,8 @@ export function dependencyMilestones(declarations: readonly Declaration[]): {
     graph.set(pair.work, []);
     graph.set(pair.completion, []);
   }
-  for (const edge of edges) graph.get(edge.waiter)!.push(edge.prerequisite);
+  for (const edge of edges)
+    graph.get(edge.waitingMilestone)!.push(edge.prerequisiteMilestone);
   const projections = new Set<string>();
   const cycles: Array<{ ids: VertexId[]; positions: number[] }> = [];
   for (const component of stronglyConnectedComponents(

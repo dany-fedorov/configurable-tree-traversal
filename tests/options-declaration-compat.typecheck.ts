@@ -1,15 +1,15 @@
 // Public patches accept explicitly undefined fields under exact optional types.
 import type {
-  VertexTypes,
-  DepthFirstTreeOptionsPatch,
-  AsyncDepthFirstTreeOptionsPatch,
-  BreadthFirstTreeOptionsPatch,
-  AsyncBreadthFirstTreeOptionsPatch,
-  DagOptionsPatch,
-  AsyncDagOptionsPatch,
-  InOrderOptions,
+  VertexDataAndChildHintTypes,
+  DepthFirstTreeTraversalBuilderOptionsPatch,
+  AsyncDepthFirstTreeTraversalBuilderOptionsPatch,
+  BreadthFirstTreeTraversalBuilderOptionsPatch,
+  AsyncBreadthFirstTreeTraversalBuilderOptionsPatch,
+  DagTraversalBuilderOptionsPatch,
+  AsyncDagTraversalBuilderOptionsPatch,
+  DepthFirstChildBoundaryVisitOptions,
 } from '../src';
-import type { VisitorInputs } from '../src/core/TraversalVisitor';
+import type { VisitorDefinitionsByPhase } from '../src/core/TraversalVisitor';
 import type { DepthFirstTreeResolvedOptions } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import type { AsyncDepthFirstTreeResolvedOptions } from '../src/traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig';
 import type { BreadthFirstTreeResolvedOptions } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig';
@@ -25,52 +25,73 @@ type SameShape<A, B> = [A] extends [B]
   : false;
 type UndefinedPatch<T> = { [K in keyof T]?: T[K] | undefined };
 type HistoricalPatch<T extends { visitors: object }> = UndefinedPatch<
-  Omit<T, 'visitors' | 'traversalRunnerInternalObjects' | 'inOrder'>
+  Omit<T, 'visitors' | 'traversalRunnerInternalObjects' | 'childBoundaryVisits'>
 > & {
-  visitors?: VisitorInputs<T['visitors']> | undefined;
+  visitors?: VisitorDefinitionsByPhase<T['visitors']> | undefined;
 };
 type HistoricalDagPatch<T extends { visitors: object }> = Omit<
   HistoricalPatch<T>,
-  'traversableTree' | 'traversableGraph'
+  'treeDiscoverySource' | 'dagDiscoverySource'
 >;
 export type InputCompatibility = [
   Assert<
     SameShape<
-      DepthFirstTreeOptionsPatch,
+      DepthFirstTreeTraversalBuilderOptionsPatch,
       HistoricalPatch<
-        DepthFirstTreeResolvedOptions<VertexTypes, VertexTypes>
-      > & { inOrder?: UndefinedPatch<InOrderOptions> | undefined }
-    >
-  >,
-  Assert<
-    SameShape<
-      AsyncDepthFirstTreeOptionsPatch,
-      HistoricalPatch<AsyncDepthFirstTreeResolvedOptions<VertexTypes>> & {
-        inOrder?: UndefinedPatch<InOrderOptions> | undefined;
+        DepthFirstTreeResolvedOptions<
+          VertexDataAndChildHintTypes,
+          VertexDataAndChildHintTypes
+        >
+      > & {
+        childBoundaryVisits?:
+          | UndefinedPatch<DepthFirstChildBoundaryVisitOptions>
+          | undefined;
       }
     >
   >,
   Assert<
     SameShape<
-      BreadthFirstTreeOptionsPatch,
-      HistoricalPatch<BreadthFirstTreeResolvedOptions<VertexTypes>>
+      AsyncDepthFirstTreeTraversalBuilderOptionsPatch,
+      HistoricalPatch<
+        AsyncDepthFirstTreeResolvedOptions<VertexDataAndChildHintTypes>
+      > & {
+        childBoundaryVisits?:
+          | UndefinedPatch<DepthFirstChildBoundaryVisitOptions>
+          | undefined;
+      }
     >
   >,
   Assert<
     SameShape<
-      AsyncBreadthFirstTreeOptionsPatch,
-      HistoricalPatch<AsyncBreadthFirstTreeResolvedOptions<VertexTypes>>
+      BreadthFirstTreeTraversalBuilderOptionsPatch,
+      HistoricalPatch<
+        BreadthFirstTreeResolvedOptions<VertexDataAndChildHintTypes>
+      >
     >
   >,
   Assert<
     SameShape<
-      Omit<DagOptionsPatch, 'traversableTree' | 'traversableGraph'>,
+      AsyncBreadthFirstTreeTraversalBuilderOptionsPatch,
+      HistoricalPatch<
+        AsyncBreadthFirstTreeResolvedOptions<VertexDataAndChildHintTypes>
+      >
+    >
+  >,
+  Assert<
+    SameShape<
+      Omit<
+        DagTraversalBuilderOptionsPatch,
+        'treeDiscoverySource' | 'dagDiscoverySource'
+      >,
       HistoricalDagPatch<DagResolvedOptions>
     >
   >,
   Assert<
     SameShape<
-      Omit<AsyncDagOptionsPatch, 'traversableTree' | 'traversableGraph'>,
+      Omit<
+        AsyncDagTraversalBuilderOptionsPatch,
+        'treeDiscoverySource' | 'dagDiscoverySource'
+      >,
       HistoricalDagPatch<AsyncDagResolvedOptions>
     >
   >,

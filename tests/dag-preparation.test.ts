@@ -3,9 +3,9 @@ import { treeResolution } from './source-result-fixtures';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
+import { AsyncDagTraversalBuilder } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { DagTraversalBuilder } from '../src/traversals/dag-traversal/DagTraversal';
 import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 import {
@@ -14,71 +14,82 @@ import {
   runnerInternals,
 } from './internal-runner-fixtures';
 
-type G = VertexTypes<string, string>;
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
-  for (const discovery of ['lazy', 'eager'] as const) {
+type G = VertexDataAndChildHintTypes<string, string>;
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
+  for (const discovery of [
+    'incrementalDuringTraversal',
+    'completeBeforeAnyVisitor',
+  ] as const) {
     test(`${Constructor.name} ${discovery} prepares without work and reuses discovery`, async () => {
       const calls: string[] = [];
       const visits: string[] = [];
       const traversal = new Constructor<G>({
-        discovery,
-        traversableGraph: {
-          resolveRoot: () => {
+        discoveryTiming: discovery,
+        dagDiscoverySource: {
+          resolveRootVertex: () => {
             calls.push('a');
             return {
-              kind: 'found',
-              vertex: {
+              kind: 'vertexResolved',
+              resolvedVertexInput: {
                 vertexId: 'a',
-                vertexContent: { $data: 'a', $childHints: ['b'] },
+                vertexContentInput: {
+                  $vertexData: 'a',
+                  $childDiscoveryHints: ['b'],
+                },
               },
             };
           },
-          resolveChild: (id) => {
+          resolveChildHint: (id) => {
             calls.push(id);
             return {
-              kind: 'found',
-              vertex: {
+              kind: 'vertexResolved',
+              resolvedVertexInput: {
                 vertexId: id,
-                dependsOnWork: ['a'],
-                vertexContent: { $data: id, $childHints: [] },
+                workWaitsForWorkOf: ['a'],
+                vertexContentInput: {
+                  $vertexData: id,
+                  $childDiscoveryHints: [],
+                },
               },
             };
           },
         },
-      }).addVisitorFor(Order.ON_WORK_READY, (vertex) => {
-        visits.push(vertex.getData());
+      }).registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+        visits.push(vertex.getVertexData());
       });
-      const runner = traversal.createRunner();
-      expect(await runner.prepare()).toBe(runner);
-      expect(runner.getStatus()).toBe(Status.HALTED);
-      expect(runner.getStopReason()).toBe('prepared');
-      expect(runner.summary()).toMatchObject({
-        discovery: { mode: 'eager', complete: true },
-        completedWorkIds: [],
-        completedSubgraphIds: [],
-        awaitingSettlement: [],
+      const runner = traversal.createIndependentRunnerFromCurrentOptions();
+      expect(await runner.discoverValidateAndFreezeTopology()).toBe(runner);
+      expect(runner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
+      expect(runner.getTraversalStopReason()).toBe('prepared');
+      expect(runner.captureProgressSnapshot()).toMatchObject({
+        discovery: { timing: 'completeBeforeAnyVisitor', complete: true },
+        workCompletionCommittedVertexIds: [],
+        subgraphCompletionCommittedVertexIds: [],
+        workAwaitingSettlement: [],
       });
       expect(visits).toEqual([]);
       expect(calls).toEqual(['a', 'b']);
-      await runner.prepare();
+      await runner.discoverValidateAndFreezeTopology();
       const events = [];
-      for await (const event of runner.iterateEvents())
-        events.push([event.vertex.getData(), event.kind]);
+      for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+        events.push([event.vertex.getVertexData(), event.eventKind]);
       expect(events).toEqual([
-        ['a', 'workCompleted'],
-        ['b', 'workCompleted'],
-        ['b', 'subgraphCompleted'],
-        ['a', 'subgraphCompleted'],
+        ['a', 'workCompletionCommitted'],
+        ['b', 'workCompletionCommitted'],
+        ['b', 'subgraphCompletionCommitted'],
+        ['a', 'subgraphCompletionCommitted'],
       ]);
       expect(visits).toEqual(['a', 'b']);
       expect(calls).toEqual(['a', 'b']);
-      await expect(async () => runner.prepare()).rejects.toThrow(/execution/i);
-      expect(runner.getStatus()).toBe(Status.FINISHED);
+      await expect(async () =>
+        runner.discoverValidateAndFreezeTopology(),
+      ).rejects.toThrow(/execution/i);
+      expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
     });
   }
 }
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   for (const sourceMode of ['tree', 'graph'] as const) {
     for (const empty of [false, true]) {
       test(`${Constructor.name} prepares ${sourceMode} ${
@@ -86,47 +97,62 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       } roots`, async () => {
         const calls: string[] = [];
         const source = {
-          resolveRoot: () => {
+          resolveRootVertex: () => {
             calls.push('root');
             return empty
-              ? { kind: 'omitted' as const }
+              ? { kind: 'vertexIntentionallyOmitted' as const }
               : {
-                  kind: 'found' as const,
-                  vertex: {
-                    vertexContent: { $data: 'root', $childHints: ['child'] },
+                  kind: 'vertexResolved' as const,
+                  resolvedVertexInput: {
+                    vertexContentInput: {
+                      $vertexData: 'root',
+                      $childDiscoveryHints: ['child'],
+                    },
                   },
                 };
           },
-          resolveChild: () => {
+          resolveChildHint: () => {
             calls.push('child');
             return {
-              kind: 'found' as const,
-              vertex: { vertexContent: { $data: 'child', $childHints: [] } },
+              kind: 'vertexResolved' as const,
+              resolvedVertexInput: {
+                vertexContentInput: {
+                  $vertexData: 'child',
+                  $childDiscoveryHints: [],
+                },
+              },
             };
           },
         };
         const runner = new Constructor<G>(
           sourceMode === 'tree'
-            ? { traversableTree: source }
+            ? {
+                treeDiscoverySource: {
+                  resolveRootVertex: source.resolveRootVertex,
+                  resolveChildVertexFromHint: source.resolveChildHint,
+                },
+              }
             : {
-                traversableGraph: {
+                dagDiscoverySource: {
                   ...source,
-                  resolveRoot: () => graphResolution(source.resolveRoot()),
-                  resolveChild: () => graphResolution(source.resolveChild()),
+                  resolveRootVertex: () =>
+                    graphResolution(source.resolveRootVertex()),
+                  resolveChildHint: () =>
+                    graphResolution(source.resolveChildHint()),
                 },
               },
-        ).createRunner();
-        await runner.prepare();
-        await runner.prepare();
-        expect(runner.getStopReason()).toBe('prepared');
-        expect(runner.summary().counts).toMatchObject({
-          discovered: empty ? 0 : 2,
-          workCompleted: 0,
-          subgraphCompleted: 0,
+        ).createIndependentRunnerFromCurrentOptions();
+        await runner.discoverValidateAndFreezeTopology();
+        await runner.discoverValidateAndFreezeTopology();
+        expect(runner.getTraversalStopReason()).toBe('prepared');
+        expect(runner.captureProgressSnapshot().counts).toMatchObject({
+          retainedLiveVertices: empty ? 0 : 2,
+          workCompletionCommittedVertices: 0,
+          subgraphCompletionCommittedVertices: 0,
         });
         expect(calls).toEqual(empty ? ['root'] : ['root', 'child']);
-        await runner.run();
-        expect(runner.getStopReason()).toBe('finished');
+        await runner.runUntilSuspendedOrTerminal();
+        expect(runner.getTraversalStopReason()).toBe('finished');
         expect(calls).toEqual(empty ? ['root'] : ['root', 'child']);
       });
     }
@@ -135,40 +161,47 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   for (const empty of [false, true]) {
     test(`${Constructor.name} hides synthetic bookkeeping during preparation`, async () => {
       const runner = new Constructor<G>({
-        syntheticRoot: true,
-        traversableGraph: {
-          resolveRoot: () =>
+        sourceRootIsHiddenEntryHolder: true,
+        dagDiscoverySource: {
+          resolveRootVertex: () =>
             empty
               ? {
-                  identity: null,
-                  kind: 'omitted' as const,
-                  satisfiesDependencies: true as const,
+                  omittedVertexIdentity: null,
+                  kind: 'vertexIntentionallyOmitted' as const,
+                  satisfiesWorkAndSubgraphCompletionPrerequisites:
+                    true as const,
                 }
               : {
-                  kind: 'found' as const,
-                  vertex: {
-                    vertexContent: { $data: 'synthetic', $childHints: ['a'] },
+                  kind: 'vertexResolved' as const,
+                  resolvedVertexInput: {
+                    vertexContentInput: {
+                      $vertexData: 'synthetic',
+                      $childDiscoveryHints: ['a'],
+                    },
                   },
                 },
-          resolveChild: () => ({
-            kind: 'found' as const,
-            vertex: {
+          resolveChildHint: () => ({
+            kind: 'vertexResolved' as const,
+            resolvedVertexInput: {
               vertexId: 'a',
-              vertexContent: { $data: 'a', $childHints: [] },
+              vertexContentInput: {
+                $vertexData: 'a',
+                $childDiscoveryHints: [],
+              },
             },
           }),
         },
-      }).createRunner();
-      await runner.prepare();
-      expect(runner.getStopReason()).toBe('prepared');
-      expect(runner.summary()).toMatchObject({
-        counts: { discovered: empty ? 0 : 1 },
-        completedWorkIds: [],
-        completedSubgraphIds: [],
-        awaitingSettlement: [],
+      }).createIndependentRunnerFromCurrentOptions();
+      await runner.discoverValidateAndFreezeTopology();
+      expect(runner.getTraversalStopReason()).toBe('prepared');
+      expect(runner.captureProgressSnapshot()).toMatchObject({
+        counts: { retainedLiveVertices: empty ? 0 : 1 },
+        workCompletionCommittedVertexIds: [],
+        subgraphCompletionCommittedVertexIds: [],
+        workAwaitingSettlement: [],
       });
-      await runner.run();
-      expect(runner.getStopReason()).toBe('finished');
+      await runner.runUntilSuspendedOrTerminal();
+      expect(runner.getTraversalStopReason()).toBe('finished');
     });
   }
 
@@ -176,66 +209,72 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const calls: unknown[] = [];
     const visits: string[] = [];
     const runner = new Constructor<G>({
-      completedWork: new Set(['lookup']),
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
+      acceptedCompletedWorkVertexIds: new Set(['lookup']),
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: 'root',
-            dependsOnSubgraphCompletion: ['lookup'],
-            vertexContent: { $data: 'root', $childHints: [] },
+            workWaitsForSubgraphCompletionOf: ['lookup'],
+            vertexContentInput: {
+              $vertexData: 'root',
+              $childDiscoveryHints: [],
+            },
           },
         }),
-        resolveChild: (id) => ({
-          kind: 'found' as const,
-          vertex: {
+        resolveChildHint: (id) => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: id,
-            vertexContent: { $data: id, $childHints: [] },
+            vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] },
           },
         }),
-        resolvePrerequisite: (id) => {
+        resolvePrerequisiteByVertexId: (id) => {
           calls.push(id);
           return {
-            kind: 'found' as const,
-            vertex: {
+            kind: 'vertexResolved' as const,
+            resolvedVertexInput: {
               vertexId: id,
-              vertexContent: { $data: 'lookup', $childHints: ['child'] },
+              vertexContentInput: {
+                $vertexData: 'lookup',
+                $childDiscoveryHints: ['child'],
+              },
             },
           };
         },
       },
     })
-      .addVisitorFor(Order.ON_WORK_READY, (vertex) => {
-        visits.push(vertex.getData());
+      .registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+        visits.push(vertex.getVertexData());
       })
-      .createRunner();
-    await runner.prepare();
+      .createIndependentRunnerFromCurrentOptions();
+    await runner.discoverValidateAndFreezeTopology();
     expect(calls).toEqual(['lookup']);
     expect(visits).toEqual([]);
-    expect(runner.summary()).toMatchObject({
-      completedWorkIds: ['lookup'],
-      completedSubgraphIds: [],
-      awaitingSettlement: [],
-      counts: { discovered: 3 },
+    expect(runner.captureProgressSnapshot()).toMatchObject({
+      workCompletionCommittedVertexIds: ['lookup'],
+      subgraphCompletionCommittedVertexIds: [],
+      workAwaitingSettlement: [],
+      counts: { retainedLiveVertices: 3 },
     });
     const events = [];
-    for await (const event of runner.iterateEvents()) {
-      events.push([event.vertex.getData(), event.kind]);
-      if (event.kind === 'workCompleted')
-        expect(runner.summary().completedWorkIds).toContain(
-          event.vertex.getData(),
-        );
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal()) {
+      events.push([event.vertex.getVertexData(), event.eventKind]);
+      if (event.eventKind === 'workCompletionCommitted')
+        expect(
+          runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+        ).toContain(event.vertex.getVertexData());
       else
-        expect(runner.summary().completedSubgraphIds).toContain(
-          event.vertex.getData(),
-        );
+        expect(
+          runner.captureProgressSnapshot().subgraphCompletionCommittedVertexIds,
+        ).toContain(event.vertex.getVertexData());
     }
     expect(events).toEqual([
-      ['child', 'workCompleted'],
-      ['child', 'subgraphCompleted'],
-      ['lookup', 'subgraphCompleted'],
-      ['root', 'workCompleted'],
-      ['root', 'subgraphCompleted'],
+      ['child', 'workCompletionCommitted'],
+      ['child', 'subgraphCompletionCommitted'],
+      ['lookup', 'subgraphCompletionCommitted'],
+      ['root', 'workCompletionCommitted'],
+      ['root', 'subgraphCompletionCommitted'],
     ]);
     expect(visits).toEqual(['child', 'root']);
     expect(calls).toEqual(['lookup']);
@@ -252,47 +291,57 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       let visits = 0;
       const runner = new Constructor<G>({
         ...(issue === 'seedCycle'
-          ? { completedWork: new Set(['root', 'lookup']) }
+          ? { acceptedCompletedWorkVertexIds: new Set(['root', 'lookup']) }
           : issue === 'unknownSeed'
-          ? { completedWork: new Set(['unknown']) }
+          ? { acceptedCompletedWorkVertexIds: new Set(['unknown']) }
           : {}),
-        traversableGraph: {
-          resolveRoot: () => ({
-            kind: 'found' as const,
-            vertex: {
+        dagDiscoverySource: {
+          resolveRootVertex: () => ({
+            kind: 'vertexResolved' as const,
+            resolvedVertexInput: {
               vertexId: 'root',
-              dependsOnWork: issue === 'unknownSeed' ? [] : ['lookup'],
-              vertexContent: { $data: 'root', $childHints: [] },
+              workWaitsForWorkOf: issue === 'unknownSeed' ? [] : ['lookup'],
+              vertexContentInput: {
+                $vertexData: 'root',
+                $childDiscoveryHints: [],
+              },
             },
           }),
-          resolveChild: () => ({
-            identity: null,
-            kind: 'omitted' as const,
-            satisfiesDependencies: true as const,
+          resolveChildHint: () => ({
+            omittedVertexIdentity: null,
+            kind: 'vertexIntentionallyOmitted' as const,
+            satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           }),
-          resolvePrerequisite: () =>
+          resolvePrerequisiteByVertexId: () =>
             issue === 'missing'
               ? { kind: 'missing' }
               : {
-                  kind: 'found' as const,
-                  vertex: {
+                  kind: 'vertexResolved' as const,
+                  resolvedVertexInput: {
                     vertexId: 'lookup',
                     ...(issue === 'completionCycle'
-                      ? { dependsOnSubgraphCompletion: ['root'] }
-                      : { dependsOnWork: ['root'] }),
-                    vertexContent: { $data: 'lookup', $childHints: [] },
+                      ? { workWaitsForSubgraphCompletionOf: ['root'] }
+                      : { workWaitsForWorkOf: ['root'] }),
+                    vertexContentInput: {
+                      $vertexData: 'lookup',
+                      $childDiscoveryHints: [],
+                    },
                   },
                 },
         },
       })
-        .addVisitorFor(Order.ON_WORK_READY, () => {
+        .registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
           visits++;
         })
-        .createRunner();
-      await expect(async () => runner.prepare()).rejects.toThrow();
+        .createIndependentRunnerFromCurrentOptions();
+      await expect(async () =>
+        runner.discoverValidateAndFreezeTopology(),
+      ).rejects.toThrow();
       expect(visits).toBe(0);
-      expect(runner.getStatus()).toBe(Status.FAILED);
-      expect(runner.summary().awaitingSettlement).toEqual([]);
+      expect(runner.getTraversalLifecycleStatus()).toBe(Status.FAILED);
+      expect(runner.captureProgressSnapshot().workAwaitingSettlement).toEqual(
+        [],
+      );
     });
   }
 
@@ -304,53 +353,59 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         error,
       )}`, async () => {
         const runner = new Constructor<G>({
-          traversableGraph: {
-            resolveRoot: () => {
+          dagDiscoverySource: {
+            resolveRootVertex: () => {
               if (stage === 'root') throw error;
               return {
-                kind: 'found' as const,
-                vertex: {
+                kind: 'vertexResolved' as const,
+                resolvedVertexInput: {
                   vertexId: 'root',
-                  dependsOnWork: stage === 'lookup' ? ['lookup'] : [],
-                  vertexContent: {
-                    $data: 'root',
-                    $childHints: stage === 'child' ? ['child'] : [],
+                  workWaitsForWorkOf: stage === 'lookup' ? ['lookup'] : [],
+                  vertexContentInput: {
+                    $vertexData: 'root',
+                    $childDiscoveryHints: stage === 'child' ? ['child'] : [],
                   },
                 },
               };
             },
-            resolveChild: () => {
+            resolveChildHint: () => {
               throw error;
             },
-            resolvePrerequisite: () => {
+            resolvePrerequisiteByVertexId: () => {
               throw error;
             },
           },
-        }).createRunner();
-        await expect(async () => runner.prepare()).rejects.toBe(error);
-        await expect(async () => runner.prepare()).rejects.toBe(error);
-        await expect(async () => runner.run()).rejects.toBe(error);
-        expect(runner.requestPause()).toBe(false);
+        }).createIndependentRunnerFromCurrentOptions();
+        await expect(async () =>
+          runner.discoverValidateAndFreezeTopology(),
+        ).rejects.toBe(error);
+        await expect(async () =>
+          runner.discoverValidateAndFreezeTopology(),
+        ).rejects.toBe(error);
+        await expect(async () =>
+          runner.runUntilSuspendedOrTerminal(),
+        ).rejects.toBe(error);
+        expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(false);
       });
     }
   }
 }
 
 const single = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId: 'root',
-      vertexContent: { $data: 'root', $childHints: [] },
+      vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
     },
   }),
-  resolveChild: () => ({
-    identity: null,
-    kind: 'omitted' as const,
-    satisfiesDependencies: true as const,
+  resolveChildHint: () => ({
+    omittedVertexIdentity: null,
+    kind: 'vertexIntentionallyOmitted' as const,
+    satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
   }),
 };
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   for (const injection of ['state', 'container', 'both'] as const) {
     test(`${Constructor.name} rejects empty injected ${injection} recoverably`, async () => {
       const state = new DagTraversalRunnerState<G>();
@@ -359,90 +414,115 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         saveOriginal: false,
       });
       const runner = (
-        Constructor === DagTraversal
+        Constructor === DagTraversalBuilder
           ? createInternalDagTraversal
           : createInternalAsyncDagTraversal
       )<G>({
-        traversableGraph: single,
+        dagDiscoverySource: single,
         traversalRunnerInternalObjects: {
           ...(injection !== 'container' ? { state } : {}),
           ...(injection !== 'state'
             ? { resolvedGraphsContainer: container }
             : {}),
         },
-      }).createRunner();
-      const before = runner.inspect();
-      await expect(async () => runner.prepare()).rejects.toThrow(/injected/i);
-      expect(runner.inspect()).toEqual(before);
-      expect(runner.summary().discovery.mode).toBe('lazy');
-      await runner.run();
-      expect(runner.getStopReason()).toBe('finished');
+      }).createIndependentRunnerFromCurrentOptions();
+      const before = runner.captureExecutionSnapshot();
+      await expect(async () =>
+        runner.discoverValidateAndFreezeTopology(),
+      ).rejects.toThrow(/injected/i);
+      expect(runner.captureExecutionSnapshot()).toEqual(before);
+      expect(runner.captureProgressSnapshot().discovery.timing).toBe(
+        'incrementalDuringTraversal',
+      );
+      await runner.runUntilSuspendedOrTerminal();
+      expect(runner.getTraversalStopReason()).toBe('finished');
     });
   }
 
   test(`${Constructor.name} rejects prepare during suspended execution without poisoning`, async () => {
     const runner = new Constructor<G>({
-      traversableGraph: single,
-    }).createRunner();
-    const iterator = runner.iterateEvents();
+      dagDiscoverySource: single,
+    }).createIndependentRunnerFromCurrentOptions();
+    const iterator =
+      runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
     expect((await iterator.next()).done).toBe(false);
-    await expect(async () => runner.prepare()).rejects.toThrow(
-      /active iterator/i,
-    );
+    await expect(async () =>
+      runner.discoverValidateAndFreezeTopology(),
+    ).rejects.toThrow(/active iterator/i);
     await iterator.return();
-    await expect(async () => runner.prepare()).rejects.toThrow(/execution/i);
-    await runner.run();
-    expect(runner.getStopReason()).toBe('finished');
+    await expect(async () =>
+      runner.discoverValidateAndFreezeTopology(),
+    ).rejects.toThrow(/execution/i);
+    await runner.runUntilSuspendedOrTerminal();
+    expect(runner.getTraversalStopReason()).toBe('finished');
   });
 
   test(`${Constructor.name} invalid execution options do not prevent preparation`, async () => {
     const runner = new Constructor<G>({
-      traversableGraph: single,
-    }).createRunner();
+      dagDiscoverySource: single,
+    }).createIndependentRunnerFromCurrentOptions();
     await expect(async () =>
-      // @ts-expect-error Invalid phases also reject recoverably for JavaScript callers.
-      runner.run({ emitEvents: ['PRE_ORDER'] }),
+      runner.runUntilSuspendedOrTerminal({
+        // @ts-expect-error Invalid phases also reject recoverably for JavaScript callers.
+        deliveredEventKinds: ['BEFORE_CHILD_EXPANSION'],
+      }),
     ).rejects.toThrow();
-    await runner.prepare();
-    expect(runner.getStopReason()).toBe('prepared');
-    await runner.run();
-    expect(runner.getStopReason()).toBe('finished');
+    await runner.discoverValidateAndFreezeTopology();
+    expect(runner.getTraversalStopReason()).toBe('prepared');
+    await runner.runUntilSuspendedOrTerminal();
+    expect(runner.getTraversalStopReason()).toBe('finished');
   });
 
   for (const sourceMode of ['graph', 'tree'] as const) {
     test(`${Constructor.name} prepared ${sourceMode} topology stays frozen`, async () => {
       const source = {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
-            vertexContent: { $data: 'root', $childHints: [] },
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'root',
+              $childDiscoveryHints: [],
+            },
           },
         }),
-        resolveChild: () => ({ kind: 'omitted' as const }),
+        resolveChildHint: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
       };
       const runner = new Constructor<G>(
         sourceMode === 'graph'
           ? {
-              traversableGraph: {
+              dagDiscoverySource: {
                 ...source,
-                resolveRoot: () => graphResolution(source.resolveRoot()),
-                resolveChild: () => graphResolution(source.resolveChild()),
+                resolveRootVertex: () =>
+                  graphResolution(source.resolveRootVertex()),
+                resolveChildHint: () =>
+                  graphResolution(source.resolveChildHint()),
               },
             }
-          : { traversableTree: source },
+          : {
+              treeDiscoverySource: {
+                resolveRootVertex: source.resolveRootVertex,
+                resolveChildVertexFromHint: source.resolveChildHint,
+              },
+            },
       )
-        .addVisitorFor(Order.ON_WORK_READY, () => ({
+        .registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
           commands: [
             {
-              commandName: Command.REWRITE_CHILD_HINTS,
-              commandArguments: { newHints: ['unexpected'] },
+              commandName: Command.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+              commandArguments: { replacementChildHints: ['unexpected'] },
             },
           ],
         }))
-        .createRunner();
-      await runner.prepare();
-      await expect(async () => runner.run()).rejects.toThrow(/topology|eager/i);
-      expect(runner.summary().counts.workCompleted).toBe(0);
+        .createIndependentRunnerFromCurrentOptions();
+      await runner.discoverValidateAndFreezeTopology();
+      await expect(async () =>
+        runner.runUntilSuspendedOrTerminal(),
+      ).rejects.toThrow(/topology|eager/i);
+      expect(
+        runner.captureProgressSnapshot().counts.workCompletionCommittedVertices,
+      ).toBe(0);
     });
   }
 }
@@ -461,94 +541,106 @@ for (const adopt of [false, true]) {
     });
     const calls: string[] = [];
     const visits: string[] = [];
-    const runner = new AsyncDagTraversal<G>({
-      concurrency: 1,
-      traversableGraph: {
-        resolveRoot: () => {
+    const runner = new AsyncDagTraversalBuilder<G>({
+      maxConcurrentCallbackInvocations: 1,
+      dagDiscoverySource: {
+        resolveRootVertex: () => {
           calls.push('root');
           return {
-            kind: 'found' as const,
-            vertex: {
+            kind: 'vertexResolved' as const,
+            resolvedVertexInput: {
               vertexId: 'root',
-              vertexContent: { $data: 'root', $childHints: ['a', 'b'] },
+              vertexContentInput: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['a', 'b'],
+              },
             },
           };
         },
-        resolveChild: async (id) => {
+        resolveChildHint: async (id) => {
           calls.push(id);
           if (id === 'a') {
             entered();
             await gate;
           }
           return {
-            kind: 'found' as const,
-            vertex: {
+            kind: 'vertexResolved' as const,
+            resolvedVertexInput: {
               vertexId: id,
-              vertexContent: { $data: id, $childHints: [] },
+              vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] },
             },
           };
         },
       },
     })
-      .addVisitorFor(Order.ON_WORK_READY, (vertex) => {
-        visits.push(vertex.getData());
+      .registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+        visits.push(vertex.getVertexData());
       })
-      .createRunner();
+      .createIndependentRunnerFromCurrentOptions();
     let finished = false;
-    const preparing = runner.prepare().then(() => {
+    const preparing = runner.discoverValidateAndFreezeTopology().then(() => {
       finished = true;
     });
     await started;
-    expect(runner.requestPause()).toBe(true);
-    expect(runner.requestPause()).toBe(false);
-    await expect(runner.prepare()).rejects.toThrow(/active iterator/i);
-    await expect(runner.run()).rejects.toThrow(/active iterator/i);
+    expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(true);
+    expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(false);
+    await expect(runner.discoverValidateAndFreezeTopology()).rejects.toThrow(
+      /active iterator/i,
+    );
+    await expect(runner.runUntilSuspendedOrTerminal()).rejects.toThrow(
+      /active iterator/i,
+    );
     await Promise.resolve();
     expect(finished).toBe(false);
     expect(calls).toEqual(['root', 'a']);
     release();
     await preparing;
-    expect(runner.getStopReason()).toBe('paused');
+    expect(runner.getTraversalStopReason()).toBe('paused');
     expect(calls).toEqual(['root', 'a']);
     expect(visits).toEqual([]);
-    expect(runner.summary().discovery).toEqual({
-      mode: 'eager',
+    expect(runner.captureProgressSnapshot().discovery).toEqual({
+      timing: 'completeBeforeAnyVisitor',
       complete: false,
     });
-    if (adopt) await runner.run();
+    if (adopt) await runner.runUntilSuspendedOrTerminal();
     else {
-      await runner.prepare();
-      expect(runner.getStopReason()).toBe('prepared');
+      await runner.discoverValidateAndFreezeTopology();
+      expect(runner.getTraversalStopReason()).toBe('prepared');
       expect(visits).toEqual([]);
-      await runner.run();
+      await runner.runUntilSuspendedOrTerminal();
     }
     expect(calls).toEqual(['root', 'a', 'b']);
     expect(visits).toEqual(['root', 'a', 'b']);
-    expect(runner.getStopReason()).toBe('finished');
+    expect(runner.getTraversalStopReason()).toBe('finished');
   });
 }
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   for (const injection of ['state', 'container'] as const) {
     test(`${Constructor.name} rejects injected tree ${injection} without changing continuation`, async () => {
       const tree = {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
-            vertexContent: { $data: 'root', $childHints: [] },
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'root',
+              $childDiscoveryHints: [],
+            },
           },
         }),
-        resolveChild: () => ({ kind: 'omitted' as const }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
       };
       const fresh = new Constructor<G>({
-        traversableTree: tree,
-      }).createRunner();
+        treeDiscoverySource: tree,
+      }).createIndependentRunnerFromCurrentOptions();
       const runner = (
-        Constructor === DagTraversal
+        Constructor === DagTraversalBuilder
           ? createInternalDagTraversal
           : createInternalAsyncDagTraversal
       )<G>({
-        traversableTree: tree,
+        treeDiscoverySource: tree,
         traversalRunnerInternalObjects:
           injection === 'state'
             ? { state: runnerInternals(fresh).state }
@@ -556,108 +648,136 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
                 resolvedGraphsContainer:
                   runnerInternals(fresh).resolvedGraphsContainer,
               },
-      }).createRunner();
-      const before = runner.inspect();
-      await expect(async () => runner.prepare()).rejects.toThrow(/injected/i);
-      expect(runner.inspect()).toEqual(before);
-      await runner.run();
-      expect(runner.getStopReason()).toBe('finished');
+      }).createIndependentRunnerFromCurrentOptions();
+      const before = runner.captureExecutionSnapshot();
+      await expect(async () =>
+        runner.discoverValidateAndFreezeTopology(),
+      ).rejects.toThrow(/injected/i);
+      expect(runner.captureExecutionSnapshot()).toEqual(before);
+      await runner.runUntilSuspendedOrTerminal();
+      expect(runner.getTraversalStopReason()).toBe('finished');
     });
   }
   test(`${Constructor.name} injected failure wins over preparation validation`, async () => {
     const runner = (
-      Constructor === DagTraversal
+      Constructor === DagTraversalBuilder
         ? createInternalDagTraversal
         : createInternalAsyncDagTraversal
     )<G>({
-      traversableGraph: single,
+      dagDiscoverySource: single,
       traversalRunnerInternalObjects: {
         state: new DagTraversalRunnerState<G>({
           status: Status.FAILED,
           failure: { error: undefined },
         }),
       },
-    }).createRunner();
-    await expect(async () => runner.prepare()).rejects.toBeUndefined();
+    }).createIndependentRunnerFromCurrentOptions();
+    await expect(async () =>
+      runner.discoverValidateAndFreezeTopology(),
+    ).rejects.toBeUndefined();
   });
 
   for (const stage of [
     'root',
     'child',
     'transformHints',
-    'identity',
+    'omittedVertexIdentity',
   ] as const) {
     test(`${Constructor.name} preparation retains ${stage} source pipeline failure`, async () => {
       const error = Symbol(stage);
       const source = {
-        resolveRoot: () => {
+        resolveRootVertex: () => {
           if (stage === 'root') throw error;
           return {
-            kind: 'found' as const,
-            vertex: {
-              vertexContent: { $data: 'root', $childHints: ['child'] },
+            kind: 'vertexResolved' as const,
+            resolvedVertexInput: {
+              vertexContentInput: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['child'],
+              },
             },
           };
         },
-        resolveChild: () => {
+        resolveChildHint: () => {
           throw error;
         },
       };
       const runner = new Constructor<G>({
-        ...(stage === 'identity'
+        ...(stage === 'omittedVertexIdentity'
           ? {
-              traversableGraph: {
+              dagDiscoverySource: {
                 ...source,
-                getVertexIdFromHint: () => {
+                tryGetVertexIdentityFromHint: () => {
                   throw error;
                 },
               },
             }
-          : { traversableTree: source }),
+          : {
+              treeDiscoverySource: {
+                resolveRootVertex: source.resolveRootVertex,
+                resolveChildVertexFromHint: source.resolveChildHint,
+              },
+            }),
         ...(stage === 'transformHints'
           ? {
-              transformChildHints: () => {
+              transformChildHintsBeforeResolution: () => {
                 throw error;
               },
             }
           : {}),
-      }).createRunner();
-      await expect(async () => runner.prepare()).rejects.toBe(error);
-      await expect(async () => runner.run()).rejects.toBe(error);
+      }).createIndependentRunnerFromCurrentOptions();
+      await expect(async () =>
+        runner.discoverValidateAndFreezeTopology(),
+      ).rejects.toBe(error);
+      await expect(async () =>
+        runner.runUntilSuspendedOrTerminal(),
+      ).rejects.toBe(error);
     });
   }
 }
 
 test('sync preparation is owned during callbacks and can pause at the root', () => {
   let rootCalls = 0;
-  const runner: ReturnType<DagTraversal<G>['createRunner']> =
-    new DagTraversal<G>({
-      traversableTree: {
-        resolveRoot: () => {
-          rootCalls++;
-          expect(() => runner.prepare()).toThrow(/active iterator/i);
-          expect(() => runner.run()).toThrow(/active iterator/i);
-          expect(runner.requestPause()).toBe(true);
-          return {
-            kind: 'found' as const,
-            vertex: { vertexContent: { $data: 'root', $childHints: [] } },
-          };
-        },
-        resolveChild: () => ({ kind: 'omitted' as const }),
+  const runner: ReturnType<
+    DagTraversalBuilder<G>['createIndependentRunnerFromCurrentOptions']
+  > = new DagTraversalBuilder<G>({
+    treeDiscoverySource: {
+      resolveRootVertex: () => {
+        rootCalls++;
+        expect(() => runner.discoverValidateAndFreezeTopology()).toThrow(
+          /active iterator/i,
+        );
+        expect(() => runner.runUntilSuspendedOrTerminal()).toThrow(
+          /active iterator/i,
+        );
+        expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(true);
+        return {
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'root',
+              $childDiscoveryHints: [],
+            },
+          },
+        };
       },
-    }).createRunner();
-  runner.prepare();
-  expect(runner.getStopReason()).toBe('paused');
-  runner.prepare();
-  expect(runner.getStopReason()).toBe('prepared');
+      resolveChildVertexFromHint: () => ({
+        kind: 'vertexIntentionallyOmitted' as const,
+      }),
+    },
+  }).createIndependentRunnerFromCurrentOptions();
+  runner.discoverValidateAndFreezeTopology();
+  expect(runner.getTraversalStopReason()).toBe('paused');
+  runner.discoverValidateAndFreezeTopology();
+  expect(runner.getTraversalStopReason()).toBe('prepared');
   expect(rootCalls).toBe(1);
-  runner.run();
-  expect(runner.getStopReason()).toBe('finished');
+  runner.runUntilSuspendedOrTerminal();
+  expect(runner.getTraversalStopReason()).toBe('finished');
 });
 
 for (const omitted of [false, true]) {
   test(`async tree preparation drains a pending ${
-    omitted ? 'omitted' : 'found'
+    omitted ? 'omitted' : 'vertexResolved'
   } root before pausing`, async () => {
     let release!: () => void;
     let entered!: () => void;
@@ -668,32 +788,36 @@ for (const omitted of [false, true]) {
       entered = resolve;
     });
     let calls = 0;
-    const runner = new AsyncDagTraversal<G>({
-      traversableTree: {
-        resolveRoot: async () => {
+    const runner = new AsyncDagTraversalBuilder<G>({
+      treeDiscoverySource: {
+        resolveRootVertex: async () => {
           calls++;
           entered();
           await gate;
           return treeResolution(
-            omitted ? null : { $data: 'root', $childHints: [] },
+            omitted ? null : { $vertexData: 'root', $childDiscoveryHints: [] },
           );
         },
-        resolveChild: () => ({ kind: 'omitted' as const }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
       },
-    }).createRunner();
-    const preparing = runner.prepare();
+    }).createIndependentRunnerFromCurrentOptions();
+    const preparing = runner.discoverValidateAndFreezeTopology();
     await started;
-    expect(runner.requestPause()).toBe(true);
-    expect(runner.inspect().inFlightCallbackCount).toBe(1);
+    expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(true);
+    expect(runner.captureExecutionSnapshot().inFlightInvocationCount).toBe(1);
     release();
     await preparing;
-    expect(runner.getStopReason()).toBe('paused');
-    expect(runner.inspect().inFlightCallbackCount).toBe(0);
-    await runner.prepare();
-    expect(runner.getStopReason()).toBe('prepared');
-    expect(runner.summary().counts.workCompleted).toBe(0);
-    await runner.run();
+    expect(runner.getTraversalStopReason()).toBe('paused');
+    expect(runner.captureExecutionSnapshot().inFlightInvocationCount).toBe(0);
+    await runner.discoverValidateAndFreezeTopology();
+    expect(runner.getTraversalStopReason()).toBe('prepared');
+    expect(
+      runner.captureProgressSnapshot().counts.workCompletionCommittedVertices,
+    ).toBe(0);
+    await runner.runUntilSuspendedOrTerminal();
     expect(calls).toBe(1);
-    expect(runner.getStopReason()).toBe('finished');
+    expect(runner.getTraversalStopReason()).toBe('finished');
   });
 }

@@ -1,4 +1,4 @@
-import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
+import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { InternalVertexRef } from '../src/core/graph/types';
@@ -11,22 +11,24 @@ function result(
   dependsOnWork: readonly unknown[] = [],
 ): MakeVertexResult<TestGraph> {
   return {
-    vertexContent: { $data: id, $childHints: hints },
+    vertexContent: { $vertexData: id, $childDiscoveryHints: hints },
     vertexId: id,
-    dependsOnWork,
+    workWaitsForWorkOf: dependsOnWork,
   };
 }
 
 function context(
   parentRef: InternalVertexRef<TestGraph>,
   hintIndex: number,
-): VertexResolutionContext<TestGraph> {
+): ChildDiscoveryContext<TestGraph> {
   return {
-    depth: 1,
-    parentVertex: parentRef.getValue(),
-    parentVertexRef: parentRef,
-    hintIndex,
-    vertexHint: parentRef.getValue().getChildHints()[hintIndex]!,
+    discoveryDepthInEdges: 1,
+    parentVertexAtChildResolution: parentRef.getReferencedValue(),
+    parentVertexHandle: parentRef,
+    parentChildHintIndex: hintIndex,
+    childDiscoveryHint: parentRef
+      .getReferencedValue()
+      .getMutableChildDiscoveryHints()[hintIndex]!,
   };
 }
 
@@ -109,7 +111,7 @@ test('completion entries append behind existing initial visits in one FIFO', () 
   });
   expect(scheduling.takeEligible()).toEqual({
     ref: aRef,
-    order: 'ON_SUBGRAPH_READY',
+    order: 'ON_SUBGRAPH_COMPLETION_READY',
   });
 });
 
@@ -136,7 +138,9 @@ test('duplicate slots are accounted once across completion and later deletion', 
   expect(scheduling.deleteVertex(childRef)).toEqual(new Set([childRef]));
   expect(scheduling.takeCompleting()).toBeNull();
   expect(
-    container.resolvedGraphView.get(rootRef)?.slots.map((slot) => slot.kind),
+    container.liveResolvedGraphView
+      .get(rootRef)
+      ?.slots.map((slot) => slot.kind),
   ).toEqual(['deleted', 'deleted']);
 });
 

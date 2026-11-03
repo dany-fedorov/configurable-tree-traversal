@@ -1,70 +1,79 @@
 import {
-  materializeDagInputFromRecords,
-  materializeDagInputFromRoots,
-  materializeDagInputFromRecordsAsync,
-  materializeDagInputFromRootsAsync,
-  materializeWalkSourceFromRecords,
-  materializeWalkSourceFromRecordsAsync,
-  DagTraversal,
-  type MaterializedDagInput,
-  type GraphWalkSource,
-  type VertexTypes,
-  type ResolvedTreeStore,
-  ObjectTreeSource,
+  materializeMultiEntryDagInputFromRecordCatalog,
+  materializeDagInputFromRootRecords,
+  materializeMultiEntryDagInputFromRecordCatalogAsync,
+  materializeDagInputFromRootRecordsAsync,
+  materializeGraphWalkSourceFromVertexRecords,
+  materializeSynchronousGraphWalkSourceFromAsyncRecords,
+  DagTraversalBuilder,
+  type MaterializedDagTraversalInput,
+  type GraphWalkDiscoverySource,
+  type VertexDataAndChildHintTypes,
+  type MutableResolvedTreeStore,
+  ObjectPropertyTreeSource,
   TraversalVisitorCommandName as Command,
 } from 'configurable-tree-traversal';
-import * as sources from 'configurable-tree-traversal/sources';
+import * as sources from 'configurable-tree-traversal/dag-input-materialization';
 import * as walks from 'configurable-tree-traversal/traversals/graph-walk';
 import cjs = require('configurable-tree-traversal');
 
 const items = [{ id: undefined, value: 1 }];
-const input: MaterializedDagInput<typeof items[number], undefined> =
-  materializeDagInputFromRecords(items, { id: (item) => item.id });
-const subpath: sources.MaterializedDagInput<typeof items[number], undefined> =
-  input;
-const same: typeof materializeDagInputFromRecords =
-  sources.materializeDagInputFromRecords;
-const cjsInput: cjs.MaterializedDagInput<typeof items[number], undefined> =
-  subpath;
-const holder: true = input.syntheticRoot;
-new DagTraversal(input);
-const roots: typeof input = materializeDagInputFromRoots(items, {
-  id: (item) => item.id,
+const input: MaterializedDagTraversalInput<typeof items[number], undefined> =
+  materializeMultiEntryDagInputFromRecordCatalog(items, {
+    selectVertexId: (item) => item.id,
+  });
+const subpath: sources.MaterializedDagTraversalInput<
+  typeof items[number],
+  undefined
+> = input;
+const same: typeof materializeMultiEntryDagInputFromRecordCatalog =
+  sources.materializeMultiEntryDagInputFromRecordCatalog;
+const cjsInput: cjs.MaterializedDagTraversalInput<
+  typeof items[number],
+  undefined
+> = subpath;
+const holder: true = input.sourceRootIsHiddenEntryHolder;
+new DagTraversalBuilder(input);
+const roots: typeof input = materializeDagInputFromRootRecords(items, {
+  selectVertexId: (item) => item.id,
 });
-const asyncRecords: Promise<typeof input> = materializeDagInputFromRecordsAsync(
-  items,
-  { id: async (item) => item.id },
-);
-const asyncRoots: Promise<typeof input> = materializeDagInputFromRootsAsync(
-  items,
-  { id: async (item) => item.id },
-);
-const walking: GraphWalkSource<typeof items[number], never, undefined> =
-  materializeWalkSourceFromRecords(items, {
-    id: (item) => item.id,
-    roots: [undefined],
-    outgoing: () => [],
+const asyncRecords: Promise<typeof input> =
+  materializeMultiEntryDagInputFromRecordCatalogAsync(items, {
+    selectVertexId: async (item) => item.id,
   });
+const asyncRoots: Promise<typeof input> =
+  materializeDagInputFromRootRecordsAsync(items, {
+    selectVertexId: async (item) => item.id,
+  });
+const walking: GraphWalkDiscoverySource<
+  typeof items[number],
+  never,
+  undefined
+> = materializeGraphWalkSourceFromVertexRecords(items, {
+  getVertexId: (item) => item.id,
+  rootVertexIds: [undefined],
+  enumerateOutgoingLinks: () => [],
+});
 const asyncWalking: Promise<typeof walking> =
-  materializeWalkSourceFromRecordsAsync(items, {
-    id: async (item) => item.id,
-    roots: [undefined],
-    outgoing: () => [],
+  materializeSynchronousGraphWalkSourceFromAsyncRecords(items, {
+    getVertexId: async (item) => item.id,
+    rootVertexIds: [undefined],
+    enumerateOutgoingLinks: () => [],
   });
-const walkFactory: typeof materializeWalkSourceFromRecords =
-  walks.materializeWalkSourceFromRecords;
+const walkFactory: typeof materializeGraphWalkSourceFromVertexRecords =
+  walks.materializeGraphWalkSourceFromVertexRecords;
 // @ts-expect-error DAG input is an options envelope, not the actual source protocol.
-new DagTraversal({ traversableGraph: input });
+new DagTraversalBuilder({ dagDiscoverySource: input });
 // @ts-expect-error Removed envelope type has no compatibility alias.
 import type { MaterializedDagSource } from 'configurable-tree-traversal';
 // @ts-expect-error Removed envelope type has no subpath alias.
-import type { MaterializedDagSource as OldSubpath } from 'configurable-tree-traversal/sources';
+import type { MaterializedDagSource as OldSubpath } from 'configurable-tree-traversal/dag-input-materialization';
 // @ts-expect-error Removed envelope factory.
 import { materializeDagSourceFromRecords } from 'configurable-tree-traversal';
 // @ts-expect-error Removed envelope factory.
-import { materializeDagSourceFromRoots } from 'configurable-tree-traversal/sources';
+import { materializeDagSourceFromRoots } from 'configurable-tree-traversal/dag-input-materialization';
 // @ts-expect-error Removed async envelope factory.
-import { materializeDagSourceFromRecordsAsync } from 'configurable-tree-traversal/sources';
+import { materializeDagSourceFromRecordsAsync } from 'configurable-tree-traversal/dag-input-materialization';
 // @ts-expect-error Removed async envelope factory.
 import { materializeDagSourceFromRootsAsync } from 'configurable-tree-traversal';
 // @ts-expect-error Removed object patch alias.
@@ -80,8 +89,10 @@ import type { TraversableObjectTTP } from 'configurable-tree-traversal';
 // @ts-expect-error Removed resolved-tree type alias.
 import type { ResolvedTreeTypeParameters } from 'configurable-tree-traversal';
 // @ts-expect-error Static mapper factory has a single canonical name.
-ObjectTreeSource.getRootPropertyFromInputObjectDefault;
-declare const store: ResolvedTreeStore<VertexTypes<string, string>>;
+ObjectPropertyTreeSource.getRootPropertyFromInputObjectDefault;
+declare const store: MutableResolvedTreeStore<
+  VertexDataAndChildHintTypes<string, string>
+>;
 // @ts-expect-error Tree deletion names its subtree scope.
 store.delete;
 // @ts-expect-error Generic deletion command removed.
@@ -123,14 +134,14 @@ void [
 // Complete retired compatibility input checks through the packed declarations.
 import {
   Vertex,
-  MutableRef,
-  traverseTreeDepthFirst,
+  MutableValueReference,
+  runTreeDepthFirstUntilSuspendedOrTerminal,
   type TreeVertexResolution,
-  type DagPrerequisiteResolution,
-  type VisitorDefinition,
+  type DagPrerequisiteLookupResult,
+  type VisitorRegistrationDefinition,
   type DagSettlementOutcome,
-  type VertexTypes as LegacyVertexTypes,
-  type ResolvedGraphView,
+  type VertexDataAndChildHintTypes as LegacyVertexTypes,
+  type LiveResolvedGraphView,
   type TraversalVisitorCommand,
 } from 'configurable-tree-traversal';
 // @ts-expect-error Removed legacy sentinel.
@@ -141,43 +152,45 @@ type LegacyT = LegacyVertexTypes<string, string>;
 // @ts-expect-error Canonical content is required.
 new Vertex<LegacyT>({ $d: 'old', $c: [] });
 const legacyVertex = new Vertex<LegacyT>({
-  $data: 'canonical',
-  $childHints: [],
+  $vertexData: 'canonical',
+  $childDiscoveryHints: [],
 });
 // @ts-expect-error Retired access alias.
 legacyVertex.$d;
 // @ts-expect-error Retired access alias.
 legacyVertex.$c;
 // @ts-expect-error Retired clone alias.
-legacyVertex.clone({ $d: 'old' });
+legacyVertex.createEditableShallowCloneWithContentOverrides({ $d: 'old' });
 // @ts-expect-error UUID getter has a single canonical name.
-new MutableRef(legacyVertex).getId();
-declare const graph: ResolvedGraphView<LegacyT>;
+new MutableValueReference(legacyVertex).getId();
+declare const graph: LiveResolvedGraphView<LegacyT>;
 // @ts-expect-error Removed graph forwarding alias.
-graph.getIdOf(new MutableRef(legacyVertex));
+graph.getIdOf(new MutableValueReference(legacyVertex));
 // @ts-expect-error Removed graph forwarding alias.
 graph.getVertexById('id');
-// @ts-expect-error Untagged source results are unsupported.
-const found: TreeVertexResolution<LegacyT> = { vertexContent: legacyVertex };
+const found: TreeVertexResolution<LegacyT> = {
+  // @ts-expect-error Untagged source results are unsupported.
+  vertexContentInput: legacyVertex,
+};
 // @ts-expect-error Untagged omission is unsupported.
-const omitted: TreeVertexResolution<LegacyT> = { vertexContent: null };
+const omitted: TreeVertexResolution<LegacyT> = { vertexContentInput: null };
 // @ts-expect-error Missing prerequisite must be explicit.
-const missing: DagPrerequisiteResolution<LegacyT> = undefined;
-const visitor: VisitorDefinition<() => void> = {
+const missing: DagPrerequisiteLookupResult<LegacyT> = undefined;
+const visitor: VisitorRegistrationDefinition<() => void> = {
   visitor() {
     return undefined;
   },
   // @ts-expect-error Caller cannot set assigned registration indexes.
-  addedIndex: 4,
+  phaseRegistrationInsertionIndex: 4,
 };
 // @ts-expect-error Settlement requires a tagged outcome.
 const outcome: DagSettlementOutcome = { ok: true };
 const command: TraversalVisitorCommand<LegacyT> = {
   // @ts-expect-error Old hint command is removed.
   commandName: 'REWRITE_VERTEX_HINTS_ON_PRE_ORDER',
-  commandArguments: { newHints: [] },
+  commandArguments: { replacementChildHints: [] },
 };
-traverseTreeDepthFirst(
+runTreeDepthFirstUntilSuspendedOrTerminal(
   {
     resolveRoot: () => ({ kind: 'omitted' }),
     resolveChild: () => ({ kind: 'omitted' }),
@@ -198,20 +211,20 @@ void [
 
 // Old options and declaration schemas must fail through real packed types.
 import {
-  defineDag,
+  copyAndNormalizeDagDefinition,
   type DagDefinition,
   type DagSchedulingOptions,
 } from 'configurable-tree-traversal';
 const oldEntry: DagDefinition<unknown, unknown>['entry'] = {
   // @ts-expect-error roots accepts shared topology; forest is retired.
   kind: 'forest',
-  slots: [],
+  entryDiscoverySlots: [],
 };
 // @ts-expect-error Old root dependency key removed.
 const oldPolicy: DagSchedulingOptions = { rootDependencies: 'ignore' };
 // @ts-expect-error Old boolean fallback removed.
 const oldFallback: DagSchedulingOptions = { implicitParentDependency: true };
-void [defineDag, oldEntry, oldPolicy, oldFallback];
+void [copyAndNormalizeDagDefinition, oldEntry, oldPolicy, oldFallback];
 
 // @ts-expect-error Removed simple helper type, use phase-keyed options.
 import type { DepthFirstTraversalVisitorsSimple } from 'configurable-tree-traversal';
@@ -225,9 +238,9 @@ import type { AsyncDagTraversalVisitorsSimple } from 'configurable-tree-traversa
 import type { LegacyVertexContent } from 'configurable-tree-traversal';
 const badChainState: import('configurable-tree-traversal').TraversalVisitorCommand<
   LegacyT,
-  Command.SET_VISITOR_CHAIN_STATE
+  Command.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE
 > = {
-  commandName: Command.SET_VISITOR_CHAIN_STATE,
+  commandName: Command.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
   // @ts-expect-error Per-visit state uses the canonical field.
   commandArguments: { vertexVisitorsChainState: undefined },
 };
@@ -240,18 +253,23 @@ export type RemovedHelperTypes = [
 ];
 void badChainState;
 
-const undefinedConfigurationPatch: cjs.DepthFirstTreeOptionsPatch = {
-  traversableTree: undefined,
-  inOrder: {
-    afterChildIndices: undefined,
-    fallbackChildIndices: { indices: [-1] },
+const undefinedConfigurationPatch: cjs.DepthFirstTreeTraversalBuilderOptionsPatch =
+  {
+    treeDiscoverySource: undefined,
+    childBoundaryVisits: {
+      visitAfterChildIndices: undefined,
+      visitAfterChildIndicesWhenPrimarySelectionIsEmpty: { indices: [-1] },
+    },
+    visitors: { AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES: undefined },
+  };
+new cjs.DepthFirstTreeTraversalBuilder({
+  treeDiscoverySource: new cjs.ObjectPropertyTreeSource(1),
+}).patchOptionsForFutureRunners({
+  treeDiscoverySource: undefined,
+  childBoundaryVisits: {
+    visitAfterChildIndices: {
+      ranges: [{ fromInclusive: 0, throughInclusive: 2 }],
+    },
   },
-  visitors: { IN_ORDER: undefined },
-};
-new cjs.DepthFirstTreeTraversal({
-  traversableTree: new cjs.ObjectTreeSource(1),
-}).configure({
-  traversableTree: undefined,
-  inOrder: { afterChildIndices: { ranges: [{ from: 0, through: 2 }] } },
 });
 void undefinedConfigurationPatch;

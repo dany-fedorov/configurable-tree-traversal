@@ -1,54 +1,72 @@
 import assert from 'node:assert/strict';
-import { AsyncDagTraversal, DagVisitorPhase, type VertexTypes } from '../src';
+import {
+  AsyncDagTraversalBuilder,
+  DagVisitorPhase,
+  type VertexDataAndChildHintTypes,
+} from '../src';
 
 async function main() {
   let workCallbacks = 0;
-  const traversal = new AsyncDagTraversal<VertexTypes<string, never>>({
-    traversableGraph: {
-      resolveRoot: () => ({
-        kind: 'found',
-        vertex: {
+  const traversal = new AsyncDagTraversalBuilder<
+    VertexDataAndChildHintTypes<string, never>
+  >({
+    dagDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved',
+        resolvedVertexInput: {
           vertexId: 'task',
-          vertexContent: { $data: 'task', $childHints: [] },
+          vertexContentInput: { $vertexData: 'task', $childDiscoveryHints: [] },
         },
       }),
-      resolveChild: () => ({
-        identity: null,
-        kind: 'omitted',
-        satisfiesDependencies: true,
+      resolveChildHint: () => ({
+        omittedVertexIdentity: null,
+        kind: 'vertexIntentionallyOmitted',
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true,
       }),
     },
-    workCompletion: 'externalSettlement',
+    workCompletionPolicy: 'requireExternalWorkSettlement',
   });
-  traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, () => {
-    workCallbacks++;
-  });
-  const runner = traversal.createRunner();
-  await runner.run({ emitEvents: [] });
-  assert.equal(runner.getStopReason(), 'awaitingSettlement');
-  const work = runner.summary().awaitingSettlement[0]!;
-  runner.settle(work.vertexId, { kind: 'workCompleted' }, work.generation);
+  traversal.registerVisitorCallbackForPhase(
+    DagVisitorPhase.ON_WORK_READY,
+    () => {
+      workCallbacks++;
+    },
+  );
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  await runner.runUntilSuspendedOrTerminal({ deliveredEventKinds: [] });
+  assert.equal(runner.getTraversalStopReason(), 'awaitingSettlement');
+  const work = runner.captureProgressSnapshot().workAwaitingSettlement[0]!;
+  runner.settleDeferredWork(
+    work.vertexId,
+    { kind: 'workCompleted' },
+    work.settlementToken,
+  );
 
   // The committed work observation exists even though admission emitted nothing.
-  const workEvents = runner.iterateEvents({ emitEvents: ['workCompleted'] });
+  const workEvents =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: ['workCompletionCommitted'],
+    });
   const completed = await workEvents.next();
   assert.equal(completed.done, false);
   if (!completed.done) {
-    const kind: 'workCompleted' = completed.value.kind;
-    assert.equal(kind, 'workCompleted');
+    const kind: 'workCompletionCommitted' = completed.value.eventKind;
+    assert.equal(kind, 'workCompletionCommitted');
   }
   await workEvents.return();
 
   // A new lease selects completion; callbacks and committed work do not replay.
   const completionEvents = [];
-  for await (const event of runner.iterateEvents({
-    emitEvents: ['subgraphCompleted'],
-  })) {
-    const kind: 'subgraphCompleted' = event.kind;
+  for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    {
+      deliveredEventKinds: ['subgraphCompletionCommitted'],
+    },
+  )) {
+    const kind: 'subgraphCompletionCommitted' = event.eventKind;
     completionEvents.push(kind);
   }
-  assert.deepEqual(completionEvents, ['subgraphCompleted']);
+  assert.deepEqual(completionEvents, ['subgraphCompletionCommitted']);
   assert.equal(workCallbacks, 1);
-  assert.equal(runner.getStopReason(), 'finished');
+  assert.equal(runner.getTraversalStopReason(), 'finished');
 }
 void main();

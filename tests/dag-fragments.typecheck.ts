@@ -1,157 +1,177 @@
 import {
   DagFragmentValidationError,
   type DagDefinitionIssue,
-  defineDag,
-  defineDagFragment,
+  copyAndNormalizeDagDefinition,
+  validateAndCreateDagFragment,
   mapDagFragmentIds,
-  composeDag,
+  composeAndValidateDagFragments,
   type DagFragment,
   type DagCompositionOptions,
-  type PrepareDagResult,
+  type DagTopologyValidationResult,
 } from '../src';
 import * as dag from '../src/traversals/dag-traversal';
 type Local = 'start' | 'finish';
-const definition = defineDag<number, Local>({
-  vertices: [
+const definition = copyAndNormalizeDagDefinition<number, Local>({
+  vertexDeclarations: [
     {
       vertexId: 'start',
       data: 1,
-      slots: [],
-      dependsOnWork: [],
-      dependsOnSubgraphCompletion: [],
+      childDiscoverySlots: [],
+      workWaitsForWorkOf: [],
+      workWaitsForSubgraphCompletionOf: [],
     },
     {
       vertexId: 'finish',
       data: 2,
-      slots: [],
-      dependsOnWork: ['start'],
-      dependsOnSubgraphCompletion: [],
+      childDiscoverySlots: [],
+      workWaitsForWorkOf: ['start'],
+      workWaitsForSubgraphCompletionOf: [],
     },
   ],
-  omittedIds: [],
+  omittedVertexIds: [],
   entry: {
     kind: 'roots',
-    slots: [
+    entryDiscoverySlots: [
       { kind: 'vertex', vertexId: 'start' },
       { kind: 'vertex', vertexId: 'finish' },
     ],
   },
 });
-const fragment = defineDagFragment(definition, {
+const fragment = validateAndCreateDagFragment(definition, {
   start: 'start',
   finish: 'finish',
 });
 const exact: DagFragment<number, Local, 'start' | 'finish'> = fragment;
-const key: keyof typeof fragment.ports = 'start';
+const key: keyof typeof fragment.vertexIdsByPortName = 'start';
 // @ts-expect-error Port keys stay precise.
-const badKey: keyof typeof fragment.ports = 'other';
+const badKey: keyof typeof fragment.vertexIdsByPortName = 'other';
 // @ts-expect-error Bad port values cannot widen the definition's ID domain.
-defineDagFragment(definition, { wrong: 'other' });
+validateAndCreateDagFragment(definition, { wrong: 'other' });
 // @ts-expect-error Bad port values cannot infer an object/string union.
-defineDagFragment(definition, { wrong: {} });
+validateAndCreateDagFragment(definition, { wrong: {} });
 const instance = mapDagFragmentIds(fragment, {
   mapId: (id) => ({ local: id }),
 });
-const port: { local: Local } = instance.ports.start;
+const port: { local: Local } = instance.vertexIdsByPortName.start;
 // @ts-expect-error Missing mapped port.
-instance.ports.other;
+instance.vertexIdsByPortName.other;
 // @ts-expect-error Owned ports are readonly.
-instance.ports.start = { local: 'start' };
+instance.vertexIdsByPortName.start = { local: 'start' };
 const instances: DagFragment<number, { local: Local }, 'start' | 'finish'>[] = [
   instance,
 ];
-composeDag(instances, {
-  dependencies: [
+composeAndValidateDagFragments(instances, {
+  additionalWorkPrerequisites: [
     {
-      dependent: instance.ports.start,
+      dependentWorkVertexId: instance.vertexIdsByPortName.start,
       prerequisite: {
-        vertexId: instance.ports.finish,
+        vertexId: instance.vertexIdsByPortName.finish,
         milestone: 'subgraphCompletion',
       },
     },
   ],
 });
-composeDag([fragment], {
-  dependencies: [
+composeAndValidateDagFragments([fragment], {
+  additionalWorkPrerequisites: [
     {
       // @ts-expect-error Foreign dependent cannot widen ID from options.
-      dependent: 'foreign',
-      prerequisite: { vertexId: 'start', milestone: 'work' },
+      dependentWorkVertexId: 'foreign',
+      prerequisite: { vertexId: 'start', milestone: 'workCompletion' },
     },
   ],
 });
-composeDag([fragment], {
-  dependencies: [
+composeAndValidateDagFragments([fragment], {
+  additionalWorkPrerequisites: [
     {
-      dependent: 'start',
+      dependentWorkVertexId: 'start',
       // @ts-expect-error Foreign prerequisite cannot widen ID from options.
       prerequisite: { vertexId: 'foreign', milestone: 'subgraphCompletion' },
     },
   ],
 });
-// @ts-expect-error Foreign parent cannot widen ID from options.
-composeDag([fragment], { children: [{ parent: 'foreign', child: 'start' }] });
-// @ts-expect-error Foreign child cannot widen ID from options.
-composeDag([fragment], { children: [{ parent: 'start', child: 'foreign' }] });
-composeDag([fragment], {
-  dependencies: [
+composeAndValidateDagFragments([fragment], {
+  additionalStructuralChildLinks: [
+    // @ts-expect-error Foreign parent cannot widen ID from options.
+    { parentVertexId: 'foreign', childVertexId: 'start' },
+  ],
+});
+composeAndValidateDagFragments([fragment], {
+  additionalStructuralChildLinks: [
+    // @ts-expect-error Foreign child cannot widen ID from options.
+    { parentVertexId: 'start', childVertexId: 'foreign' },
+  ],
+});
+composeAndValidateDagFragments([fragment], {
+  additionalWorkPrerequisites: [
     {
-      dependent: 'start',
+      dependentWorkVertexId: 'start',
       // @ts-expect-error Milestones must be explicit W/C choices.
       prerequisite: { vertexId: 'finish', milestone: 'ready' },
     },
   ],
 });
-const second = defineDagFragment(
-  defineDag<string, number>({
-    vertices: [
+const second = validateAndCreateDagFragment(
+  copyAndNormalizeDagDefinition<string, number>({
+    vertexDeclarations: [
       {
         vertexId: 3,
         data: 'text',
-        slots: [],
-        dependsOnWork: [],
-        dependsOnSubgraphCompletion: [],
+        childDiscoverySlots: [],
+        workWaitsForWorkOf: [],
+        workWaitsForSubgraphCompletionOf: [],
       },
     ],
-    omittedIds: [],
+    omittedVertexIds: [],
     entry: { kind: 'root', vertexId: 3 },
   }),
   { end: 3 },
 );
-const union: PrepareDagResult<number | string, Local | number> = composeDag<
-  number | string,
-  Local | number
->([fragment, second], { children: [{ parent: 'start', child: 3 }] });
+const union: DagTopologyValidationResult<number | string, Local | number> =
+  composeAndValidateDagFragments<number | string, Local | number>(
+    [fragment, second],
+    {
+      additionalStructuralChildLinks: [
+        { parentVertexId: 'start', childVertexId: 3 },
+      ],
+    },
+  );
 const options: DagCompositionOptions<Local> = {
-  children: [{ parent: 'start', child: 'finish' }],
+  additionalStructuralChildLinks: [
+    { parentVertexId: 'start', childVertexId: 'finish' },
+  ],
 };
-const same: typeof composeDag = dag.composeDag;
+const same: typeof composeAndValidateDagFragments =
+  dag.composeAndValidateDagFragments;
 void [exact, key, badKey, port, union, options, same];
 
 const fragmentError: dag.DagFragmentValidationError<Local> =
   new DagFragmentValidationError<Local>([
-    { kind: 'unreachable', vertexIds: ['start'] },
+    { kind: 'outsideEntryDiscoveryClosure', vertexIds: ['start'] },
   ]);
 const fragmentIssues: readonly DagDefinitionIssue<Local>[] =
   fragmentError.issues;
 const defaultError: DagFragmentValidationError = fragmentError;
 const fragmentTypeError: TypeError = fragmentError;
 // @ts-expect-error The issue collection is readonly.
-fragmentError.issues.push({ kind: 'unreachable', vertexIds: ['finish'] });
+fragmentError.issues.push({
+  kind: 'outsideEntryDiscoveryClosure',
+  vertexIds: ['finish'],
+});
 // @ts-expect-error The issue collection cannot be replaced.
 fragmentError.issues = [];
 const invalidFragmentError = new DagFragmentValidationError<Local>([
   // @ts-expect-error Issue IDs preserve the explicitly selected domain.
-  { kind: 'unreachable', vertexIds: ['other'] },
+  { kind: 'outsideEntryDiscoveryClosure', vertexIds: ['other'] },
 ]);
 const fragmentIssue = fragmentError.issues[0]!;
-if (fragmentIssue.kind === 'milestone') {
+if (fragmentIssue.kind === 'milestoneDependencyStall') {
   const id: Local =
-    fragmentIssue.diagnostics.dependencyEdges[0]!.prerequisite.vertexId;
+    fragmentIssue.diagnostics.originalMilestoneConstraints[0]!
+      .prerequisiteMilestone.vertexId;
   // @ts-expect-error Typed diagnostic IDs are not foreign IDs.
   const wrong: 'other' = id;
   void wrong;
-} else if (fragmentIssue.kind === 'unreachable') {
+} else if (fragmentIssue.kind === 'outsideEntryDiscoveryClosure') {
   const id: Local = fragmentIssue.vertexIds[0]!;
   void id;
 }

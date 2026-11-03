@@ -1,47 +1,67 @@
 import {
-  DagTraversal,
-  AsyncDagTraversal,
-  DepthFirstTreeTraversal,
-  AsyncDepthFirstTreeTraversal,
-  type DagVertexResolution,
-  type VertexTypes,
+  DagTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  DepthFirstTreeTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  type DagSourceVertexResolution,
+  type VertexDataAndChildHintTypes,
 } from '../src';
 
-type T = VertexTypes<string, string>;
-for (const Builder of [DagTraversal, AsyncDagTraversal]) {
+type T = VertexDataAndChildHintTypes<string, string>;
+for (const Builder of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test.each([
-    { kind: 'omitted', satisfiesDependencies: true },
     {
-      kind: 'omitted',
-      identity: null,
-      vertexId: undefined,
-      satisfiesDependencies: true,
+      kind: 'vertexIntentionallyOmitted',
+      satisfiesWorkAndSubgraphCompletionPrerequisites: true,
     },
-    { kind: 'omitted', identity: undefined, satisfiesDependencies: true },
-    { kind: 'omitted', identity: 1, satisfiesDependencies: true },
-    { kind: 'omitted', identity: [], satisfiesDependencies: true },
-    { kind: 'omitted', identity: {}, satisfiesDependencies: true },
     {
-      kind: 'omitted',
-      identity: Object.create({ vertexId: 'inherited' }),
-      satisfiesDependencies: true,
+      kind: 'vertexIntentionallyOmitted',
+      omittedVertexIdentity: null,
+      vertexId: undefined,
+      satisfiesWorkAndSubgraphCompletionPrerequisites: true,
+    },
+    {
+      kind: 'vertexIntentionallyOmitted',
+      omittedVertexIdentity: undefined,
+      satisfiesWorkAndSubgraphCompletionPrerequisites: true,
+    },
+    {
+      kind: 'vertexIntentionallyOmitted',
+      omittedVertexIdentity: 1,
+      satisfiesWorkAndSubgraphCompletionPrerequisites: true,
+    },
+    {
+      kind: 'vertexIntentionallyOmitted',
+      omittedVertexIdentity: [],
+      satisfiesWorkAndSubgraphCompletionPrerequisites: true,
+    },
+    {
+      kind: 'vertexIntentionallyOmitted',
+      omittedVertexIdentity: {},
+      satisfiesWorkAndSubgraphCompletionPrerequisites: true,
+    },
+    {
+      kind: 'vertexIntentionallyOmitted',
+      omittedVertexIdentity: Object.create({ vertexId: 'inherited' }),
+      satisfiesWorkAndSubgraphCompletionPrerequisites: true,
     },
   ])(
     `${Builder.name} rejects malformed or retired omission identity %#`,
     async (bad) => {
       const runner = new Builder<T>({
-        traversableGraph: {
-          resolveRoot: () => bad as unknown as DagVertexResolution<T>,
-          resolveChild: () => ({
-            kind: 'omitted',
-            identity: null,
-            satisfiesDependencies: true,
+        dagDiscoverySource: {
+          resolveRootVertex: () =>
+            bad as unknown as DagSourceVertexResolution<T>,
+          resolveChildHint: () => ({
+            kind: 'vertexIntentionallyOmitted',
+            omittedVertexIdentity: null,
+            satisfiesWorkAndSubgraphCompletionPrerequisites: true,
           }),
         },
-      }).createRunner();
+      }).createIndependentRunnerFromCurrentOptions();
       await expect(
         Promise.resolve().then(async () => {
-          await runner.run();
+          await runner.runUntilSuspendedOrTerminal();
         }),
       ).rejects.toBeInstanceOf(TypeError);
     },
@@ -51,85 +71,94 @@ for (const Builder of [DagTraversal, AsyncDagTraversal]) {
     `${Builder.name} preserves an omission identity getter failure %#`,
     async (failure) => {
       const runner = new Builder<T>({
-        traversableGraph: {
-          resolveRoot: () => ({
-            kind: 'omitted',
-            get identity(): never {
+        dagDiscoverySource: {
+          resolveRootVertex: () => ({
+            kind: 'vertexIntentionallyOmitted',
+            get omittedVertexIdentity(): never {
               throw failure;
             },
-            satisfiesDependencies: true,
+            satisfiesWorkAndSubgraphCompletionPrerequisites: true,
           }),
-          resolveChild: () => ({
-            kind: 'omitted',
-            identity: null,
-            satisfiesDependencies: true,
+          resolveChildHint: () => ({
+            kind: 'vertexIntentionallyOmitted',
+            omittedVertexIdentity: null,
+            satisfiesWorkAndSubgraphCompletionPrerequisites: true,
           }),
         },
-      }).createRunner();
+      }).createIndependentRunnerFromCurrentOptions();
       await expect(
         Promise.resolve().then(async () => {
-          await runner.run();
+          await runner.runUntilSuspendedOrTerminal();
         }),
       ).rejects.toBe(failure);
     },
   );
 }
-for (const Builder of [DepthFirstTreeTraversal, AsyncDepthFirstTreeTraversal]) {
+for (const Builder of [
+  DepthFirstTreeTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+]) {
   test(`${Builder.name} rejects graph identity before reading its value`, async () => {
     let reads = 0;
     const bad = {
-      kind: 'omitted' as const,
-      get identity() {
+      kind: 'vertexIntentionallyOmitted' as const,
+      get omittedVertexIdentity() {
         reads++;
         return null;
       },
     };
     const runner = new Builder<T>({
-      traversableTree: {
-        resolveRoot: () => bad as never,
-        resolveChild: () => ({ kind: 'omitted' }),
+      treeDiscoverySource: {
+        resolveRootVertex: () => bad as never,
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted',
+        }),
       },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
     await expect(
       Promise.resolve().then(async () => {
-        await runner.run();
+        await runner.runUntilSuspendedOrTerminal();
       }),
     ).rejects.toBeInstanceOf(TypeError);
     expect(reads).toBe(0);
   });
 }
 
-for (const Builder of [DagTraversal, AsyncDagTraversal]) {
+for (const Builder of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test.each([false, true])(
     `${Builder.name} reads structural omission identity getters once (identified=%s)`,
     async (identified) => {
       let reads = 0;
       class Omission {
         get kind() {
-          return 'omitted' as const;
+          return 'vertexIntentionallyOmitted' as const;
         }
-        get identity() {
+        get omittedVertexIdentity() {
           reads++;
           return identified ? { vertexId: undefined } : null;
         }
-        get satisfiesDependencies() {
+        get satisfiesWorkAndSubgraphCompletionPrerequisites() {
           return true as const;
         }
       }
       const runner = new Builder<T>({
-        traversableGraph: {
-          resolveRoot: () => new Omission(),
-          resolveChild: () => ({
-            kind: 'omitted',
-            identity: null,
-            satisfiesDependencies: true,
+        dagDiscoverySource: {
+          resolveRootVertex: () => new Omission(),
+          resolveChildHint: () => ({
+            kind: 'vertexIntentionallyOmitted',
+            omittedVertexIdentity: null,
+            satisfiesWorkAndSubgraphCompletionPrerequisites: true,
           }),
         },
-        ...(identified ? { completedWork: new Set([undefined]) } : {}),
-      }).createRunner();
-      await runner.run();
+        ...(identified
+          ? { acceptedCompletedWorkVertexIds: new Set([undefined]) }
+          : {}),
+      }).createIndependentRunnerFromCurrentOptions();
+      await runner.runUntilSuspendedOrTerminal();
       expect(reads).toBe(1);
-      expect(runner.summary().unusedCompletedWorkIds).toEqual([]);
+      expect(
+        runner.captureProgressSnapshot().unmatchedCompletedWorkSeedVertexIds,
+      ).toEqual([]);
     },
   );
 }

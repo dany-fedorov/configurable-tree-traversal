@@ -1,57 +1,70 @@
 import {
-  GraphWalk,
-  AsyncGraphWalk,
-  GraphWalkPhase as WALK,
-  AsyncBreadthFirstTreeTraversal,
-  AsyncDagTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  DagTraversal,
-  DepthFirstTreeTraversal,
-  BreadthFirstPhase as BFS,
+  GraphWalkBuilder,
+  AsyncGraphWalkBuilder,
+  GraphWalkObservationKind as WALK,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  DepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeVisitPhase as BFS,
   DagVisitorPhase as DAG,
-  DepthFirstPhase as DFS,
+  DepthFirstTreeVisitPhase as DFS,
   TraversalRunnerStatus,
-  type TreeDagExecutionInspection,
-  type ExecutionInspection,
+  type TreeOrDagExecutionSnapshot,
+  type TraversalExecutionSnapshot,
   type TraversalExecutionState,
   type AsyncTraversalExecution,
   type SyncTraversalExecution,
-  type TreeSource,
-  type VertexTypes,
+  type TreeDiscoverySource,
+  type VertexDataAndChildHintTypes,
 } from '../src';
 
-type Tree = VertexTypes<string, string>;
-const tree: TreeSource<Tree> = {
-  resolveRoot: () => ({
-    kind: 'found',
-    vertex: { vertexContent: { $data: 'root', $childHints: [] } },
+type Tree = VertexDataAndChildHintTypes<string, string>;
+const tree: TreeDiscoverySource<Tree> = {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved',
+    resolvedVertexInput: {
+      vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
+    },
   }),
-  resolveChild: () => ({ kind: 'omitted' }),
+  resolveChildVertexFromHint: () => ({ kind: 'vertexIntentionallyOmitted' }),
 };
-const dfs = new AsyncDepthFirstTreeTraversal({ traversableTree: tree });
-const concrete = dfs.createRunner();
+const dfs = new AsyncDepthFirstTreeTraversalBuilder({
+  treeDiscoverySource: tree,
+});
+const concrete = dfs.createIndependentRunnerFromCurrentOptions();
 const common: AsyncTraversalExecution<never, unknown> = concrete;
-common.run();
-common.run({ emitEvents: [], visitorPhases: 'all' });
+common.runUntilSuspendedOrTerminal();
+common.runUntilSuspendedOrTerminal({
+  deliveredEventKinds: [],
+  admittedVisitorCallbackPhases: 'all',
+});
 // @ts-expect-error Erasing the execution family cannot grant DAG phases.
-common.run({ emitEvents: ['ON_WORK_READY'] });
-// @ts-expect-error Erasing the execution family cannot grant even DFS phases.
-common.iterateEvents({ visitorPhases: { include: [DFS.PRE_ORDER] } });
+common.runUntilSuspendedOrTerminal({ deliveredEventKinds: ['ON_WORK_READY'] });
+common.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+  // @ts-expect-error Erasing the execution family cannot grant even DFS phases.
+  admittedVisitorCallbackPhases: { include: [DFS.BEFORE_CHILD_EXPANSION] },
+});
 const precise: AsyncTraversalExecution<
   DFS,
   unknown,
-  TreeDagExecutionInspection
+  TreeOrDagExecutionSnapshot
 > = concrete;
-precise.run({ emitEvents: [DFS.PRE_ORDER] });
-precise.inspect();
-precise.requestPause();
+precise.runUntilSuspendedOrTerminal({
+  deliveredEventKinds: [DFS.BEFORE_CHILD_EXPANSION],
+});
+precise.captureExecutionSnapshot();
+precise.requestPauseAfterAdmittedCallbacksDrain();
 const asyncReturn: Promise<IteratorResult<unknown, void>> = precise
-  .iterateEvents()
+  .runAndIterateObservationEventsUntilSuspendedOrTerminal()
   .return(undefined);
-const asyncRun: Promise<typeof precise> = precise.run();
-// @ts-expect-error DFS abstraction rejects DAG phases.
-precise.run({ emitEvents: ['workCompleted'] });
+const asyncRun: Promise<typeof precise> = precise.runUntilSuspendedOrTerminal();
+precise.runUntilSuspendedOrTerminal({
+  // @ts-expect-error DFS abstraction rejects DAG phases.
+  deliveredEventKinds: ['workCompletionCommitted'],
+});
 // @ts-expect-error Function parameter variance prevents unsafe widening from a concrete runner.
 const unsafeConcrete: AsyncTraversalExecution<DFS | DAG, unknown> = concrete;
 // @ts-expect-error Function parameter variance prevents unsafe widening through an abstraction.
@@ -59,30 +72,34 @@ const unsafeAbstract: AsyncTraversalExecution<DFS | DAG, unknown> = precise;
 // @ts-expect-error Erasing the family cannot recover broader execution phases.
 const unsafeWidenedCapability: AsyncTraversalExecution<DFS | DAG, unknown> =
   common;
-// @ts-expect-error Concrete API still rejects another family's phase.
-concrete.iterateEvents({ emitEvents: [BFS.LEVEL_ORDER] });
+concrete.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+  // @ts-expect-error Concrete API still rejects another family's phase.
+  deliveredEventKinds: [BFS.AT_LEVEL_ORDER_VERTEX],
+});
 
-const syncConcrete = new DepthFirstTreeTraversal({
-  traversableTree: tree,
-}).createRunner();
+const syncConcrete = new DepthFirstTreeTraversalBuilder({
+  treeDiscoverySource: tree,
+}).createIndependentRunnerFromCurrentOptions();
 const sync: SyncTraversalExecution<
   DFS,
   import('../src').TreeTraversalEvent<DFS, Tree, Tree>,
-  TreeDagExecutionInspection
+  TreeOrDagExecutionSnapshot
 > = syncConcrete;
-sync.inspect();
-sync.isHalted();
-sync.requestPause();
+sync.captureExecutionSnapshot();
+sync.isSuspended();
+sync.requestPauseAfterAdmittedCallbacksDrain();
 const syncReturn: IteratorResult<unknown, void> = sync
-  .iterateEvents()
+  .runAndIterateObservationEventsUntilSuspendedOrTerminal()
   .return(undefined);
 const treeEvents: Iterable<
   import('../src').TreeTraversalEvent<DFS, Tree, Tree>
-> = sync.iterateEvents();
+> = sync.runAndIterateObservationEventsUntilSuspendedOrTerminal();
 const syncPrecise: SyncTraversalExecution<DFS, unknown> = sync;
-const syncRun: typeof syncPrecise = syncPrecise.run();
-// @ts-expect-error Sync abstraction rejects DAG phases.
-syncPrecise.run({ emitEvents: ['workCompleted'] });
+const syncRun: typeof syncPrecise = syncPrecise.runUntilSuspendedOrTerminal();
+syncPrecise.runUntilSuspendedOrTerminal({
+  // @ts-expect-error Sync abstraction rejects DAG phases.
+  deliveredEventKinds: ['workCompletionCommitted'],
+});
 // @ts-expect-error Sync capability must reject unsafe phase widening.
 const unsafeSync: SyncTraversalExecution<DFS | DAG, unknown> = syncPrecise;
 // @ts-expect-error Sync family capability must reject unsafe phase widening.
@@ -94,43 +111,61 @@ const unsafeSyncConcrete: SyncTraversalExecution<DFS | DAG, unknown> =
 const breadth: SyncTraversalExecution<
   BFS,
   unknown,
-  TreeDagExecutionInspection
-> = new BreadthFirstTreeTraversal({ traversableTree: tree }).createRunner();
+  TreeOrDagExecutionSnapshot
+> = new BreadthFirstTreeTraversalBuilder({
+  treeDiscoverySource: tree,
+}).createIndependentRunnerFromCurrentOptions();
 const dag: SyncTraversalExecution<
   DAG,
   unknown,
-  TreeDagExecutionInspection,
-  'workCompleted' | 'subgraphCompleted'
-> = new DagTraversal({
-  traversableTree: tree,
-}).createRunner();
+  TreeOrDagExecutionSnapshot,
+  'workCompletionCommitted' | 'subgraphCompletionCommitted'
+> = new DagTraversalBuilder({
+  treeDiscoverySource: tree,
+}).createIndependentRunnerFromCurrentOptions();
 const asyncBreadth: AsyncTraversalExecution<
   BFS,
   unknown,
-  TreeDagExecutionInspection
-> = new AsyncBreadthFirstTreeTraversal({
-  traversableTree: tree,
-}).createRunner();
+  TreeOrDagExecutionSnapshot
+> = new AsyncBreadthFirstTreeTraversalBuilder({
+  treeDiscoverySource: tree,
+}).createIndependentRunnerFromCurrentOptions();
 const asyncDag: AsyncTraversalExecution<
   DAG,
   unknown,
-  TreeDagExecutionInspection,
-  'workCompleted' | 'subgraphCompleted'
-> = new AsyncDagTraversal({
-  traversableTree: tree,
-}).createRunner();
-breadth.run({ emitEvents: [BFS.LEVEL_ORDER] });
-dag.run({ emitEvents: ['workCompleted'] });
-asyncBreadth.run({ emitEvents: [BFS.LEVEL_ORDER] });
-asyncDag.run({ emitEvents: ['workCompleted'] });
-// @ts-expect-error BFS abstraction rejects DFS phases.
-breadth.iterateEvents({ emitEvents: [DFS.PRE_ORDER] });
-// @ts-expect-error DAG abstraction rejects BFS phases.
-dag.iterateEvents({ visitorPhases: { exclude: [BFS.LEVEL_ORDER] } });
-// @ts-expect-error Async BFS abstraction rejects DFS phases.
-asyncBreadth.run({ emitEvents: [DFS.PRE_ORDER] });
-// @ts-expect-error Async DAG abstraction rejects DFS phases.
-asyncDag.run({ emitEvents: [DFS.POST_ORDER] });
+  TreeOrDagExecutionSnapshot,
+  'workCompletionCommitted' | 'subgraphCompletionCommitted'
+> = new AsyncDagTraversalBuilder({
+  treeDiscoverySource: tree,
+}).createIndependentRunnerFromCurrentOptions();
+breadth.runUntilSuspendedOrTerminal({
+  deliveredEventKinds: [BFS.AT_LEVEL_ORDER_VERTEX],
+});
+dag.runUntilSuspendedOrTerminal({
+  deliveredEventKinds: ['workCompletionCommitted'],
+});
+asyncBreadth.runUntilSuspendedOrTerminal({
+  deliveredEventKinds: [BFS.AT_LEVEL_ORDER_VERTEX],
+});
+asyncDag.runUntilSuspendedOrTerminal({
+  deliveredEventKinds: ['workCompletionCommitted'],
+});
+breadth.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+  // @ts-expect-error BFS abstraction rejects DFS phases.
+  deliveredEventKinds: [DFS.BEFORE_CHILD_EXPANSION],
+});
+dag.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+  // @ts-expect-error DAG abstraction rejects BFS phases.
+  admittedVisitorCallbackPhases: { exclude: [BFS.AT_LEVEL_ORDER_VERTEX] },
+});
+asyncBreadth.runUntilSuspendedOrTerminal({
+  // @ts-expect-error Async BFS abstraction rejects DFS phases.
+  deliveredEventKinds: [DFS.BEFORE_CHILD_EXPANSION],
+});
+asyncDag.runUntilSuspendedOrTerminal({
+  // @ts-expect-error Async DAG abstraction rejects DFS phases.
+  deliveredEventKinds: [DFS.AFTER_CHILD_SUBTREES],
+});
 void [
   asyncReturn,
   asyncRun,
@@ -145,69 +180,83 @@ void [
   unsafeSyncConcrete,
 ];
 
-const closed = sync.iterateEvents().return(undefined);
+const closed = sync
+  .runAndIterateObservationEventsUntilSuspendedOrTerminal()
+  .return(undefined);
 // @ts-expect-error A closed generator must not expose an unchecked any value.
 const invalidClosedValue: number = closed.value;
 // @ts-expect-error Closing a sync generator accepts only its void completion value.
-sync.iterateEvents().return(42);
+sync.runAndIterateObservationEventsUntilSuspendedOrTerminal().return(42);
 // @ts-expect-error Closing an async generator accepts only its void completion value.
-precise.iterateEvents().return(42);
+precise.runAndIterateObservationEventsUntilSuspendedOrTerminal().return(42);
 void invalidClosedValue;
 
-function paused(state: TraversalExecutionState<ExecutionInspection>): boolean {
-  const inspection = state.inspect();
-  return state.isHalted() && inspection.status === TraversalRunnerStatus.HALTED;
+function paused(
+  state: TraversalExecutionState<TraversalExecutionSnapshot>,
+): boolean {
+  const inspection = state.captureExecutionSnapshot();
+  return (
+    state.isSuspended() &&
+    inspection.traversalLifecycleStatus === TraversalRunnerStatus.SUSPENDED
+  );
 }
-const treeDagInspection: TreeDagExecutionInspection = syncConcrete.inspect();
+const treeDagInspection: TreeOrDagExecutionSnapshot =
+  syncConcrete.captureExecutionSnapshot();
 paused(syncConcrete);
 void treeDagInspection;
 
-const observedSync: SyncTraversalExecution<DFS, unknown, ExecutionInspection> =
-  syncConcrete;
+const observedSync: SyncTraversalExecution<
+  DFS,
+  unknown,
+  TraversalExecutionSnapshot
+> = syncConcrete;
 const observedAsync: AsyncTraversalExecution<
   DFS,
   unknown,
-  ExecutionInspection
+  TraversalExecutionSnapshot
 > = concrete;
 paused(observedSync);
 paused(observedAsync);
 // @ts-expect-error Common inspection does not promise tree/DAG frames.
-observedSync.inspect().frames;
+observedSync.captureExecutionSnapshot().frames;
 // @ts-expect-error Generalizing inspection cannot widen supported phases.
 const unsafeObserved: SyncTraversalExecution<
   DFS | DAG,
   unknown,
-  ExecutionInspection
+  TraversalExecutionSnapshot
 > = syncConcrete;
 void unsafeObserved;
 
 // Common-inspection wrappers preserve each family's phase domain across all eight runners.
-const commonBreadth: SyncTraversalExecution<BFS, unknown, ExecutionInspection> =
-  breadth;
+const commonBreadth: SyncTraversalExecution<
+  BFS,
+  unknown,
+  TraversalExecutionSnapshot
+> = breadth;
 const commonDag: SyncTraversalExecution<
   DAG,
   unknown,
-  ExecutionInspection,
-  'workCompleted' | 'subgraphCompleted'
+  TraversalExecutionSnapshot,
+  'workCompletionCommitted' | 'subgraphCompletionCommitted'
 > = dag;
 const commonAsyncBreadth: AsyncTraversalExecution<
   BFS,
   unknown,
-  ExecutionInspection
+  TraversalExecutionSnapshot
 > = asyncBreadth;
 const commonAsyncDag: AsyncTraversalExecution<
   DAG,
   unknown,
-  ExecutionInspection,
-  'workCompleted' | 'subgraphCompleted'
+  TraversalExecutionSnapshot,
+  'workCompletionCommitted' | 'subgraphCompletionCommitted'
 > = asyncDag;
-const detailedInspections: TreeDagExecutionInspection[] = [
-  syncConcrete.inspect(),
-  concrete.inspect(),
-  breadth.inspect(),
-  dag.inspect(),
-  asyncBreadth.inspect(),
-  asyncDag.inspect(),
+const detailedInspections: TreeOrDagExecutionSnapshot[] = [
+  syncConcrete.captureExecutionSnapshot(),
+  concrete.captureExecutionSnapshot(),
+  breadth.captureExecutionSnapshot(),
+  dag.captureExecutionSnapshot(),
+  asyncBreadth.captureExecutionSnapshot(),
+  asyncDag.captureExecutionSnapshot(),
 ];
 void detailedInspections;
 paused(commonBreadth);
@@ -216,28 +265,31 @@ paused(commonAsyncBreadth);
 paused(commonAsyncDag);
 
 const walkingSource = {
-  hydration: 'inlineOrCached' as const,
-  roots: () => [],
-  outgoing: () => [],
+  vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+  enumerateRootTargets: () => [],
+  enumerateOutgoingLinks: () => [],
 };
-const walking = new GraphWalk({ source: walkingSource }).createRunner();
-const asyncWalking = new AsyncGraphWalk({
-  source: walkingSource,
-}).createRunner();
+const walking = new GraphWalkBuilder({
+  graphWalkDiscoverySource: walkingSource,
+}).createIndependentRunnerFromCurrentOptions();
+const asyncWalking = new AsyncGraphWalkBuilder({
+  graphWalkDiscoverySource: walkingSource,
+}).createIndependentRunnerFromCurrentOptions();
 const commonWalking: SyncTraversalExecution<
   WALK,
   unknown,
-  ExecutionInspection
+  TraversalExecutionSnapshot
 > = walking;
 const commonAsyncWalking: AsyncTraversalExecution<
   WALK,
   unknown,
-  ExecutionInspection
+  TraversalExecutionSnapshot
 > = asyncWalking;
 paused(commonWalking);
 paused(commonAsyncWalking);
 // @ts-expect-error Walking does not promise detailed old tree/DAG inspection.
-const invalidWalkingDetail: TreeDagExecutionInspection = walking.inspect();
+const invalidWalkingDetail: TreeOrDagExecutionSnapshot =
+  walking.captureExecutionSnapshot();
 const walkingCapability: SyncTraversalExecution<WALK, unknown> = walking;
 const asyncWalkingCapability: AsyncTraversalExecution<WALK, unknown> =
   asyncWalking;
@@ -245,16 +297,17 @@ const asyncWalkingCapability: AsyncTraversalExecution<WALK, unknown> =
 const unsafeWalking: SyncTraversalExecution<
   WALK | DFS,
   unknown,
-  ExecutionInspection
+  TraversalExecutionSnapshot
 > = walking;
 // @ts-expect-error Async phase variance is retained with common inspection.
 const unsafeAsyncWalking: AsyncTraversalExecution<
   WALK | DAG,
   unknown,
-  ExecutionInspection
+  TraversalExecutionSnapshot
 > = asyncWalking;
-const walkingClose: void = walking.close();
-const asyncWalkingClose: Promise<void> = asyncWalking.close();
+const walkingClose: void = walking.closePermanentlyAndDisposeSourceIterators();
+const asyncWalkingClose: Promise<void> =
+  asyncWalking.closePermanentlyAndDisposeSourceIterators();
 void [
   invalidWalkingDetail,
   walkingCapability,

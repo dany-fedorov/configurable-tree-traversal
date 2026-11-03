@@ -312,9 +312,9 @@ for (const declaration of allDeclarations) {
       declaration.name + '.' + member.name,
     );
   }
-  if (declaration.name === 'ResolvedTreeStore')
+  if (declaration.name === 'MutableResolvedTreeStore')
     assert(!declaration.members.some((m) => m.name === 'delete'));
-  if (declaration.name === 'ResolvedGraphVertex')
+  if (declaration.name === 'ResolvedGraphVertexSnapshot')
     assert(!declaration.members.some((m) => m.name === 'status'));
 }
 for (const binding of bindings)
@@ -325,32 +325,32 @@ assert.deepEqual(
   'No deprecated reachable declarations or members',
 );
 const canonicalNames = [
-  'MaterializedDagInput',
-  'materializeDagInputFromRecords',
-  'materializeDagInputFromRoots',
-  'materializeDagInputFromRecordsAsync',
-  'materializeDagInputFromRootsAsync',
-  'ObjectCurrentVertexTypes',
-  'ObjectPropertyPatch',
-  'ObjectRewriteCallback',
-  'ObjectRewriteContext',
-  'ObjectRewriteInput',
-  'ObjectTreeVertexTypes',
-  'ResolvedTreeVertexTypes',
-  'ResolvedVisitStage',
-  'ExecutionInspection',
-  'TreeDagExecutionInspection',
-  'TreeVisitor',
-  'AsyncTreeVisitor',
-  'TreeVisitorRecord',
-  'TreeMutationCommandBinder',
-  'TreeMutationCommandBinderFactory',
+  'MaterializedDagTraversalInput',
+  'materializeMultiEntryDagInputFromRecordCatalog',
+  'materializeDagInputFromRootRecords',
+  'materializeMultiEntryDagInputFromRecordCatalogAsync',
+  'materializeDagInputFromRootRecordsAsync',
+  'LiveObjectPropertyVertexTypes',
+  'ObjectPropertyKeyValuePatch',
+  'ObjectPropertyPostOrderRewriteCallback',
+  'ObjectPropertyRewriteContext',
+  'ObjectPropertyRewriteInput',
+  'ObjectPropertyTreeVertexTypes',
+  'StoredTreeReferenceVertexTypes',
+  'VertexVisitSchedulingStage',
+  'TraversalExecutionSnapshot',
+  'TreeOrDagExecutionSnapshot',
+  'TreeVertexPhaseVisitorCallback',
+  'AsyncTreeVertexPhaseVisitorCallback',
+  'TreePhaseVisitorRegistrationRecord',
+  'TreeVisitorVertexDataMutationToolsBinder',
+  'TreeVisitorVertexDataMutationToolsBinderFactory',
   'DagDiscoverySource',
   'AsyncDagDiscoverySource',
-  'GraphWalkSource',
-  'materializeWalkSourceFromRecords',
-  'materializeWalkSourceFromRecordsAsync',
-  'materializeWalkSourceFromDagDefinition',
+  'GraphWalkDiscoverySource',
+  'materializeGraphWalkSourceFromVertexRecords',
+  'materializeSynchronousGraphWalkSourceFromAsyncRecords',
+  'materializeGraphWalkSourceFromDagDeclarationRelations',
 ];
 for (const name of canonicalNames)
   assert(
@@ -361,10 +361,10 @@ const commands = allDeclarations.find(
   (d) => d.name === 'TraversalVisitorCommandName',
 );
 for (const name of [
-  'DELETE_TREE_SUBTREE',
-  'DELETE_DAG_VERTEX_CASCADE',
-  'SKIP_REMAINING_CHILDREN',
-  'SET_VISITOR_CHAIN_STATE',
+  'DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS',
+  'DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS',
+  'SKIP_PENDING_CHILD_DISCOVERY_OF_CURRENT_VERTEX',
+  'SET_CURRENT_VERTEX_PHASE_CHAIN_STATE',
 ])
   assert(
     commands.members.some((m) => m.name === name) ||

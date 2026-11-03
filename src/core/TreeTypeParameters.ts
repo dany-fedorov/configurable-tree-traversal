@@ -1,4 +1,7 @@
-export type VertexTypes<VD = unknown, VH = unknown> = {
-  VertexData: VD;
-  VertexHint: VH;
+export type VertexDataAndChildHintTypes<
+  VertexData = unknown,
+  ChildHint = unknown,
+> = {
+  VertexData: VertexData;
+  ChildHint: ChildHint;
 };

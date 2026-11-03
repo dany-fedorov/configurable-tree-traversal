@@ -1,128 +1,148 @@
 import {
   Vertex,
-  GraphWalk,
-  DagTraversal,
-  bindDagWorkSession,
+  GraphWalkBuilder,
+  DagTraversalBuilder,
+  bindDagExternalWorkSession,
   mapDagFragmentIds,
-  defineDag,
-  defineDagFragment,
-  prepareDagDefinition,
+  copyAndNormalizeDagDefinition,
+  validateAndCreateDagFragment,
+  validateAndPrepareDagDefinition,
   rewriteObject,
-  type VertexTypes,
+  type VertexDataAndChildHintTypes,
   type VertexHandle,
-  type GraphWalkLink,
-  type GraphWalkSource,
-  type DagWorkSessionControl,
+  type GraphWalkOutgoingLink,
+  type GraphWalkDiscoverySource,
+  type DagExternalWorkSessionControl,
   type DagVisitorPhase,
-  type TreeDagExecutionInspection,
+  type TreeOrDagExecutionSnapshot,
   type ObjectRewriteOutputResult,
-  type ChildHintTransformer,
+  type ChildHintsListTransformer,
 } from 'configurable-tree-traversal';
-import type { GraphWalkHydration } from 'configurable-tree-traversal/traversals/graph-walk';
-import type { PreparedDagVertexSummary } from 'configurable-tree-traversal/traversals/dag-traversal';
+import type { GraphWalkVertexResolutionMode } from 'configurable-tree-traversal/traversals/graph-walk';
+import type { ValidatedDagTopologyLiveVertexSummary } from 'configurable-tree-traversal/traversals/dag-traversal';
 
-type T = VertexTypes<string, string>;
+type T = VertexDataAndChildHintTypes<string, string>;
 const vertex = new Vertex<T>({
-  $data: 'root',
-  $childHints: ['child'] as const,
+  $vertexData: 'root',
+  $childDiscoveryHints: ['child'] as const,
 });
 const handle: VertexHandle<T> = {
-  getRefId: () => 'standalone',
-  getValue: () => vertex,
+  getReferenceIdentity: () => 'standalone',
+  getCurrentVertexView: () => vertex,
 };
-handle.getValue().clone().getChildHints().push('editable');
-const transform: ChildHintTransformer<T> = (hints) => [...hints, 'replacement'];
+handle
+  .getCurrentVertexView()
+  .createEditableShallowCloneWithContentOverrides()
+  .getMutableChildDiscoveryHints()
+  .push('editable');
+const transform: ChildHintsListTransformer<T> = (hints) => [
+  ...hints,
+  'replacement',
+];
 void transform;
-const hydration: GraphWalkHydration = 'inlineOrCached';
-const links = (): GraphWalkLink<string, number, string, typeof hydration>[] => [
+const hydration: GraphWalkVertexResolutionMode =
+  'inlineResolutionOrPreviouslyAdmittedVertex';
+const links = (): GraphWalkOutgoingLink<
+  string,
+  number,
+  string,
+  typeof hydration
+>[] => [
   {
-    target: {
-      kind: 'inline',
+    targetToResolveOnAdmission: {
+      kind: 'inlineResolution',
       vertexId: 'a',
-      resolution: { kind: 'found', data: 'value' },
+      resolutionIfNotPreviouslyAdmitted: { kind: 'found', vertexData: 'value' },
     },
-    data: 1,
+    edgeData: 1,
   },
 ];
-const source: GraphWalkSource<string, number, string> = {
-  hydration,
-  roots: () => [],
-  outgoing: links,
+const source: GraphWalkDiscoverySource<string, number, string> = {
+  vertexResolutionMode: hydration,
+  enumerateRootTargets: () => [],
+  enumerateOutgoingLinks: links,
 };
-const walk = new GraphWalk({
-  source,
-  limits: { maxDepth: 1 },
-  shouldFollowEdge: (_edge, ctx) => ctx.fromVertex.data.length > 0,
+const walk = new GraphWalkBuilder({
+  graphWalkDiscoverySource: source,
+  limits: { maxRouteHopDepth: 1 },
+  shouldAdmitOutgoingLinkTarget: (_edge, ctx) =>
+    ctx.fromVertex.vertexData.length > 0,
 });
-walk.configure({ replaceLimits: { maxCandidateReadAttempts: 10 } });
+walk.patchOptionsForFutureRunners({
+  replaceLimits: { maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 10 },
+});
 // @ts-expect-error Configuration replacement is explicit; constructor limits is not a patch key.
-walk.configure({ limits: undefined });
+walk.patchOptionsForFutureRunners({ limits: undefined });
 const result: ObjectRewriteOutputResult<unknown> =
-  rewriteObject(null).getOutputResult();
+  rewriteObject(null).getFinalOutputResult();
 if (result.kind === 'present') {
   const value: unknown = result.value;
   void value;
 }
-const definition = defineDag({
-  vertices: [
+const definition = copyAndNormalizeDagDefinition({
+  vertexDeclarations: [
     {
       vertexId: 'a',
       data: 'task',
-      slots: [],
-      dependsOnWork: [],
-      dependsOnSubgraphCompletion: [],
+      childDiscoverySlots: [],
+      workWaitsForWorkOf: [],
+      workWaitsForSubgraphCompletionOf: [],
     },
   ],
-  omittedIds: [],
+  omittedVertexIds: [],
   entry: { kind: 'root', vertexId: 'a' },
 });
-const fragment = defineDagFragment(definition, { start: 'a' });
+const fragment = validateAndCreateDagFragment(definition, { start: 'a' });
 const mapped = mapDagFragmentIds(fragment, { mapId: (id) => ({ id }) });
-const port: { id: string } = mapped.ports.start;
+const port: { id: string } = mapped.vertexIdsByPortName.start;
 void port;
-const prepared = prepareDagDefinition(definition);
+const prepared = validateAndPrepareDagDefinition(definition);
 if (prepared.kind === 'valid') {
-  const summary: PreparedDagVertexSummary<string, string> =
-    prepared.dag.liveVertexSummaries[0]!;
-  void summary;
-  const controls: DagWorkSessionControl<string> =
-    prepared.dag.createWorkSession();
-  const inspection: TreeDagExecutionInspection<DagVisitorPhase> =
-    controls.inspect();
-  void inspection.chains;
-  const runner = prepared.dag.createRunner({
-    workCompletion: 'externalSettlement',
-  });
-  const bound: DagWorkSessionControl<string> = bindDagWorkSession(runner);
+  const captureProgressSnapshot: ValidatedDagTopologyLiveVertexSummary<
+    string,
+    string
+  > = prepared.validatedTopology.liveVertexSummaries[0]!;
+  void captureProgressSnapshot;
+  const controls: DagExternalWorkSessionControl<string> =
+    prepared.validatedTopology.createExternalWorkSession();
+  const inspection: TreeOrDagExecutionSnapshot<DagVisitorPhase> =
+    controls.captureExecutionSnapshot();
+  void inspection.vertexPhaseVisitorChains;
+  const runner =
+    prepared.validatedTopology.createIndependentRunnerFromValidatedTopology({
+      workCompletionPolicy: 'requireExternalWorkSettlement',
+    });
+  const bound: DagExternalWorkSessionControl<string> =
+    bindDagExternalWorkSession(runner);
   void bound;
-  const graph = runner.getResolvedGraphView();
-  const ref = graph.getVertexRefById('a');
+  const graph = runner.getLiveResolvedGraphView();
+  const ref = graph.getVertexHandleByIdOrNull('a');
   if (ref) {
     const id: string = graph.requireVertexId(ref);
-    void graph.requirePathsTo(ref);
+    void graph.requireAllStructuralAncestorPathsTo(ref);
     void id;
   }
 }
-const runner = new DagTraversal<T, T, string | undefined>({
-  traversableGraph: {
-    resolveRoot: () => ({
-      kind: 'omitted',
-      identity: { vertexId: undefined },
-      satisfiesDependencies: true,
+const runner = new DagTraversalBuilder<T, T, string | undefined>({
+  dagDiscoverySource: {
+    resolveRootVertex: () => ({
+      kind: 'vertexIntentionallyOmitted',
+      omittedVertexIdentity: { vertexId: undefined },
+      satisfiesWorkAndSubgraphCompletionPrerequisites: true,
     }),
-    resolveChild: () => ({
-      kind: 'omitted',
-      identity: null,
-      satisfiesDependencies: true,
+    resolveChildHint: () => ({
+      kind: 'vertexIntentionallyOmitted',
+      omittedVertexIdentity: null,
+      satisfiesWorkAndSubgraphCompletionPrerequisites: true,
     }),
   },
-  dependsOnWorkDefault: 'none',
-}).createRunner();
+  undeclaredWorkPrerequisitePolicy: 'none',
+}).createIndependentRunnerFromCurrentOptions();
 const explanation = runner
-  .inspectMilestones()
-  .explain({ vertexId: undefined, milestone: 'work' });
+  .captureMilestoneSnapshot()
+  .explainMilestone({ vertexId: undefined, milestone: 'workCompletion' });
 if (explanation.kind === 'live') {
-  const work = explanation.progress.work;
+  const work = explanation.progress.workState;
   void work;
 }
 if (explanation.kind === 'omitted') {

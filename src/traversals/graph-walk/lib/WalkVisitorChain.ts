@@ -2,49 +2,55 @@ import { TraversalVisitorCommandName as Command } from '@core/TraversalVisitor';
 import type { VisitorRegistrationMetadata } from '@core/TraversalVisitor';
 import type { VisitorRecord } from '@core/graph/types';
 import { getVisitorBatchEnds } from '@core/visitors/getVisitorBatchEnds';
-import type { GraphWalkPhase } from '../GraphWalkPhase';
-import type { GraphWalkEventFor } from '../GraphWalkEvent';
+import type { GraphWalkObservationKind } from '../GraphWalkPhase';
+import type { GraphWalkEventForObservationKind } from '../GraphWalkEvent';
 import type { WalkVisitor } from './normalizeWalkOptions';
 
 /** A single admitted observation retains its callbacks and commit boundaries. */
 export class WalkVisitorChain<
-  Data,
-  Edge,
-  ID,
-  Phase extends GraphWalkPhase = GraphWalkPhase,
+  VertexData,
+  EdgeData,
+  VertexId,
+  ObservationKind extends GraphWalkObservationKind = GraphWalkObservationKind,
 > {
   private readonly batchEnds: boolean[];
   private readonly bufferedCommands: Command[] = [];
-  visitorIndex = 0;
+  visitorIndexInObservationChain = 0;
   paused = false;
   constructor(
     private readonly records: readonly VisitorRecord<
-      WalkVisitor<Data, Edge, Phase, ID>
+      WalkVisitor<VertexData, EdgeData, ObservationKind, VertexId>
     >[],
-    readonly phase: Phase,
-    private readonly event: () => GraphWalkEventFor<Data, Edge, Phase, ID>,
-    private readonly admissionIndex: number,
-    private readonly phaseObservationIndex: number,
+    readonly observationKind: ObservationKind,
+    private readonly event: () => GraphWalkEventForObservationKind<
+      VertexData,
+      EdgeData,
+      ObservationKind,
+      VertexId
+    >,
+    private readonly admittedTargetOccurrenceIndex: number,
+    private readonly observationIndexWithinKind: number,
   ) {
     this.batchEnds = getVisitorBatchEnds(records);
   }
   get done(): boolean {
-    return this.visitorIndex === this.records.length;
+    return this.visitorIndexInObservationChain === this.records.length;
   }
   invoke(): unknown {
-    const record = this.records[this.visitorIndex]!;
-    const registration: VisitorRegistrationMetadata = {
-      addedIndex: record.addedIndex,
-      priority: record.priority,
-      commandCommitMode: record.commandCommitMode,
+    const record = this.records[this.visitorIndexInObservationChain]!;
+    const visitorRegistrationMetadata: VisitorRegistrationMetadata = {
+      phaseRegistrationInsertionIndex: record.phaseRegistrationInsertionIndex,
+      descendingExecutionPriorityWithinGroup:
+        record.descendingExecutionPriorityWithinGroup,
+      visitorCommandCommitTiming: record.visitorCommandCommitTiming,
       visitorGroup: record.visitorGroup,
     };
     return record.visitor(this.event(), {
-      phase: this.phase,
-      admissionIndex: this.admissionIndex,
-      phaseObservationIndex: this.phaseObservationIndex,
-      visitorIndex: this.visitorIndex,
-      registration,
+      observationKind: this.observationKind,
+      admittedTargetOccurrenceIndex: this.admittedTargetOccurrenceIndex,
+      observationIndexWithinKind: this.observationIndexWithinKind,
+      visitorIndexInObservationChain: this.visitorIndexInObservationChain,
+      visitorRegistrationMetadata,
     });
   }
   submit(value: unknown): void {
@@ -66,18 +72,23 @@ export class WalkVisitorChain<
           )
             throw new TypeError('Walking commands do not accept arguments');
           const name = (command as { commandName?: unknown }).commandName;
-          if (name !== Command.NOOP && name !== Command.PAUSE_TRAVERSAL)
+          if (
+            name !== Command.NO_OPERATION &&
+            name !== Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY
+          )
             throw new TypeError(
-              'Walking only supports NOOP and PAUSE_TRAVERSAL',
+              'Walking only supports NOOP and PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY',
             );
           return name;
         });
         this.bufferedCommands.push(...names);
       }
     }
-    if (this.batchEnds[this.visitorIndex++]) {
+    if (this.batchEnds[this.visitorIndexInObservationChain++]) {
       // All commands are validated and captured before this batch can apply.
-      this.paused = this.bufferedCommands.includes(Command.PAUSE_TRAVERSAL);
+      this.paused = this.bufferedCommands.includes(
+        Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY,
+      );
       this.bufferedCommands.length = 0;
     }
   }

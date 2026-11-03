@@ -1,4 +1,4 @@
-const sourceKeys = ['traversableGraph', 'traversableTree'] as const;
+const sourceKeys = ['dagDiscoverySource', 'treeDiscoverySource'] as const;
 
 type DagSourcePatch = Partial<Record<typeof sourceKeys[number], unknown>>;
 
@@ -21,7 +21,7 @@ export function captureDagConfigPatch<Input extends object>(
 ): Input {
   const options: Record<PropertyKey, unknown> = {};
   for (const key of Reflect.ownKeys(input)) {
-    if (key !== 'traversableGraph' && key !== 'traversableTree') {
+    if (key !== 'dagDiscoverySource' && key !== 'treeDiscoverySource') {
       Object.defineProperty(options, key, {
         value: Reflect.get(input, key),
         enumerable: true,
@@ -36,8 +36,8 @@ export function captureDagConfigPatch<Input extends object>(
 export function assertExactlyOneDagSource(
   sources: DagSourcePatch,
 ): 'tree' | 'graph' {
-  const graph = sources.traversableGraph !== undefined;
-  const tree = sources.traversableTree !== undefined;
+  const graph = sources.dagDiscoverySource !== undefined;
+  const tree = sources.treeDiscoverySource !== undefined;
   if (graph === tree) {
     throw new TypeError(
       'DAG traversal requires exactly one tree or graph source',

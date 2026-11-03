@@ -1,3 +1,3 @@
-export enum BreadthFirstPhase {
-  LEVEL_ORDER = 'LEVEL_ORDER',
+export enum BreadthFirstTreeVisitPhase {
+  AT_LEVEL_ORDER_VERTEX = 'AT_LEVEL_ORDER_VERTEX',
 }

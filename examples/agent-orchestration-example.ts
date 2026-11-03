@@ -1,8 +1,8 @@
-import { DagTraversal, type VertexTypes } from '../src';
+import { DagTraversalBuilder, type VertexDataAndChildHintTypes } from '../src';
 import assert from 'node:assert/strict';
 
 type TaskId = 'research' | 'implement' | 'testPlan' | 'review';
-type Workflow = VertexTypes<string, TaskId>;
+type Workflow = VertexDataAndChildHintTypes<string, TaskId>;
 const catalog: TaskId[] = ['research', 'implement', 'testPlan', 'review'];
 const dependencies: Record<TaskId, TaskId[]> = {
   research: [],
@@ -14,83 +14,125 @@ const dependencies: Record<TaskId, TaskId[]> = {
 const accepted = new Set<TaskId>(['research']);
 let sourceCalls = 0;
 function reconstruct() {
-  return new DagTraversal<Workflow, Workflow, TaskId>({
-    workCompletion: 'externalSettlement',
-    syntheticRoot: true,
-    completedWork: accepted,
-    traversableGraph: {
-      resolveRoot: () => {
+  return new DagTraversalBuilder<Workflow, Workflow, TaskId>({
+    workCompletionPolicy: 'requireExternalWorkSettlement',
+    sourceRootIsHiddenEntryHolder: true,
+    acceptedCompletedWorkVertexIds: accepted,
+    dagDiscoverySource: {
+      resolveRootVertex: () => {
         sourceCalls += 1;
         return {
-          kind: 'found',
-          vertex: {
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
             vertexId: 'research',
-            vertexContent: { $data: '', $childHints: catalog },
+            vertexContentInput: {
+              $vertexData: '',
+              $childDiscoveryHints: catalog,
+            },
           },
         };
       },
-      resolveChild: (id) => {
+      resolveChildHint: (id) => {
         sourceCalls += 1;
         return {
-          kind: 'found',
-          vertex: {
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
             vertexId: id,
-            dependsOnWork: dependencies[id],
-            vertexContent: { $data: id, $childHints: [] },
+            workWaitsForWorkOf: dependencies[id],
+            vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] },
           },
         };
       },
     },
-  }).createRunner();
+  }).createIndependentRunnerFromCurrentOptions();
 }
 
 const runner = reconstruct();
-assert.equal(runner.prepare(), runner);
-assert.equal(runner.getStopReason(), 'prepared');
-assert.equal(runner.summary().discovery.mode, 'eager');
-assert.equal(runner.getResolvedGraphView().getVertexRefs().length, 4);
-assert.deepEqual(runner.summary().awaitingSettlement, []);
-assert.deepEqual(runner.summary().completedWorkIds, ['research']);
-const preparedCalls = sourceCalls;
-runner.prepare();
-runner.run();
-assert.equal(sourceCalls, preparedCalls); // No discovery replay on run.
-assert.equal(runner.getStopReason(), 'awaitingSettlement');
+assert.equal(runner.discoverValidateAndFreezeTopology(), runner);
+assert.equal(runner.getTraversalStopReason(), 'prepared');
+assert.equal(
+  runner.captureProgressSnapshot().discovery.timing,
+  'completeBeforeAnyVisitor',
+);
+assert.equal(runner.getLiveResolvedGraphView().getVertexHandles().length, 4);
+assert.deepEqual(runner.captureProgressSnapshot().workAwaitingSettlement, []);
 assert.deepEqual(
-  runner.summary().awaitingSettlement.map(({ vertexId }) => vertexId),
+  runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+  ['research'],
+);
+const preparedCalls = sourceCalls;
+runner.discoverValidateAndFreezeTopology();
+runner.runUntilSuspendedOrTerminal();
+assert.equal(sourceCalls, preparedCalls); // No discovery replay on run.
+assert.equal(runner.getTraversalStopReason(), 'awaitingSettlement');
+assert.deepEqual(
+  runner
+    .captureProgressSnapshot()
+    .workAwaitingSettlement.map(({ vertexId }) => vertexId),
   ['implement', 'testPlan'],
 );
-const work = runner.summary().awaitingSettlement[0]!;
+const work = runner.captureProgressSnapshot().workAwaitingSettlement[0]!;
 // The host claims/dispatches work, checks its attempt/revision, then accepts it.
 accepted.add(work.vertexId);
 assert.equal(
-  runner.settle(work.vertexId, { kind: 'workCompleted' }, work.generation),
+  runner.settleDeferredWork(
+    work.vertexId,
+    { kind: 'workCompleted' },
+    work.settlementToken,
+  ),
   true,
 );
-runner.run();
-assert.deepEqual(runner.summary().readyOrDeferredIds, ['testPlan']);
+runner.runUntilSuspendedOrTerminal();
+assert.deepEqual(
+  runner.captureProgressSnapshot()
+    .workVisitorReadyOrWorkCompletionDeferredVertexIds,
+  ['testPlan'],
+);
 assert.equal(
-  runner.settle(work.vertexId, { kind: 'workCompleted' }, work.generation),
+  runner.settleDeferredWork(
+    work.vertexId,
+    { kind: 'workCompleted' },
+    work.settlementToken,
+  ),
   false,
 );
 // A restart rebuilds accepted facts, never saved runner/generation objects.
-assert.deepEqual(reconstruct().run().summary().readyOrDeferredIds, [
-  'testPlan',
-]);
+assert.deepEqual(
+  reconstruct().runUntilSuspendedOrTerminal().captureProgressSnapshot()
+    .workVisitorReadyOrWorkCompletionDeferredVertexIds,
+  ['testPlan'],
+);
 const events = [];
-while (runner.getStatus() !== 'FINISHED') {
-  for (const next of runner.summary().awaitingSettlement) {
+while (runner.getTraversalLifecycleStatus() !== 'FINISHED') {
+  for (const next of runner.captureProgressSnapshot().workAwaitingSettlement) {
     accepted.add(next.vertexId);
-    runner.settle(next.vertexId, { kind: 'workCompleted' }, next.generation);
+    runner.settleDeferredWork(
+      next.vertexId,
+      { kind: 'workCompleted' },
+      next.settlementToken,
+    );
   }
-  events.push(...runner.iterateEvents());
+  events.push(
+    ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+  );
 }
-assert.equal(runner.getStopReason(), 'finished');
-assert.deepEqual(runner.summary().awaitingSettlement, []);
-assert.equal(runner.summary().completedWorkIds.length, 4);
-assert(events.some(({ kind }) => kind === 'workCompleted'));
-assert(events.some(({ kind }) => kind === 'subgraphCompleted'));
-assert.deepEqual(reconstruct().run().summary().readyOrDeferredIds, []);
+assert.equal(runner.getTraversalStopReason(), 'finished');
+assert.deepEqual(runner.captureProgressSnapshot().workAwaitingSettlement, []);
+assert.equal(
+  runner.captureProgressSnapshot().workCompletionCommittedVertexIds.length,
+  4,
+);
+assert(
+  events.some(({ eventKind: kind }) => kind === 'workCompletionCommitted'),
+);
+assert(
+  events.some(({ eventKind: kind }) => kind === 'subgraphCompletionCommitted'),
+);
+assert.deepEqual(
+  reconstruct().runUntilSuspendedOrTerminal().captureProgressSnapshot()
+    .workVisitorReadyOrWorkCompletionDeferredVertexIds,
+  [],
+);
 console.log(
   'Prepared preview → guarded frontier → accepted results → finished',
 );

@@ -1,8 +1,8 @@
-import { MutableRef } from '../src/core/CTTRef';
+import { MutableValueReference } from '../src/core/CTTRef';
 import type {
   CallbackReply,
   Outcome,
-  VisitPhase,
+  TreeOrDagVisitorPhase,
 } from '../src/core/effects/types';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { InternalVertexRef } from '../src/core/graph/types';
@@ -16,14 +16,17 @@ import type { TestGraph } from './helpers/graph-fixtures';
 
 function makeKernel(
   visitorCount = 1,
-  options: { includeCompletion?: boolean; iterateOver?: VisitPhase[] } = {},
+  options: {
+    includeCompletion?: boolean;
+    iterateOver?: TreeOrDagVisitorPhase[];
+  } = {},
 ) {
   const container = new ResolvedGraphsContainer<TestGraph>({
     sourceMode: 'graph',
     saveOriginal: false,
   });
   const stateBridge = {
-    status: TraversalRunnerStatus.INITIAL,
+    status: TraversalRunnerStatus.NOT_STARTED,
     traversalRootVertexRef: null,
     subtreeTraversalDisabledRefs: new Set<InternalVertexRef<TestGraph>>(),
     visitorsState: {},
@@ -35,18 +38,21 @@ function makeKernel(
     container,
     stateBridge,
     visitorMetadata: {
-      ON_WORK_READY: Array.from({ length: visitorCount }, (_, addedIndex) => ({
-        addedIndex,
-        priority: 100,
-        commandCommitMode: 'afterEachVisitor' as const,
-      })),
+      ON_WORK_READY: Array.from(
+        { length: visitorCount },
+        (_, phaseRegistrationInsertionIndex) => ({
+          phaseRegistrationInsertionIndex,
+          descendingExecutionPriorityWithinGroup: 100,
+          visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
+        }),
+      ),
       ...(options.includeCompletion
         ? {
-            ON_SUBGRAPH_READY: [
+            ON_SUBGRAPH_COMPLETION_READY: [
               {
-                addedIndex: 0,
-                priority: 100,
-                commandCommitMode: 'afterEachVisitor' as const,
+                phaseRegistrationInsertionIndex: 0,
+                descendingExecutionPriorityWithinGroup: 100,
+                visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
               },
             ],
           }
@@ -58,16 +64,16 @@ function makeKernel(
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasHintTransformer: false,
-    hasHintIds: false,
-    concurrency: 1,
+    hasChildHintsListTransformer: false,
+    hasChildHintVertexIdResolver: false,
+    maxConcurrentCallbackInvocations: 1,
   });
   return { kernel, container, stateBridge };
 }
 
 function acknowledgeObservation(
   kernel: TraversalKernel<TestGraph>,
-  order: VisitPhase,
+  order: TreeOrDagVisitorPhase,
 ) {
   const observation = kernel.poll('drive');
   expect(observation).toMatchObject({ kind: 'EVENT', event: { order } });
@@ -81,7 +87,7 @@ function makeBreadthKernel() {
     saveOriginal: false,
   });
   const stateBridge = {
-    status: TraversalRunnerStatus.INITIAL,
+    status: TraversalRunnerStatus.NOT_STARTED,
     traversalRootVertexRef: null,
     subtreeTraversalDisabledRefs: new Set<InternalVertexRef<TestGraph>>(),
     visitorsState: {},
@@ -96,14 +102,14 @@ function makeBreadthKernel() {
     stateBridge,
     visitorMetadata: {},
     iterableConfig: {
-      iterateOver: ['LEVEL_ORDER'],
+      iterateOver: ['AT_LEVEL_ORDER_VERTEX'],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasHintTransformer: false,
-    hasHintIds: false,
-    concurrency: 1,
+    hasChildHintsListTransformer: false,
+    hasChildHintVertexIdResolver: false,
+    maxConcurrentCallbackInvocations: 1,
   });
   return kernel;
 }
@@ -119,26 +125,30 @@ function makeDepthKernel() {
     sourceMode: 'tree',
     container,
     stateBridge: {
-      status: TraversalRunnerStatus.INITIAL,
+      status: TraversalRunnerStatus.NOT_STARTED,
       traversalRootVertexRef: null,
       subtreeTraversalDisabledRefs: new Set(),
       visitorsState: {},
     },
     visitorMetadata: {},
     iterableConfig: {
-      iterateOver: ['PRE_ORDER', 'IN_ORDER', 'POST_ORDER'],
+      iterateOver: [
+        'BEFORE_CHILD_EXPANSION',
+        'AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES',
+        'AFTER_CHILD_SUBTREES',
+      ],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: {
-      afterChildIndices: { indices: [0] },
-      fallbackChildIndices: { indices: [0] },
-      visitSingleChildParent: true,
-      visitAfterOmittedChildren: true,
+      visitAfterChildIndices: { indices: [0] },
+      visitAfterChildIndicesWhenPrimarySelectionIsEmpty: { indices: [0] },
+      alsoVisitAfterOnlyChild: true,
+      allowBoundaryVisitsAfterOmittedChildSlots: true,
     },
-    hasHintTransformer: false,
-    hasHintIds: false,
-    concurrency: 1,
+    hasChildHintsListTransformer: false,
+    hasChildHintVertexIdResolver: false,
+    maxConcurrentCallbackInvocations: 1,
   });
 }
 
@@ -162,14 +172,21 @@ function setPrivate(target: object, name: string, value: unknown): void {
 
 test('steps from an owned root request through visit and event backpressure', () => {
   const { kernel, container } = makeKernel();
-  expect(kernel.summary().discovery).toEqual({ mode: 'lazy', complete: false });
-  expect(kernel.summary().counts.discovered).toBe(0);
+  expect(kernel.captureProgressSnapshot().discovery).toEqual({
+    timing: 'incrementalDuringTraversal',
+    complete: false,
+  });
+  expect(kernel.captureProgressSnapshot().counts.retainedLiveVertices).toBe(0);
   const root = kernel.poll('drive');
   expect(root.kind).toBe('CALL');
   if (root.kind !== 'CALL') throw new Error('Expected root call');
   expect(root.call).toMatchObject({
     kind: 'MAKE_ROOT',
-    owner: { kind: 'root', id: 1, epoch: 0 },
+    owner: {
+      ownerKind: 'rootResolution',
+      runnerLocalOwnerId: 1,
+      validityGeneration: 0,
+    },
   });
 
   kernel.submit(
@@ -177,7 +194,7 @@ test('steps from an owned root request through visit and event backpressure', ()
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $data: 'root', $childHints: [] },
+        vertexContent: { $vertexData: 'root', $childDiscoveryHints: [] },
       },
     }),
   );
@@ -194,14 +211,14 @@ test('steps from an owned root request through visit and event backpressure', ()
   const event = kernel.poll('drive');
   expect(event.kind).toBe('EVENT');
   if (event.kind !== 'EVENT') throw new Error('Expected event');
-  expect(event.event.vertex.getData()).toBe('root');
-  expect(kernel.inspect().frames).toEqual([]);
+  expect(event.event.vertex.getVertexData()).toBe('root');
+  expect(kernel.captureExecutionSnapshot().vertexTraversalFrames).toEqual([]);
   expect(kernel.poll('drive')).toEqual(event);
 
   kernel.acknowledgeEvent(event.boundaryId);
-  acknowledgeObservation(kernel, 'ON_SUBGRAPH_READY');
+  acknowledgeObservation(kernel, 'ON_SUBGRAPH_COMPLETION_READY');
   expect(kernel.poll('drive')).toEqual({ kind: 'FINISHED' });
-  expect(container.resolvedGraphView.getRoot()).not.toBeNull();
+  expect(container.liveResolvedGraphView.getRoot()).not.toBeNull();
 });
 
 test('reports public request, halt, event, and failed-resume guards', () => {
@@ -236,18 +253,20 @@ test('resume copies every optional filter shape without retaining caller arrays'
   const { kernel } = makeKernel();
   kernel.resume({});
   kernel.resume({
-    emitEvents: ['subgraphCompleted'],
-    visitorPhases: { include: ['ON_WORK_READY'] },
+    deliveredEventKinds: ['subgraphCompletionCommitted'],
+    admittedVisitorCallbackPhases: { include: ['ON_WORK_READY'] },
   });
-  const configured = kernel.inspect().executionOptions;
+  const configured = kernel.captureExecutionSnapshot().executionOptions;
   kernel.resume({});
-  expect(kernel.inspect().executionOptions).toEqual(configured);
+  expect(kernel.captureExecutionSnapshot().executionOptions).toEqual(
+    configured,
+  );
   kernel.resume({
-    visitorPhases: 'all',
+    admittedVisitorCallbackPhases: 'all',
   });
-  expect(kernel.inspect().executionOptions).toEqual({
-    emitEvents: ['subgraphCompleted'],
-    visitorPhases: 'all',
+  expect(kernel.captureExecutionSnapshot().executionOptions).toEqual({
+    deliveredEventKinds: ['subgraphCompletionCommitted'],
+    admittedVisitorCallbackPhases: 'all',
   });
 });
 
@@ -270,12 +289,18 @@ test.each(['advanceChains', 'admitEligibleVisit', 'admitExpansion'] as const)(
 
 test('private invalidation removes frames and boundaries and is idempotent', () => {
   const { kernel } = makeKernel();
-  const vertexRef = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'removed', $childHints: [] }),
+  const vertexHandle = new MutableValueReference(
+    new Vertex<TestGraph>({ $vertexData: 'removed', $childDiscoveryHints: [] }),
   );
-  const owner = { kind: 'frame' as const, id: 20, epoch: 0 };
+  const owner = {
+    ownerKind: 'vertexTraversalFrame' as const,
+    runnerLocalOwnerId: 20,
+    validityGeneration: 0,
+  };
   const fields = kernel as unknown as {
-    boundaries: Array<{ event: { vertexRef: InternalVertexRef<TestGraph> } }>;
+    boundaries: Array<{
+      event: { vertexHandle: InternalVertexRef<TestGraph> };
+    }>;
     frames: Map<
       number,
       { owner: typeof owner; ref: InternalVertexRef<TestGraph> }
@@ -285,12 +310,12 @@ test('private invalidation removes frames and boundaries and is idempotent', () 
       { call: { owner: typeof owner }; submitted: boolean }
     >;
   };
-  fields.frames.set(owner.id, { owner, ref: vertexRef });
-  fields.boundaries.push({ event: { vertexRef } });
-  invokePrivate<void>(kernel, 'invalidateRefs', new Set([vertexRef]), {
-    kind: 'chain',
-    id: 99,
-    epoch: 0,
+  fields.frames.set(owner.runnerLocalOwnerId, { owner, ref: vertexHandle });
+  fields.boundaries.push({ event: { vertexHandle } });
+  invokePrivate<void>(kernel, 'invalidateRefs', new Set([vertexHandle]), {
+    ownerKind: 'vertexPhaseVisitorChain',
+    runnerLocalOwnerId: 99,
+    validityGeneration: 0,
   });
   expect(fields.frames.size).toBe(0);
   expect(fields.boundaries).toEqual([]);
@@ -319,27 +344,35 @@ test('detects a running chain when deciding whether a halt can settle', () => {
 
 test('kernel inspection maps breadth-first policy frames', () => {
   const kernel = makeBreadthKernel();
-  const vertexRef = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'parent', $childHints: [] }),
+  const vertexHandle = new MutableValueReference(
+    new Vertex<TestGraph>({ $vertexData: 'parent', $childDiscoveryHints: [] }),
   );
   const fields = kernel as unknown as {
     breadthFirstPolicy: {
       enqueueExpansion(
-        owner: { kind: 'frame'; id: number; epoch: number },
+        owner: {
+          ownerKind: 'vertexTraversalFrame';
+          runnerLocalOwnerId: number;
+          validityGeneration: number;
+        },
         ref: InternalVertexRef<TestGraph>,
         depth: number,
       ): void;
     };
   };
   fields.breadthFirstPolicy.enqueueExpansion(
-    { kind: 'frame', id: 2, epoch: 0 },
-    vertexRef,
+    {
+      ownerKind: 'vertexTraversalFrame',
+      runnerLocalOwnerId: 2,
+      validityGeneration: 0,
+    },
+    vertexHandle,
     0,
   );
-  expect(kernel.inspect().frames).toEqual([
+  expect(kernel.captureExecutionSnapshot().vertexTraversalFrames).toEqual([
     expect.objectContaining({
-      vertexRefId: vertexRef.getRefId(),
-      stage: 'resolve',
+      vertexReferenceIdentity: vertexHandle.getReferenceIdentity(),
+      stage: 'resolvingChildVertexContent',
     }),
   ]);
 
@@ -350,22 +383,37 @@ test('kernel inspection maps breadth-first policy frames', () => {
       };
     }
   ).scheduling;
-  scheduling.eligible.push({ ref: vertexRef, order: 'ON_SUBGRAPH_READY' });
-  expect(kernel.inspect().readyVisits).toEqual([
-    { vertexRefId: vertexRef.getRefId(), phase: 'LEVEL_ORDER' },
+  scheduling.eligible.push({
+    ref: vertexHandle,
+    order: 'ON_SUBGRAPH_COMPLETION_READY',
+  });
+  expect(
+    kernel.captureExecutionSnapshot().dependencyEligiblePhaseVisits,
+  ).toEqual([
+    {
+      vertexReferenceIdentity: vertexHandle.getReferenceIdentity(),
+      visitorPhase: 'AT_LEVEL_ORDER_VERTEX',
+    },
   ]);
 });
 
 test('kernel inspection reports a depth-first child-wait frame index', () => {
   const kernel = makeDepthKernel();
-  const vertexRef = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'parent', $childHints: ['child'] }),
+  const vertexHandle = new MutableValueReference(
+    new Vertex<TestGraph>({
+      $vertexData: 'parent',
+      $childDiscoveryHints: ['child'],
+    }),
   );
   const policy = (
     kernel as unknown as {
       depthFirstPolicy: {
         push(
-          owner: { kind: 'frame'; id: number; epoch: number },
+          owner: {
+            ownerKind: 'vertexTraversalFrame';
+            runnerLocalOwnerId: number;
+            validityGeneration: number;
+          },
           ref: InternalVertexRef<TestGraph>,
           depth: number,
         ): void;
@@ -373,11 +421,22 @@ test('kernel inspection reports a depth-first child-wait frame index', () => {
       };
     }
   ).depthFirstPolicy;
-  policy.push({ kind: 'frame', id: 2, epoch: 0 }, vertexRef, 0);
+  policy.push(
+    {
+      ownerKind: 'vertexTraversalFrame',
+      runnerLocalOwnerId: 2,
+      validityGeneration: 0,
+    },
+    vertexHandle,
+    0,
+  );
   const frame = policy.getFrames()[0]!;
-  frame.stage = 'child-wait';
+  frame.stage = 'waitingForChildResolution';
   frame.nextChild = 1;
-  expect(kernel.inspect().frames[0]?.pendingIndices).toEqual([0]);
+  expect(
+    kernel.captureExecutionSnapshot().vertexTraversalFrames[0]
+      ?.pendingChildHintIndices,
+  ).toEqual([0]);
 });
 
 test('a frame outside an actionable internal stage cannot advance', () => {
@@ -393,17 +452,24 @@ test.each(['identify', 'resolve'] as const)(
   'a %s frame waits while its owner has an outstanding callback',
   (stage) => {
     const { kernel } = makeKernel();
-    const owner = { kind: 'frame' as const, id: 20, epoch: 0 };
-    const vertexRef = new MutableRef(
-      new Vertex<TestGraph>({ $data: 'parent', $childHints: ['child'] }),
+    const owner = {
+      ownerKind: 'vertexTraversalFrame' as const,
+      runnerLocalOwnerId: 20,
+      validityGeneration: 0,
+    };
+    const vertexHandle = new MutableValueReference(
+      new Vertex<TestGraph>({
+        $vertexData: 'parent',
+        $childDiscoveryHints: ['child'],
+      }),
     );
     const fields = kernel as unknown as {
       frames: Map<number, object>;
       pendingRequests: Map<number, object>;
     };
-    fields.frames.set(owner.id, {
+    fields.frames.set(owner.runnerLocalOwnerId, {
       owner,
-      ref: vertexRef,
+      ref: vertexHandle,
       stage,
       hints: ['child'],
       nextIdentityIndex: 0,
@@ -440,12 +506,12 @@ test('reports an incomplete-work DAG stall without dependency ids', () => {
   const scheduling = (
     kernel as unknown as { scheduling: GraphScheduling<TestGraph> }
   ).scheduling;
-  const vertexRef = scheduling.acceptRoot({
+  const vertexHandle = scheduling.acceptRoot({
     vertexId: 'incomplete',
-    vertexContent: { $data: 'incomplete', $childHints: [] },
+    vertexContent: { $vertexData: 'incomplete', $childDiscoveryHints: [] },
   })!;
   scheduling.takeReady();
-  scheduling.markPreVisited(vertexRef);
+  scheduling.markPreVisited(vertexHandle);
   setPrivate(kernel, 'rootRequested', true);
   expect(kernel.poll('drive')).toMatchObject({
     kind: 'FAILED',
@@ -496,7 +562,9 @@ test('retains a thrown undefined value in terminal failure state', () => {
 
   expect(kernel.poll('drive')).toEqual({ kind: 'FAILED', error: undefined });
   expect(kernel.getFailure()).toEqual({ error: undefined });
-  expect(kernel.getStatus()).toBe(TraversalRunnerStatus.FAILED);
+  expect(kernel.getTraversalLifecycleStatus()).toBe(
+    TraversalRunnerStatus.FAILED,
+  );
   expect(kernel.poll('drive')).toEqual({ kind: 'FAILED', error: undefined });
 });
 
@@ -521,7 +589,9 @@ test('commits a halting command batch once and resumes at the next visitor', () 
   kernel.submit(
     rootReply(root.call.requestId, {
       ok: true,
-      value: { vertexContent: { $data: 'root', $childHints: [] } },
+      value: {
+        vertexContent: { $vertexData: 'root', $childDiscoveryHints: [] },
+      },
     }),
   );
   const first = kernel.poll('drive');
@@ -536,21 +606,47 @@ test('commits a halting command batch once and resumes at the next visitor', () 
       value: {
         commands: [
           {
-            commandName: Command.SET_VISITOR_CHAIN_STATE,
-            commandArguments: { state: 'once' },
+            commandName: Command.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
+            commandArguments: { phaseChainState: 'once' },
           },
-          { commandName: Command.PAUSE_TRAVERSAL },
+          { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
         ],
       },
     },
   });
 
-  expect(kernel.poll('drive')).toEqual({ kind: 'HALTED' });
-  expect(kernel.inspect().chains[0]).toMatchObject({
-    state: 'paused',
-    visitorIndex: 1,
-    waitingFor: 'none',
+  // Batch commit is synchronous: observe its real boundary before forwarding
+  // to the existing implementation, without changing command execution.
+  const originalCommit = (
+    kernel as unknown as { commitCommands(...args: unknown[]): unknown }
+  ).commitCommands;
+  const commitSnapshots: ReturnType<
+    TraversalKernel<TestGraph>['captureExecutionSnapshot']
+  >[] = [];
+  setPrivate(kernel, 'commitCommands', (...args: unknown[]) => {
+    commitSnapshots.push(kernel.captureExecutionSnapshot());
+    return originalCommit.apply(kernel, args);
   });
+
+  expect(kernel.poll('drive')).toEqual({ kind: 'SUSPENDED' });
+  expect(
+    kernel.captureExecutionSnapshot().vertexPhaseVisitorChains[0],
+  ).toMatchObject({
+    state: 'pausedAtCommandBoundary',
+    visitorCallbackIndexInPhaseChain: 1,
+    pendingCallbackOrCommandBatch: 'none',
+  });
+  expect(commitSnapshots).toMatchObject([
+    {
+      vertexPhaseVisitorChains: [
+        {
+          state: 'active',
+          pendingCallbackOrCommandBatch: 'commandBatchCommit',
+        },
+      ],
+    },
+  ]);
+
   kernel.resume();
   const second = kernel.poll('drive');
   if (second.kind !== 'CALL' || second.call.kind !== 'VISIT') {
@@ -558,8 +654,8 @@ test('commits a halting command batch once and resumes at the next visitor', () 
   }
   expect(second.call.recordIndex).toBe(1);
   expect(second.call.metadata).toMatchObject({
-    visitorIndex: 1,
-    visitorChainState: 'once',
+    visitorCallbackIndexInPhaseChain: 1,
+    currentVertexPhaseChainState: 'once',
   });
 });
 
@@ -571,7 +667,10 @@ test('disables an unexpanded subtree without failing its current chain', () => {
     rootReply(root.call.requestId, {
       ok: true,
       value: {
-        vertexContent: { $data: 'root', $childHints: ['never-resolved'] },
+        vertexContent: {
+          $vertexData: 'root',
+          $childDiscoveryHints: ['never-resolved'],
+        },
       },
     }),
   );
@@ -584,7 +683,13 @@ test('disables an unexpanded subtree without failing its current chain', () => {
     kind: 'VISIT',
     outcome: {
       ok: true,
-      value: { commands: [{ commandName: Command.SKIP_REMAINING_CHILDREN }] },
+      value: {
+        commands: [
+          {
+            commandName: Command.SKIP_PENDING_CHILD_DISCOVERY_OF_CURRENT_VERTEX,
+          },
+        ],
+      },
     },
   });
 
@@ -592,7 +697,7 @@ test('disables an unexpanded subtree without failing its current chain', () => {
   expect(event.kind).toBe('EVENT');
   if (event.kind !== 'EVENT') throw new Error('Expected event');
   kernel.acknowledgeEvent(event.boundaryId);
-  acknowledgeObservation(kernel, 'ON_SUBGRAPH_READY');
+  acknowledgeObservation(kernel, 'ON_SUBGRAPH_COMPLETION_READY');
   expect(kernel.poll('drive')).toEqual({ kind: 'FINISHED' });
 });
 
@@ -603,7 +708,9 @@ test('drains an already started chain before reporting HALTED', () => {
   kernel.submit(
     rootReply(root.call.requestId, {
       ok: true,
-      value: { vertexContent: { $data: 'root', $childHints: [] } },
+      value: {
+        vertexContent: { $vertexData: 'root', $childDiscoveryHints: [] },
+      },
     }),
   );
   const first = kernel.poll('drive');
@@ -630,15 +737,17 @@ test('drains an already started chain before reporting HALTED', () => {
   });
   const event = kernel.poll('drain');
   if (event.kind !== 'EVENT') throw new Error('Expected retained event');
-  expect(kernel.inspect()).toMatchObject({
+  expect(kernel.captureExecutionSnapshot()).toMatchObject({
     pauseRequested: true,
-    chains: [],
-    pendingRequests: [],
-    pendingEventBoundaryCount: 1,
+    vertexPhaseVisitorChains: [],
+    pendingCallbackRequests: [],
+    unacknowledgedCommittedEventBoundaryCount: 1,
   });
   kernel.acknowledgeEvent(event.boundaryId);
-  expect(kernel.poll('drain')).toEqual({ kind: 'HALTED' });
-  expect(kernel.inspect().status).toBe(TraversalRunnerStatus.HALTED);
+  expect(kernel.poll('drain')).toEqual({ kind: 'SUSPENDED' });
+  expect(kernel.captureExecutionSnapshot().traversalLifecycleStatus).toBe(
+    TraversalRunnerStatus.SUSPENDED,
+  );
 });
 
 test('does not hide a submitted live failure behind a halt request', () => {
@@ -649,7 +758,9 @@ test('does not hide a submitted live failure behind a halt request', () => {
   kernel.submit(
     rootReply(root.call.requestId, {
       ok: true,
-      value: { vertexContent: { $data: 'root', $childHints: [] } },
+      value: {
+        vertexContent: { $vertexData: 'root', $childDiscoveryHints: [] },
+      },
     }),
   );
   const visit = kernel.poll('drive');
@@ -676,7 +787,10 @@ test('delivers an event committed from an earlier reply before a later failure',
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $data: 'root', $childHints: ['a', 'b'] },
+        vertexContent: {
+          $vertexData: 'root',
+          $childDiscoveryHints: ['a', 'b'],
+        },
       },
     }),
   );
@@ -702,7 +816,10 @@ test('delivers an event committed from an earlier reply before a later failure',
     kind: 'MAKE_VERTEX',
     outcome: {
       ok: true,
-      value: { vertexId: 'a', vertexContent: { $data: 'a', $childHints: [] } },
+      value: {
+        vertexId: 'a',
+        vertexContent: { $vertexData: 'a', $childDiscoveryHints: [] },
+      },
     },
   });
   const makeB = kernel.poll('drive');
@@ -714,7 +831,10 @@ test('delivers an event committed from an earlier reply before a later failure',
     kind: 'MAKE_VERTEX',
     outcome: {
       ok: true,
-      value: { vertexId: 'b', vertexContent: { $data: 'b', $childHints: [] } },
+      value: {
+        vertexId: 'b',
+        vertexContent: { $vertexData: 'b', $childDiscoveryHints: [] },
+      },
     },
   });
   const visitA = kernel.poll('drive');
@@ -740,7 +860,7 @@ test('delivers an event committed from an earlier reply before a later failure',
   const event = kernel.poll('drive');
   expect(event.kind).toBe('EVENT');
   if (event.kind !== 'EVENT') throw new Error('Expected surviving event');
-  expect(event.event.vertex.getData()).toBe('a');
+  expect(event.event.vertex.getVertexData()).toBe('a');
   kernel.acknowledgeEvent(event.boundaryId);
   expect(kernel.poll('drive')).toEqual({ kind: 'FAILED', error: failure });
 });
@@ -757,7 +877,10 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $data: 'root', $childHints: ['a', 'b'] },
+        vertexContent: {
+          $vertexData: 'root',
+          $childDiscoveryHints: ['a', 'b'],
+        },
       },
     }),
   );
@@ -782,8 +905,8 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
       ok: true,
       value: {
         vertexId: 'a',
-        dependsOnWork: ['root'],
-        vertexContent: { $data: 'a', $childHints: [] },
+        workWaitsForWorkOf: ['root'],
+        vertexContent: { $vertexData: 'a', $childDiscoveryHints: [] },
       },
     },
   });
@@ -798,8 +921,8 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
       ok: true,
       value: {
         vertexId: 'b',
-        dependsOnWork: ['a'],
-        vertexContent: { $data: 'b', $childHints: [] },
+        workWaitsForWorkOf: ['a'],
+        vertexContent: { $vertexData: 'b', $childDiscoveryHints: [] },
       },
     },
   });
@@ -821,14 +944,21 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
   if (completeA.kind !== 'CALL' || completeA.call.kind !== 'VISIT') {
     throw new Error('Expected A completion visitor call');
   }
-  expect(completeA.call.order).toBe('ON_SUBGRAPH_READY');
+  expect(completeA.call.order).toBe('ON_SUBGRAPH_COMPLETION_READY');
 
   kernel.submit({
     requestId: completeA.call.requestId,
     kind: 'VISIT',
     outcome: {
       ok: true,
-      value: { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] },
+      value: {
+        commands: [
+          {
+            commandName:
+              Command.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+          },
+        ],
+      },
     },
   });
   kernel.poll('drive');
@@ -841,15 +971,19 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
 
   expect(
     kernel
-      .inspect()
-      .pendingRequests.some(
-        (request) => request.requestId === visitB.call.requestId,
+      .captureExecutionSnapshot()
+      .pendingCallbackRequests.some(
+        (request) => request.callbackRequestId === visitB.call.requestId,
       ),
   ).toBe(false);
   expect(
     kernel
-      .inspect()
-      .chains.some((chain) => chain.owner.id === visitB.call.owner.id),
+      .captureExecutionSnapshot()
+      .vertexPhaseVisitorChains.some(
+        (chain) =>
+          chain.owner.runnerLocalOwnerId ===
+          visitB.call.owner.runnerLocalOwnerId,
+      ),
   ).toBe(false);
 });
 
@@ -862,7 +996,10 @@ test('retains every started-chain event in FIFO order while halting', () => {
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $data: 'root', $childHints: ['a', 'b'] },
+        vertexContent: {
+          $vertexData: 'root',
+          $childDiscoveryHints: ['a', 'b'],
+        },
       },
     }),
   );
@@ -888,7 +1025,10 @@ test('retains every started-chain event in FIFO order while halting', () => {
     kind: 'MAKE_VERTEX',
     outcome: {
       ok: true,
-      value: { vertexId: 'a', vertexContent: { $data: 'a', $childHints: [] } },
+      value: {
+        vertexId: 'a',
+        vertexContent: { $vertexData: 'a', $childDiscoveryHints: [] },
+      },
     },
   });
   const makeB = kernel.poll('drive');
@@ -900,7 +1040,10 @@ test('retains every started-chain event in FIFO order while halting', () => {
     kind: 'MAKE_VERTEX',
     outcome: {
       ok: true,
-      value: { vertexId: 'b', vertexContent: { $data: 'b', $childHints: [] } },
+      value: {
+        vertexId: 'b',
+        vertexContent: { $vertexData: 'b', $childDiscoveryHints: [] },
+      },
     },
   });
   const visitA = kernel.poll('drive');
@@ -926,18 +1069,24 @@ test('retains every started-chain event in FIFO order while halting', () => {
 
   const first = kernel.poll('drain');
   if (first.kind !== 'EVENT') throw new Error('Expected first retained event');
-  expect(first.event.vertex.getData()).toBe('a');
-  expect(kernel.inspect().pendingEventBoundaryCount).toBe(2);
+  expect(first.event.vertex.getVertexData()).toBe('a');
+  expect(
+    kernel.captureExecutionSnapshot().unacknowledgedCommittedEventBoundaryCount,
+  ).toBe(2);
   expect(kernel.poll('drain')).toEqual(first);
   kernel.acknowledgeEvent(first.boundaryId);
-  expect(kernel.inspect().pendingEventBoundaryCount).toBe(1);
+  expect(
+    kernel.captureExecutionSnapshot().unacknowledgedCommittedEventBoundaryCount,
+  ).toBe(1);
 
   const second = kernel.poll('drain');
   if (second.kind !== 'EVENT')
     throw new Error('Expected second retained event');
   expect(second.boundaryId).not.toBe(first.boundaryId);
-  expect(second.event.vertex.getData()).toBe('b');
+  expect(second.event.vertex.getVertexData()).toBe('b');
   kernel.acknowledgeEvent(second.boundaryId);
-  expect(kernel.inspect().pendingEventBoundaryCount).toBe(0);
-  expect(kernel.poll('drain')).toEqual({ kind: 'HALTED' });
+  expect(
+    kernel.captureExecutionSnapshot().unacknowledgedCommittedEventBoundaryCount,
+  ).toBe(0);
+  expect(kernel.poll('drain')).toEqual({ kind: 'SUSPENDED' });
 });

@@ -1,82 +1,95 @@
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
-import type { TreeSource } from '../src/core/TraversableTree';
+import type { TreeDiscoverySource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
-import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree/TraversableObjectTree';
-import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
+import { ObjectPropertyTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree/TraversableObjectTree';
+import { DagTraversalBuilder } from '../src/traversals/dag-traversal/DagTraversal';
 import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 
-type Node = { id: string; children: string[]; dependsOnWork?: string[] };
-type TestGraph = VertexTypes<string, string>;
+type Node = { id: string; children: string[]; workWaitsForWorkOf?: string[] };
+type TestGraph = VertexDataAndChildHintTypes<string, string>;
 
 function graphAdapter(
   nodes: Record<string, Node> = {
     root: { id: 'root', children: ['A', 'B', 'join'] },
     A: { id: 'A', children: ['join'] },
     B: { id: 'B', children: ['join'] },
-    join: { id: 'join', children: [], dependsOnWork: ['A', 'B'] },
+    join: { id: 'join', children: [], workWaitsForWorkOf: ['A', 'B'] },
   },
 ): DagDiscoverySource<TestGraph> {
   const make = (id: string) => {
     const node = nodes[id]!;
     return {
-      kind: 'found' as const,
-      vertex: {
-        vertexContent: { $data: node.id, $childHints: node.children },
+      kind: 'vertexResolved' as const,
+      resolvedVertexInput: {
+        vertexContentInput: {
+          $vertexData: node.id,
+          $childDiscoveryHints: node.children,
+        },
         vertexId: node.id,
-        ...(node.dependsOnWork === undefined
+        ...(node.workWaitsForWorkOf === undefined
           ? {}
-          : { dependsOnWork: node.dependsOnWork }),
+          : { workWaitsForWorkOf: node.workWaitsForWorkOf }),
       },
     };
   };
   return {
-    resolveRoot: () => make('root'),
-    resolveChild: (hint) => make(hint),
-    getVertexIdFromHint: (hint) => ({ vertexId: hint }),
+    resolveRootVertex: () => make('root'),
+    resolveChildHint: (hint) => make(hint),
+    tryGetVertexIdentityFromHint: (hint) => ({ vertexId: hint }),
   };
 }
 
 test('visits a shared join once after both prerequisites', () => {
-  const runner = new DagTraversal<TestGraph>({
-    traversableGraph: graphAdapter(),
-  }).createRunner();
+  const runner = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter(),
+  }).createIndependentRunnerFromCurrentOptions();
   const values = [
-    ...runner.iterateEvents({ emitEvents: ['workCompleted'] }),
-  ].map(({ vertex }) => vertex.getData());
+    ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: ['workCompletionCommitted'],
+    }),
+  ].map(({ vertex }) => vertex.getVertexData());
   expect(values).toEqual(['root', 'A', 'B', 'join']);
-  const graph = runner.getResolvedGraphView();
-  const join = graph.getVertexRefById('join')!;
-  expect(graph.getParentsOf(join)).toHaveLength(3);
-  expect(graph.getVisitStageOf(join)).toBe('COMPLETE');
+  const graph = runner.getLiveResolvedGraphView();
+  const join = graph.getVertexHandleByIdOrNull('join')!;
+  expect(graph.getDistinctStructuralParentHandlesOrNull(join)).toHaveLength(3);
+  expect(graph.getVertexVisitSchedulingStageOrNull(join)).toBe(
+    'COMPLETION_VISIT_COMMITTED',
+  );
 });
 
 test('defaults to both orders and keeps initial and completion work in one FIFO', () => {
   const events = [
-    ...new DagTraversal<TestGraph>({ traversableGraph: graphAdapter() })
-      .createRunner()
-      .iterateEvents(),
-  ].map(({ vertex, kind }) => `${kind}:${vertex.getData()}`);
+    ...new DagTraversalBuilder<TestGraph>({
+      dagDiscoverySource: graphAdapter(),
+    })
+      .createIndependentRunnerFromCurrentOptions()
+      .runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+  ].map(({ vertex, eventKind }) => `${eventKind}:${vertex.getVertexData()}`);
 
   expect(events).toEqual([
-    'workCompleted:root',
-    'workCompleted:A',
-    'workCompleted:B',
-    'workCompleted:join',
-    'subgraphCompleted:join',
-    'subgraphCompleted:A',
-    'subgraphCompleted:B',
-    'subgraphCompleted:root',
+    'workCompletionCommitted:root',
+    'workCompletionCommitted:A',
+    'workCompletionCommitted:B',
+    'workCompletionCommitted:join',
+    'subgraphCompletionCommitted:join',
+    'subgraphCompletionCommitted:A',
+    'subgraphCompletionCommitted:B',
+    'subgraphCompletionCommitted:root',
   ]);
 });
 
 test('retains the graph root flag without an independent traversal root', () => {
-  const runner = new DagTraversal<TestGraph>({
-    traversableGraph: graphAdapter(),
-  }).createRunner();
-  const events = [...runner.iterateEvents({ emitEvents: ['workCompleted'] })];
-  expect(events.map(({ isGraphRoot }) => isGraphRoot)).toEqual([
+  const runner = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter(),
+  }).createIndependentRunnerFromCurrentOptions();
+  const events = [
+    ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: ['workCompletionCommitted'],
+    }),
+  ];
+  expect(events.map(({ isVisibleSourceRoot }) => isVisibleSourceRoot)).toEqual([
     true,
     false,
     false,
@@ -88,45 +101,56 @@ test('retains the graph root flag without an independent traversal root', () => 
     false,
     false,
   ]);
-  expect(runner.isGraphRootVertex(events[0]!.vertexRef)).toBe(true);
-  expect(runner.isGraphRootVertex(events[0]!.vertexRef)).toBe(true);
+  expect(runner.isVisibleSourceRootVertex(events[0]!.vertexHandle)).toBe(true);
+  expect(runner.isVisibleSourceRootVertex(events[0]!.vertexHandle)).toBe(true);
 });
 
 test('finishes an empty graph', () => {
-  const runner = new DagTraversal<TestGraph>({
-    traversableGraph: {
-      resolveRoot: () => ({
-        identity: null,
-        satisfiesDependencies: true as const,
-        kind: 'omitted' as const,
+  const runner = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: {
+      resolveRootVertex: () => ({
+        omittedVertexIdentity: null,
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+        kind: 'vertexIntentionallyOmitted' as const,
       }),
-      resolveChild: () => ({
-        identity: null,
-        satisfiesDependencies: true as const,
-        kind: 'omitted' as const,
+      resolveChildHint: () => ({
+        omittedVertexIdentity: null,
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+        kind: 'vertexIntentionallyOmitted' as const,
       }),
     },
-  }).createRunner();
+  }).createIndependentRunnerFromCurrentOptions();
 
-  expect([...runner.iterateEvents()]).toEqual([]);
-  expect(runner.getStatus()).toBe(Status.FINISHED);
-  expect(runner.getResolvedGraphView().getRoot()).toBeNull();
+  expect([
+    ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+  ]).toEqual([]);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
+  expect(
+    runner.getLiveResolvedGraphView().getDesignatedRootHandleOrNull(),
+  ).toBeNull();
 });
 
 test.each([
   ['missing dependency', ['absent']],
   ['dependency cycle', ['child']],
-] as const)('fails a synchronous %s as a stall', (_name, dependsOnWork) => {
-  const runner = new DagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({
-      root: { id: 'root', children: ['child'] },
-      child: { id: 'child', children: [], dependsOnWork: [...dependsOnWork] },
-    }),
-  }).createRunner();
+] as const)(
+  'fails a synchronous %s as a stall',
+  (_name, workWaitsForWorkOf) => {
+    const runner = new DagTraversalBuilder<TestGraph>({
+      dagDiscoverySource: graphAdapter({
+        root: { id: 'root', children: ['child'] },
+        child: {
+          id: 'child',
+          children: [],
+          workWaitsForWorkOf: [...workWaitsForWorkOf],
+        },
+      }),
+    }).createIndependentRunnerFromCurrentOptions();
 
-  expect(() => runner.run()).toThrow(/stall.*child/i);
-  expect(runner.getStatus()).toBe(Status.FAILED);
-});
+    expect(() => runner.runUntilSuspendedOrTerminal()).toThrow(/stall.*child/i);
+    expect(runner.getTraversalLifecycleStatus()).toBe(Status.FAILED);
+  },
+);
 
 test('reports hostile object dependency ids without coercing them', () => {
   let coercions = 0;
@@ -136,31 +160,37 @@ test('reports hostile object dependency ids without coercing them', () => {
       throw new Error('must not coerce vertex ids');
     },
   };
-  const runner = new DagTraversal<TestGraph>({
-    traversableGraph: {
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
-          vertexContent: { $data: 'root', $childHints: ['blocked'] },
+  const runner = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: {
+            $vertexData: 'root',
+            $childDiscoveryHints: ['blocked'],
+          },
           vertexId: 'root',
         },
       }),
-      resolveChild: () => ({
-        kind: 'found' as const,
-        vertex: {
-          vertexContent: { $data: 'blocked', $childHints: [] },
+      resolveChildHint: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: {
+            $vertexData: 'blocked',
+            $childDiscoveryHints: [],
+          },
           vertexId: 'blocked',
-          dependsOnWork: [hostileId],
+          workWaitsForWorkOf: [hostileId],
         },
       }),
     },
-  }).createRunner();
+  }).createIndependentRunnerFromCurrentOptions();
 
-  expect(() => runner.run()).toThrow(
+  expect(() => runner.runUntilSuspendedOrTerminal()).toThrow(
     /DAG traversal stalled: "blocked", reference#1/,
   );
   expect(coercions).toBe(0);
-  expect(runner.getStatus()).toBe(Status.FAILED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FAILED);
 });
 
 test('rejects discovery cycles found through known-id hints', () => {
@@ -169,56 +199,68 @@ test('rejects discovery cycles found through known-id hints', () => {
     root: { id: 'root', children: ['child'] },
     child: { id: 'child', children: ['root'] },
   });
-  const resolveChild = adapter.resolveChild;
-  adapter.resolveChild = (hint, options) => {
+  const resolveChild = adapter.resolveChildHint;
+  adapter.resolveChildHint = (hint, options) => {
     resolutions.push(hint);
     return resolveChild(hint, options);
   };
-  const runner = new DagTraversal<TestGraph>({
-    traversableGraph: adapter,
-  }).createRunner();
+  const runner = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: adapter,
+  }).createIndependentRunnerFromCurrentOptions();
 
-  expect(() => runner.run()).toThrow(/discovery cycle/i);
+  expect(() => runner.runUntilSuspendedOrTerminal()).toThrow(
+    /discovery cycle/i,
+  );
   expect(resolutions).toEqual(['child']);
-  expect(runner.getStatus()).toBe(Status.FAILED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FAILED);
 });
 
 test('omission satisfies dependents without retaining the omitted vertex', () => {
   const adapter: DagDiscoverySource<TestGraph> = {
-    resolveRoot: () => ({
-      kind: 'found' as const,
-      vertex: {
-        vertexContent: { $data: 'root', $childHints: ['missing', 'dependent'] },
+    resolveRootVertex: () => ({
+      kind: 'vertexResolved' as const,
+      resolvedVertexInput: {
+        vertexContentInput: {
+          $vertexData: 'root',
+          $childDiscoveryHints: ['missing', 'dependent'],
+        },
         vertexId: 'root',
       },
     }),
-    resolveChild: (hint) =>
+    resolveChildHint: (hint) =>
       hint === 'missing'
         ? {
-            kind: 'omitted' as const,
-            satisfiesDependencies: true as const,
-            identity: { vertexId: 'missing' },
+            kind: 'vertexIntentionallyOmitted' as const,
+            satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+            omittedVertexIdentity: { vertexId: 'missing' },
           }
         : {
-            kind: 'found' as const,
-            vertex: {
-              vertexContent: { $data: 'dependent', $childHints: [] },
+            kind: 'vertexResolved' as const,
+            resolvedVertexInput: {
+              vertexContentInput: {
+                $vertexData: 'dependent',
+                $childDiscoveryHints: [],
+              },
               vertexId: 'dependent',
-              dependsOnWork: ['missing'],
+              workWaitsForWorkOf: ['missing'],
             },
           },
   };
-  const runner = new DagTraversal<TestGraph>({ traversableGraph: adapter })
-    .createRunner()
-    .run();
+  const runner = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: adapter,
+  })
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
 
-  expect(runner.getResolvedGraphView().getVertexRefById('missing')).toBeNull();
+  expect(
+    runner.getLiveResolvedGraphView().getVertexHandleByIdOrNull('missing'),
+  ).toBeNull();
   expect(
     runner
-      .getResolvedGraphView()
-      .getVertexRefById('dependent')!
-      .getValue()
-      .getData(),
+      .getLiveResolvedGraphView()
+      .getVertexHandleByIdOrNull('dependent')!
+      .getCurrentVertexView()
+      .getVertexData(),
   ).toBe('dependent');
 });
 
@@ -231,215 +273,270 @@ test('applies rewrite, disable, and delete commands with tombstones', () => {
     deleted: { id: 'deleted', children: ['late'] },
     late: { id: 'late', children: [] },
   });
-  const traversal = new DagTraversal<TestGraph>({ traversableGraph: adapter });
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
-    switch (vertex.getData()) {
+  const traversal = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: adapter,
+  });
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+    switch (vertex.getVertexData()) {
       case 'rewrite':
         return {
           commands: [
             {
-              commandName: Command.REWRITE_VERTEX_DATA,
-              commandArguments: { newData: 'rewritten' },
+              commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+              commandArguments: { replacementVertexData: 'rewritten' },
             },
           ],
         };
       case 'disabled':
         return {
-          commands: [{ commandName: Command.SKIP_REMAINING_CHILDREN }],
+          commands: [
+            {
+              commandName:
+                Command.SKIP_PENDING_CHILD_DISCOVERY_OF_CURRENT_VERTEX,
+            },
+          ],
         };
       case 'deleted':
         return {
-          commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
+          commands: [
+            {
+              commandName:
+                Command.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+            },
+          ],
         };
     }
     return undefined;
   });
-  const runner = traversal.createRunner().run();
-  const graph = runner.getResolvedGraphView();
+  const runner = traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
+  const graph = runner.getLiveResolvedGraphView();
 
-  expect(graph.getVertexRefById('rewrite')!.getValue().getData()).toBe(
-    'rewritten',
-  );
-  expect(graph.getVertexRefById('hidden')).toBeNull();
-  expect(graph.getVertexRefById('deleted')).toBeNull();
-  expect(graph.getVertexRefById('late')).toBeNull();
+  expect(
+    graph
+      .getVertexHandleByIdOrNull('rewrite')!
+      .getCurrentVertexView()
+      .getVertexData(),
+  ).toBe('rewritten');
+  expect(graph.getVertexHandleByIdOrNull('hidden')).toBeNull();
+  expect(graph.getVertexHandleByIdOrNull('deleted')).toBeNull();
+  expect(graph.getVertexHandleByIdOrNull('late')).toBeNull();
 });
 
-test('rewrites hints at ON_WORK_READY and rejects the same command at ON_SUBGRAPH_READY', () => {
-  const traversal = new DagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({
+test('rewrites hints at ON_WORK_READY and rejects the same command at ON_SUBGRAPH_COMPLETION_READY', () => {
+  const traversal = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({
       root: { id: 'root', children: ['old'] },
       old: { id: 'old', children: [] },
       replacement: { id: 'replacement', children: [] },
     }),
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
-    vertex.getData() === 'root'
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) =>
+    vertex.getVertexData() === 'root'
       ? {
           commands: [
             {
-              commandName: Command.REWRITE_CHILD_HINTS,
-              commandArguments: { newHints: ['replacement'] },
+              commandName: Command.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+              commandArguments: { replacementChildHints: ['replacement'] },
             },
           ],
         }
       : undefined,
   );
-  const runner = traversal.createRunner().run();
-  expect(runner.getResolvedGraphView().getVertexRefById('old')).toBeNull();
+  const runner = traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
   expect(
-    runner.getResolvedGraphView().getVertexRefById('replacement'),
+    runner.getLiveResolvedGraphView().getVertexHandleByIdOrNull('old'),
+  ).toBeNull();
+  expect(
+    runner.getLiveResolvedGraphView().getVertexHandleByIdOrNull('replacement'),
   ).not.toBeNull();
 
-  const invalid = new DagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({ root: { id: 'root', children: [] } }),
+  const invalid = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({ root: { id: 'root', children: [] } }),
   });
-  invalid.addVisitorFor(
-    Order.ON_SUBGRAPH_READY,
+  invalid.registerVisitorCallbackForPhase(
+    Order.ON_SUBGRAPH_COMPLETION_READY,
     () =>
       ({
         commands: [
           {
-            commandName: Command.REWRITE_CHILD_HINTS,
-            commandArguments: { newHints: [] },
+            commandName: Command.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+            commandArguments: { replacementChildHints: [] },
           },
         ],
       } as never),
   );
-  expect(() => invalid.createRunner().run()).toThrow(
-    /only.*ON_WORK_READY|pre-order/i,
-  );
+  expect(() =>
+    invalid
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal(),
+  ).toThrow(/only.*ON_WORK_READY|pre-order/i);
 });
 
 test('captures a structural graph snapshot before rewrite and delete', () => {
-  const traversal = new DagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({
+  const traversal = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({
       root: { id: 'root', children: ['child'] },
       child: { id: 'child', children: [] },
     }),
-    retainOriginalGraphStructure: true,
+    retainDiscoveredGraphBeforeVisitorCommands: true,
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
-    vertex.getData() === 'child'
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) =>
+    vertex.getVertexData() === 'child'
       ? {
           commands: [
             {
-              commandName: Command.REWRITE_VERTEX_DATA,
-              commandArguments: { newData: 'changed' },
+              commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+              commandArguments: { replacementVertexData: 'changed' },
             },
-            { commandName: Command.DELETE_DAG_VERTEX_CASCADE },
+            {
+              commandName:
+                Command.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+            },
           ],
         }
       : undefined,
   );
-  const runner = traversal.createRunner().run();
-  const snapshot = runner.originalGraphView;
+  const runner = traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
+  const snapshot = runner.preCommandDiscoveredGraphView;
 
-  expect(runner.getResolvedGraphView().getVertexRefById('child')).toBeNull();
-  const child = snapshot!.getVertexRefById('child')!;
-  expect(child.getValue().getData()).toBe('child');
-  expect(snapshot!.getParentsOf(child)).toHaveLength(1);
-  expect('getVisitStageOf' in snapshot!).toBe(false);
+  expect(
+    runner.getLiveResolvedGraphView().getVertexHandleByIdOrNull('child'),
+  ).toBeNull();
+  const child = snapshot!.getVertexHandleByIdOrNull('child')!;
+  expect(child.getCurrentVertexView().getVertexData()).toBe('child');
+  expect(
+    snapshot!.getDistinctStructuralParentHandlesOrNull(child),
+  ).toHaveLength(1);
+  expect('getVertexVisitSchedulingStageOrNull' in snapshot!).toBe(false);
 });
 
 test('halts synchronously and resumes without repeating a visitor', () => {
   const visits: string[] = [];
   let halted = false;
-  const traversal = new DagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({
+  const traversal = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({
       root: { id: 'root', children: ['child'] },
       child: { id: 'child', children: [] },
     }),
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
-    visits.push(vertex.getData());
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+    visits.push(vertex.getVertexData());
     if (!halted) {
       halted = true;
-      return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
+      return {
+        commands: [
+          { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+        ],
+      };
     }
     return undefined;
   });
-  const runner = traversal.createRunner();
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
 
-  expect([...runner.iterateEvents()]).toEqual([]);
-  expect(runner.isHalted()).toBe(true);
-  runner.run();
+  expect([
+    ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+  ]).toEqual([]);
+  expect(runner.isSuspended()).toBe(true);
+  runner.runUntilSuspendedOrTerminal();
   expect(visits).toEqual(['root', 'child']);
-  expect(runner.getStatus()).toBe(Status.FINISHED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
 });
 
 test('tree source receives a real tree context and graph visitors', () => {
   type TreeNode = { name: string; children: TreeNode[] };
-  type Tree = VertexTypes<string, TreeNode>;
+  type Tree = VertexDataAndChildHintTypes<string, TreeNode>;
   const nodes = {
     root: { name: 'root', children: ['child'] },
     child: { name: 'child', children: [] },
   };
   let sawParent = false;
-  const tree: TreeSource<Tree> = {
-    resolveRoot: () => ({
-      kind: 'found' as const,
-      vertex: {
-        vertexContent: { $data: 'root', $childHints: [nodes.child] },
+  const tree: TreeDiscoverySource<Tree> = {
+    resolveRootVertex: () => ({
+      kind: 'vertexResolved' as const,
+      resolvedVertexInput: {
+        vertexContentInput: {
+          $vertexData: 'root',
+          $childDiscoveryHints: [nodes.child],
+        },
       },
     }),
-    resolveChild: (hint, options) => {
-      sawParent = options.resolvedTreeView.has(
-        options.resolutionContext.parentVertexRef,
+    resolveChildVertexFromHint: (hint, options) => {
+      sawParent = options.liveResolvedTreeView.containsVertexHandle(
+        options.childDiscoveryContext.parentVertexHandle,
       );
       return {
-        kind: 'found' as const,
-        vertex: {
-          vertexContent: { $data: hint.name, $childHints: hint.children },
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: {
+            $vertexData: hint.name,
+            $childDiscoveryHints: hint.children,
+          },
         },
       };
     },
   };
-  const traversal = new DagTraversal<Tree>({ traversableTree: tree });
-  traversal.addVisitorFor(Order.ON_WORK_READY, (_vertex, options) => {
-    expect(options.resolvedGraphView).toBeDefined();
-    expect(options).not.toHaveProperty('resolvedTree');
+  const traversal = new DagTraversalBuilder<Tree>({
+    treeDiscoverySource: tree,
   });
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    (_vertex, options) => {
+      expect(options.liveResolvedGraphView).toBeDefined();
+      expect(options).not.toHaveProperty('resolvedTree');
+    },
+  );
 
-  traversal.createRunner().run();
+  traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
   expect(sawParent).toBe(true);
 });
 
 test('runs ObjectTreeSource with its real ancestor context', () => {
   const input = { branch: { leaf: 1 } };
-  const runner = new DagTraversal({
-    traversableTree: new ObjectTreeSource(input),
-  }).createRunner();
+  const runner = new DagTraversalBuilder({
+    treeDiscoverySource: new ObjectPropertyTreeSource(input),
+  }).createIndependentRunnerFromCurrentOptions();
 
   expect(
-    [...runner.iterateEvents({ emitEvents: ['workCompleted'] })].map(
-      ({ vertex }) => vertex.getData().key,
-    ),
+    [
+      ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+        deliveredEventKinds: ['workCompletionCommitted'],
+      }),
+    ].map(({ vertex }) => vertex.getVertexData().propertyKey),
   ).toEqual(['__TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__', 'branch', 'leaf']);
-  expect(runner.getResolvedGraphView().getVertexRefs()).toHaveLength(3);
+  expect(runner.getLiveResolvedGraphView().getVertexHandles()).toHaveLength(3);
 });
 
 test('tree source rejects graph metadata', () => {
   const tree = {
-    resolveRoot: () => ({
-      kind: 'found' as const,
-      vertex: {
-        vertexContent: { $data: 'root', $childHints: [] },
+    resolveRootVertex: () => ({
+      kind: 'vertexResolved' as const,
+      resolvedVertexInput: {
+        vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
         vertexId: 'root',
       },
     }),
-    resolveChild: () => ({
-      identity: null,
-      kind: 'omitted' as const,
-      satisfiesDependencies: true as const,
+    resolveChildVertexFromHint: () => ({
+      omittedVertexIdentity: null,
+      kind: 'vertexIntentionallyOmitted' as const,
+      satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
     }),
   };
-  const runner = new DagTraversal<TestGraph>({
+  const runner = new DagTraversalBuilder<TestGraph>({
     // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
-    traversableTree: tree,
-  }).createRunner();
+    treeDiscoverySource: tree,
+  }).createIndependentRunnerFromCurrentOptions();
 
-  expect(() => runner.run()).toThrow(/tree source.*metadata/i);
+  expect(() => runner.runUntilSuspendedOrTerminal()).toThrow(
+    /tree source.*metadata/i,
+  );
 });
 
 test.each([false, true])(
@@ -447,34 +544,43 @@ test.each([false, true])(
   (identifyHints) => {
     const hints = ['b', 'a'];
     const adapter: DagDiscoverySource<TestGraph> = {
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
-          vertexContent: { $data: 'root', $childHints: hints },
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: {
+            $vertexData: 'root',
+            $childDiscoveryHints: hints,
+          },
           vertexId: 'root',
         },
       }),
-      resolveChild: (hint) => ({
-        kind: 'found' as const,
-        vertex: {
-          vertexContent: { $data: hint, $childHints: [] },
+      resolveChildHint: (hint) => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
           vertexId: hint,
         },
       }),
       ...(identifyHints
-        ? { getVertexIdFromHint: (hint: string) => ({ vertexId: hint }) }
+        ? {
+            tryGetVertexIdentityFromHint: (hint: string) => ({
+              vertexId: hint,
+            }),
+          }
         : {}),
     };
     const events = [
-      ...new DagTraversal<TestGraph>({
-        traversableGraph: adapter,
-        transformChildHints: (children) => children.reverse(),
+      ...new DagTraversalBuilder<TestGraph>({
+        dagDiscoverySource: adapter,
+        transformChildHintsBeforeResolution: (children) => children.reverse(),
       })
-        .createRunner()
-        .iterateEvents({ emitEvents: ['workCompleted'] }),
+        .createIndependentRunnerFromCurrentOptions()
+        .runAndIterateObservationEventsUntilSuspendedOrTerminal({
+          deliveredEventKinds: ['workCompletionCommitted'],
+        }),
     ];
 
-    expect(events.map(({ vertex }) => vertex.getData())).toEqual([
+    expect(events.map(({ vertex }) => vertex.getVertexData())).toEqual([
       'root',
       'a',
       'b',
@@ -485,35 +591,42 @@ test.each([false, true])(
 
 test('tracks visitor metadata and concurrent-to-sequential chain state', () => {
   const seen: Array<[string, number, number, string | null, unknown]> = [];
-  const traversal = new DagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({
+  const traversal = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({
       root: { id: 'root', children: ['child'] },
       child: { id: 'child', children: [] },
     }),
   });
-  traversal.addVisitorFor(
+  traversal.registerVisitorCallbackForPhase(
     Order.ON_WORK_READY,
     () => ({
       commands: [
         {
-          commandName: Command.SET_VISITOR_CHAIN_STATE,
-          commandArguments: { state: 'shared' },
+          commandName: Command.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
+          commandArguments: { phaseChainState: 'shared' },
         },
       ],
     }),
-    { commandCommitMode: 'afterGroup' as const },
+    { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
   );
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex, options) => {
-    seen.push([
-      vertex.getData(),
-      options.phaseVisitIndex,
-      options.visitorIndex,
-      options.previousPhaseVertexRef?.getValue().getData() ?? null,
-      options.visitorChainState,
-    ]);
-  });
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    (vertex, options) => {
+      seen.push([
+        vertex.getVertexData(),
+        options.phaseVisitorChainAdmissionIndex,
+        options.visitorCallbackIndexInPhaseChain,
+        options.previousCommittedVisitVertexHandleForSamePhase
+          ?.getCurrentVertexView()
+          .getVertexData() ?? null,
+        options.currentVertexPhaseChainState,
+      ]);
+    },
+  );
 
-  traversal.createRunner().run();
+  traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
   expect(seen).toEqual([
     ['root', 0, 1, null, 'shared'],
     ['child', 1, 1, 'root', 'shared'],
@@ -522,18 +635,25 @@ test('tracks visitor metadata and concurrent-to-sequential chain state', () => {
 
 test('exposes lifecycle statuses while each visitor chain runs', () => {
   const statuses: string[] = [];
-  const traversal = new DagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({ root: { id: 'root', children: [] } }),
+  const traversal = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({ root: { id: 'root', children: [] } }),
   });
-  for (const order of [Order.ON_WORK_READY, Order.ON_SUBGRAPH_READY]) {
-    traversal.addVisitorFor(order, (_vertex, options) => {
+  for (const order of [
+    Order.ON_WORK_READY,
+    Order.ON_SUBGRAPH_COMPLETION_READY,
+  ]) {
+    traversal.registerVisitorCallbackForPhase(order, (_vertex, options) => {
       statuses.push(
-        options.resolvedGraphView.getVisitStageOf(options.vertexRef)!,
+        options.liveResolvedGraphView.getVertexVisitSchedulingStageOrNull(
+          options.vertexHandle,
+        )!,
       );
     });
   }
 
-  traversal.createRunner().run();
+  traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
   expect(statuses).toEqual([
     'INITIAL_VISIT_STARTED',
     'COMPLETION_VISIT_ELIGIBLE',
@@ -541,89 +661,117 @@ test('exposes lifecycle statuses while each visitor chain runs', () => {
 });
 
 test('tombstones deleted ids and closes later arrivals', () => {
-  const traversal = new DagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({
+  const traversal = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({
       root: { id: 'root', children: ['victim', 'survivor'] },
       victim: { id: 'victim', children: [] },
       survivor: { id: 'survivor', children: ['victim'] },
     }),
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
-    vertex.getData() === 'victim'
-      ? { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] }
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) =>
+    vertex.getVertexData() === 'victim'
+      ? {
+          commands: [
+            {
+              commandName:
+                Command.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+            },
+          ],
+        }
       : undefined,
   );
-  const graph = traversal.createRunner().run().getResolvedGraphView();
-  const survivor = graph.getVertexRefById('survivor')!;
+  const graph = traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal()
+    .getLiveResolvedGraphView();
+  const survivor = graph.getVertexHandleByIdOrNull('survivor')!;
 
-  expect(graph.getVertexRefById('victim')).toBeNull();
-  expect(graph.get(survivor)!.slots).toEqual([
-    { kind: 'deleted', hint: 'victim' },
-  ]);
+  expect(graph.getVertexHandleByIdOrNull('victim')).toBeNull();
+  expect(
+    graph.getVertexSnapshotOrNull(survivor)!.orderedChildDiscoverySlots,
+  ).toEqual([{ kind: 'targetDeleted', childDiscoveryHint: 'victim' }]);
 });
 
 test('deleting the graph root empties the graph', () => {
-  const traversal = new DagTraversal<TestGraph>({
-    traversableGraph: graphAdapter(),
+  const traversal = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter(),
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
-    vertex.getData() === 'root'
-      ? { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] }
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) =>
+    vertex.getVertexData() === 'root'
+      ? {
+          commands: [
+            {
+              commandName:
+                Command.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+            },
+          ],
+        }
       : undefined,
   );
-  const runner = traversal.createRunner().run();
+  const runner = traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
 
-  expect(runner.getResolvedGraphView().getRoot()).toBeNull();
-  expect(runner.getResolvedGraphView().getVertexRefs()).toEqual([]);
+  expect(
+    runner.getLiveResolvedGraphView().getDesignatedRootHandleOrNull(),
+  ).toBeNull();
+  expect(runner.getLiveResolvedGraphView().getVertexHandles()).toEqual([]);
 });
 
 test('rejects thenables and retains callback failures', () => {
   const error = new Error('visitor failed');
-  const traversal = new DagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({
+  const traversal = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({
       root: { id: 'root', children: [] },
     }),
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, () => {
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
     throw error;
   });
-  const runner = traversal.createRunner();
-  expect(() => runner.run()).toThrow(error);
-  expect(runner.getStatus()).toBe(Status.FAILED);
-  expect(() => runner.run()).toThrow(error);
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  expect(() => runner.runUntilSuspendedOrTerminal()).toThrow(error);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FAILED);
+  expect(() => runner.runUntilSuspendedOrTerminal()).toThrow(error);
 
-  const promised = new DagTraversal<TestGraph>({
-    traversableGraph: {
-      resolveRoot: () =>
+  const promised = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: {
+      resolveRootVertex: () =>
         Promise.resolve({
-          identity: null,
-          kind: 'omitted' as const,
-          satisfiesDependencies: true as const,
+          omittedVertexIdentity: null,
+          kind: 'vertexIntentionallyOmitted' as const,
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         }) as never,
-      resolveChild: () => ({
-        identity: null,
-        satisfiesDependencies: true as const,
-        kind: 'omitted' as const,
+      resolveChildHint: () => ({
+        omittedVertexIdentity: null,
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+        kind: 'vertexIntentionallyOmitted' as const,
       }),
     },
-  }).createRunner();
-  expect(() => promised.run()).toThrow(/synchronous.*thenable/i);
+  }).createIndependentRunnerFromCurrentOptions();
+  expect(() => promised.runUntilSuspendedOrTerminal()).toThrow(
+    /synchronous.*thenable/i,
+  );
 });
 
 test('enforces one iterator and resumes after consumer close', () => {
-  const runner = new DagTraversal<TestGraph>({
-    traversableGraph: graphAdapter(),
-  }).createRunner();
-  const first = runner.iterateEvents({ emitEvents: ['workCompleted'] });
-  expect(first.next().value?.vertex.getData()).toBe('root');
-  const second = runner.iterateEvents();
+  const runner = new DagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter(),
+  }).createIndependentRunnerFromCurrentOptions();
+  const first = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: ['workCompletionCommitted'],
+  });
+  expect(first.next().value?.vertex.getVertexData()).toBe('root');
+  const second =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   expect(() => second.next()).toThrow(/one active iterator/i);
   first.return?.(undefined);
-  expect(runner.isHalted()).toBe(true);
+  expect(runner.isSuspended()).toBe(true);
 
   expect(
-    [...runner.iterateEvents({ emitEvents: ['workCompleted'] })].map(
-      ({ vertex }) => vertex.getData(),
-    ),
+    [
+      ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+        deliveredEventKinds: ['workCompletionCommitted'],
+      }),
+    ].map(({ vertex }) => vertex.getVertexData()),
   ).toEqual(['A', 'B', 'join']);
 });

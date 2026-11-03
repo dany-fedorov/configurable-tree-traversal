@@ -1,194 +1,243 @@
 import {
-  vertexHandle,
+  createVertexHandleFacet,
   internalRef,
   resolutionContextView,
-  resolvedGraphView,
+  liveResolvedGraphView,
 } from './observationFacets';
 import type { VertexHandle } from './CTTRef';
-import type { ResolvedGraphView } from './ResolvedGraphView';
+import type { LiveResolvedGraphView } from './ResolvedGraphView';
 import { normalizePathOptions } from '@core/normalizePathOptions';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
-import type { MutableRef } from '@core/CTTRef';
-import type { TreeSource, TreeVertexResolution } from '@core/TraversableTree';
-import type { ResolvedTreeVertexTypes } from '@core/ResolvedTreeVertexTypes';
-import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type { MutableValueReference } from '@core/CTTRef';
+import type {
+  TreeDiscoverySource,
+  TreeVertexResolution,
+} from '@core/TraversableTree';
+import type { StoredTreeReferenceVertexTypes } from '@core/ResolvedTreeVertexTypes';
+import type { LiveResolvedTreeView } from '@core/ResolvedTreeView';
 import { GraphStore } from '@core/graph/GraphStore';
 import { registerTreeGraphStore } from '@core/graph/treeStoreCapabilities';
 import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
-export type InternalVertexResolutionContext<TTP extends VertexTypes> = {
-  depth: number;
-  parentVertex: Vertex<TTP>;
-  parentVertexRef: MutableRef<Vertex<TTP>>;
-  hintIndex: number;
-  vertexHint: TTP['VertexHint'];
+export type InternalChildDiscoveryContext<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = {
+  discoveryDepthInEdges: number;
+  parentVertexAtChildResolution: Vertex<InputVertexTypes>;
+  parentVertexHandle: MutableValueReference<Vertex<InputVertexTypes>>;
+  parentChildHintIndex: number;
+  childDiscoveryHint: InputVertexTypes['ChildHint'];
 };
 
-export type TreeVertexMetadata<TTP extends VertexTypes> = {
-  resolutionContext: InternalVertexResolutionContext<TTP> | null;
+export type TreeVertexDiscoveryMetadata<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = {
+  childDiscoveryContext: InternalChildDiscoveryContext<InputVertexTypes> | null;
 };
 
-export type TreeVertexRecordContent<TTP extends VertexTypes> = {
-  metadata: TreeVertexMetadata<TTP>;
-  children: MutableRef<Vertex<TTP>>[];
+export type TreeVertexTopologyRecordInput<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = {
+  metadata: TreeVertexDiscoveryMetadata<InputVertexTypes>;
+  childReferences: MutableValueReference<Vertex<InputVertexTypes>>[];
 };
 
-export class TreeVertexRecord<TTP extends VertexTypes>
-  implements TreeVertexRecordContent<TTP>
+export class MutableTreeVertexTopologyRecord<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> implements TreeVertexTopologyRecordInput<InputVertexTypes>
 {
-  readonly metadata: TreeVertexMetadata<TTP>;
-  readonly children: MutableRef<Vertex<TTP>>[];
+  readonly metadata: TreeVertexDiscoveryMetadata<InputVertexTypes>;
+  readonly childReferences: MutableValueReference<Vertex<InputVertexTypes>>[];
 
-  constructor(vertexContent: TreeVertexRecordContent<TTP>) {
+  constructor(vertexContent: TreeVertexTopologyRecordInput<InputVertexTypes>) {
     this.metadata = vertexContent.metadata;
-    this.children = vertexContent.children;
+    this.childReferences = vertexContent.childReferences;
   }
 
-  pushChildren(children: Array<MutableRef<Vertex<TTP>>>): void {
-    for (const child of children) {
-      this.children.push(child);
+  appendChildReferences(
+    childReferences: Array<MutableValueReference<Vertex<InputVertexTypes>>>,
+  ): void {
+    for (const child of childReferences) {
+      this.childReferences.push(child);
     }
   }
 
-  getResolutionContext(): InternalVertexResolutionContext<TTP> | null {
-    return this.metadata.resolutionContext;
+  getMutableChildDiscoveryContextOrNull(): InternalChildDiscoveryContext<InputVertexTypes> | null {
+    return this.metadata.childDiscoveryContext;
   }
 
-  setResolutionContext(
-    resolutionContext: InternalVertexResolutionContext<TTP> | null,
+  replaceChildDiscoveryContext(
+    childDiscoveryContext: InternalChildDiscoveryContext<InputVertexTypes> | null,
   ): void {
-    this.metadata.resolutionContext = resolutionContext;
+    this.metadata.childDiscoveryContext = childDiscoveryContext;
   }
 
-  getChildren(): MutableRef<Vertex<TTP>>[] {
-    return this.children;
+  getMutableChildReferenceList(): MutableValueReference<
+    Vertex<InputVertexTypes>
+  >[] {
+    return this.childReferences;
   }
 
-  getParent(): MutableRef<Vertex<TTP>> | null {
-    return this.metadata.resolutionContext?.parentVertexRef ?? null;
+  getParentVertexReferenceOrNull(): MutableValueReference<
+    Vertex<InputVertexTypes>
+  > | null {
+    return this.metadata.childDiscoveryContext?.parentVertexHandle ?? null;
   }
 
-  clone(
-    content?: Partial<TreeVertexRecordContent<TTP>>,
-  ): TreeVertexRecord<TTP> {
+  shallowCloneWithRecordOverrides(
+    content?: Partial<TreeVertexTopologyRecordInput<InputVertexTypes>>,
+  ): MutableTreeVertexTopologyRecord<InputVertexTypes> {
     const data = content?.metadata ?? this.metadata;
-    const children = content?.children ?? this.children;
-    return new TreeVertexRecord<TTP>({
+    const childReferences = content?.childReferences ?? this.childReferences;
+    return new MutableTreeVertexTopologyRecord<InputVertexTypes>({
       metadata: {
         ...data,
-        resolutionContext:
-          data.resolutionContext === null
+        childDiscoveryContext:
+          data.childDiscoveryContext === null
             ? null
-            : { ...data.resolutionContext },
+            : { ...data.childDiscoveryContext },
       },
-      children: children.slice(),
+      childReferences: childReferences.slice(),
     });
   }
 }
 
-export type ResolvedTreeMap<TTP extends VertexTypes> = Map<
-  MutableRef<Vertex<TTP>>,
-  TreeVertexRecord<TTP>
+export type MutableTreeVertexRecordMap<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = Map<
+  MutableValueReference<Vertex<InputVertexTypes>>,
+  MutableTreeVertexTopologyRecord<InputVertexTypes>
 >;
 
-export type GetPathToOptions = {
-  noRoot?: boolean | undefined;
-  noSelf?: boolean | undefined;
+export type StructuralAncestorPathOptions = {
+  includeDesignatedRoot?: boolean | undefined;
+  includeTargetVertex?: boolean | undefined;
 };
 
-export class ResolvedTreeStore<TTP extends VertexTypes>
-  implements TreeSource<ResolvedTreeVertexTypes<TTP>>
+export class MutableResolvedTreeStore<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> implements
+    TreeDiscoverySource<StoredTreeReferenceVertexTypes<InputVertexTypes>>
 {
-  private readonly store: GraphStore<TTP>;
-  private readonly readOnly: ResolvedTreeView<TTP>;
+  private readonly store: GraphStore<InputVertexTypes>;
+  private readonly readOnly: LiveResolvedTreeView<InputVertexTypes>;
 
   constructor(/*config: ResolvedTreeConfig<TTP, RW_TTP>*/) {
-    this.store = new GraphStore<TTP>('tree');
+    this.store = new GraphStore<InputVertexTypes>('tree');
     registerTreeGraphStore(this, this.store);
     this.readOnly = Object.freeze({
-      getRoot: () => vertexHandle(this.getRoot()),
-      has: (ref: VertexHandle<TTP>) => this.has(internalRef(ref)),
-      getChildrenOf: (ref: VertexHandle<TTP>) => {
-        const children = this.getChildrenOf(internalRef(ref));
+      getRootVertexHandleOrNull: () =>
+        createVertexHandleFacet(this.getRootVertexReferenceOrNull()),
+      containsVertexHandle: (ref: VertexHandle<InputVertexTypes>) =>
+        this.containsVertexReference(internalRef(ref)),
+      getChildVertexHandlesOrNull: (ref: VertexHandle<InputVertexTypes>) => {
+        const children = this.getDetachedChildReferenceListOrNull(
+          internalRef(ref),
+        );
         return children === null
           ? null
-          : Object.freeze(children.map((child) => vertexHandle(child)));
+          : Object.freeze(
+              children.map((child) => createVertexHandleFacet(child)),
+            );
       },
-      getParentOf: (ref: VertexHandle<TTP>) =>
-        vertexHandle(this.getParentOf(internalRef(ref))),
-      requirePathTo: (ref: VertexHandle<TTP>, options?: GetPathToOptions) =>
+      getParentVertexHandleOrNull: (ref: VertexHandle<InputVertexTypes>) =>
+        createVertexHandleFacet(
+          this.getParentVertexReferenceOrNull(internalRef(ref)),
+        ),
+      requireStructuralAncestorPathTo: (
+        ref: VertexHandle<InputVertexTypes>,
+        options?: StructuralAncestorPathOptions,
+      ) =>
         Object.freeze(
-          this.requirePathTo(internalRef(ref), options).map((item) =>
-            vertexHandle(item),
+          this.requireStructuralAncestorPathTo(internalRef(ref), options).map(
+            (item) => createVertexHandleFacet(item),
           ),
         ),
-      getResolutionContextOf: (ref: VertexHandle<TTP>) =>
+      getChildDiscoveryContextOrNull: (ref: VertexHandle<InputVertexTypes>) =>
         resolutionContextView(
-          this.get(internalRef(ref))?.getResolutionContext() ?? null,
+          this.getMutableVertexRecordOrNull(
+            internalRef(ref),
+          )?.getMutableChildDiscoveryContextOrNull() ?? null,
         ),
     });
   }
 
   /** A stable live facade without editing methods or mutable records. */
-  asReadOnly(): ResolvedTreeView<TTP> {
+  getLiveReadOnlyTreeView(): LiveResolvedTreeView<InputVertexTypes> {
     return this.readOnly;
   }
 
-  getRoot(): MutableRef<Vertex<TTP>> | null {
+  getRootVertexReferenceOrNull(): MutableValueReference<
+    Vertex<InputVertexTypes>
+  > | null {
     return this.store.graph.getRoot();
   }
 
-  setRoot(root: MutableRef<Vertex<TTP>>): void {
+  setRootVertexReference(
+    root: MutableValueReference<Vertex<InputVertexTypes>>,
+  ): void {
     this.store.setRoot(root);
   }
 
-  getResolvedGraphView(): ResolvedGraphView<TTP> {
-    return resolvedGraphView(this.store.graph);
+  getLiveResolvedGraphView(): LiveResolvedGraphView<InputVertexTypes> {
+    return liveResolvedGraphView(this.store.graph);
   }
 
-  getChildrenOf(
-    vertexRef: MutableRef<Vertex<TTP>>,
-  ): Array<MutableRef<Vertex<TTP>>> | null {
-    return this.get(vertexRef)?.getChildren().slice() ?? null;
+  getDetachedChildReferenceListOrNull(
+    vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>,
+  ): Array<MutableValueReference<Vertex<InputVertexTypes>>> | null {
+    return (
+      this.getMutableVertexRecordOrNull(vertexHandle)
+        ?.getMutableChildReferenceList()
+        .slice() ?? null
+    );
   }
 
-  getParentOf(
-    vertexRef: MutableRef<Vertex<TTP>>,
-  ): MutableRef<Vertex<TTP>> | null {
-    return this.get(vertexRef)?.getParent() ?? null;
+  getParentVertexReferenceOrNull(
+    vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>,
+  ): MutableValueReference<Vertex<InputVertexTypes>> | null {
+    return (
+      this.getMutableVertexRecordOrNull(
+        vertexHandle,
+      )?.getParentVertexReferenceOrNull() ?? null
+    );
   }
 
   private deleteChildOf(
-    parent: MutableRef<Vertex<TTP>>,
-    child: MutableRef<Vertex<TTP>>,
+    parent: MutableValueReference<Vertex<InputVertexTypes>>,
+    child: MutableValueReference<Vertex<InputVertexTypes>>,
   ): void {
-    const resolved = this.get(parent);
+    const resolved = this.getMutableVertexRecordOrNull(parent);
     if (resolved !== null) {
-      const newResolved = resolved.clone({
-        children: resolved.getChildren().filter((c) => c !== child),
+      const newResolved = resolved.shallowCloneWithRecordOverrides({
+        childReferences: resolved
+          .getMutableChildReferenceList()
+          .filter((c) => c !== child),
       });
-      this.set(parent, newResolved);
+      this.setVertexRecord(parent, newResolved);
     }
   }
 
-  deleteSubtree(vertexRef: MutableRef<Vertex<TTP>>): void {
-    const parent = this.getParentOf(vertexRef);
+  deleteSubtree(
+    vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>,
+  ): void {
+    const parent = this.getParentVertexReferenceOrNull(vertexHandle);
     if (parent !== null) {
-      this.deleteChildOf(parent, vertexRef);
+      this.deleteChildOf(parent, vertexHandle);
     }
 
-    const refsToDelete = [vertexRef];
-    const visited = new Set<MutableRef<Vertex<TTP>>>();
+    const refsToDelete = [vertexHandle];
+    const visited = new Set<MutableValueReference<Vertex<InputVertexTypes>>>();
     while (refsToDelete.length > 0) {
       const currentRef = refsToDelete.pop();
       if (currentRef === undefined || visited.has(currentRef)) {
         continue;
       }
       visited.add(currentRef);
-      const currentResolved = this.get(currentRef);
+      const currentResolved = this.getMutableVertexRecordOrNull(currentRef);
       if (currentResolved !== null) {
-        for (const childRef of currentResolved.getChildren()) {
+        for (const childRef of currentResolved.getMutableChildReferenceList()) {
           refsToDelete.push(childRef);
         }
       }
@@ -196,51 +245,65 @@ export class ResolvedTreeStore<TTP extends VertexTypes>
     this.store.removeVertices(visited);
   }
 
-  has(vertexRef: MutableRef<Vertex<TTP>>): boolean {
-    return this.store.graph.has(vertexRef);
+  containsVertexReference(
+    vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>,
+  ): boolean {
+    return this.store.graph.has(vertexHandle);
   }
 
-  get(vertexRef: MutableRef<Vertex<TTP>>): TreeVertexRecord<TTP> | null {
-    return this.store.getTreeRecord(vertexRef);
+  getMutableVertexRecordOrNull(
+    vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>,
+  ): MutableTreeVertexTopologyRecord<InputVertexTypes> | null {
+    return this.store.getTreeRecord(vertexHandle);
   }
 
-  set(
-    vertexRef: MutableRef<Vertex<TTP>>,
-    vertexResolved: TreeVertexRecord<TTP>,
+  setVertexRecord(
+    vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>,
+    vertexResolved: MutableTreeVertexTopologyRecord<InputVertexTypes>,
   ): void {
-    this.store.setTreeRecord(vertexRef, vertexResolved);
+    this.store.setTreeRecord(vertexHandle, vertexResolved);
   }
 
-  getResolutionContextOf(
-    vertexRef: MutableRef<Vertex<TTP>>,
-  ): InternalVertexResolutionContext<TTP> | null {
-    const context = this.get(vertexRef)?.getResolutionContext() ?? null;
+  getDetachedChildDiscoveryContextOrNull(
+    vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>,
+  ): InternalChildDiscoveryContext<InputVertexTypes> | null {
+    const context =
+      this.getMutableVertexRecordOrNull(
+        vertexHandle,
+      )?.getMutableChildDiscoveryContextOrNull() ?? null;
     return context === null ? null : { ...context };
   }
 
-  pushChildrenTo(
-    vertexRef: MutableRef<Vertex<TTP>>,
-    children: Array<MutableRef<Vertex<TTP>>>,
+  appendChildReferencesTo(
+    vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>,
+    children: Array<MutableValueReference<Vertex<InputVertexTypes>>>,
   ): void {
-    const parentVertexResolved = this.get(vertexRef);
+    const parentVertexResolved =
+      this.getMutableVertexRecordOrNull(vertexHandle);
     if (parentVertexResolved == null) {
-      throw new Error(`Could not find ref - ${jsonStringifySafe(vertexRef)}`);
+      throw new Error(
+        `Could not find ref - ${jsonStringifySafe(vertexHandle)}`,
+      );
     }
-    parentVertexResolved.pushChildren(children);
+    parentVertexResolved.appendChildReferences(children);
   }
 
-  requirePathTo(
-    vertexRef: MutableRef<Vertex<TTP>>,
-    options?: GetPathToOptions,
-  ): MutableRef<Vertex<TTP>>[] {
+  requireStructuralAncestorPathTo(
+    vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>,
+    options?: StructuralAncestorPathOptions,
+  ): MutableValueReference<Vertex<InputVertexTypes>>[] {
     const pathOptions = normalizePathOptions(options);
-    if (!this.has(vertexRef)) {
-      throw new Error(`Could not find ref - ${jsonStringifySafe(vertexRef)}`);
+    if (!this.containsVertexReference(vertexHandle)) {
+      throw new Error(
+        `Could not find ref - ${jsonStringifySafe(vertexHandle)}`,
+      );
     }
-    let curVertex = vertexRef;
-    const reversedPath: MutableRef<Vertex<TTP>>[] = [curVertex];
+    let curVertex = vertexHandle;
+    const reversedPath: MutableValueReference<Vertex<InputVertexTypes>>[] = [
+      curVertex,
+    ];
     while (true) {
-      const parent = this.getParentOf(curVertex);
+      const parent = this.getParentVertexReferenceOrNull(curVertex);
       if (parent === null) {
         break;
       } else {
@@ -249,43 +312,50 @@ export class ResolvedTreeStore<TTP extends VertexTypes>
       }
     }
     let straightPath = reversedPath.reverse();
-    if (pathOptions.noRoot === true && straightPath[0] === this.getRoot()) {
+    if (
+      pathOptions.includeDesignatedRoot === false &&
+      straightPath[0] === this.getRootVertexReferenceOrNull()
+    ) {
       straightPath = straightPath.slice(1);
     }
     if (
-      pathOptions.noSelf === true &&
-      straightPath[straightPath.length - 1] === vertexRef
+      pathOptions.includeTargetVertex === false &&
+      straightPath[straightPath.length - 1] === vertexHandle
     ) {
       straightPath = straightPath.slice(0, -1);
     }
     return straightPath;
   }
 
-  resolveRoot(): TreeVertexResolution<ResolvedTreeVertexTypes<TTP>> {
-    const root = this.getRoot();
+  resolveRootVertex(): TreeVertexResolution<
+    StoredTreeReferenceVertexTypes<InputVertexTypes>
+  > {
+    const root = this.getRootVertexReferenceOrNull();
     if (root === null) {
-      return { kind: 'omitted' };
+      return { kind: 'vertexIntentionallyOmitted' };
     }
     return {
-      kind: 'found',
-      vertex: {
-        vertexContent: {
-          $data: root,
-          $childHints: this.getChildrenOf(root) ?? [],
+      kind: 'vertexResolved',
+      resolvedVertexInput: {
+        vertexContentInput: {
+          $vertexData: root,
+          $childDiscoveryHints:
+            this.getDetachedChildReferenceListOrNull(root) ?? [],
         },
       },
     };
   }
 
-  resolveChild(
-    vertexHint: ResolvedTreeVertexTypes<TTP>['VertexHint'],
-  ): TreeVertexResolution<ResolvedTreeVertexTypes<TTP>> {
+  resolveChildVertexFromHint(
+    vertexHint: StoredTreeReferenceVertexTypes<InputVertexTypes>['ChildHint'],
+  ): TreeVertexResolution<StoredTreeReferenceVertexTypes<InputVertexTypes>> {
     return {
-      kind: 'found',
-      vertex: {
-        vertexContent: {
-          $data: vertexHint,
-          $childHints: this.getChildrenOf(vertexHint) ?? [],
+      kind: 'vertexResolved',
+      resolvedVertexInput: {
+        vertexContentInput: {
+          $vertexData: vertexHint,
+          $childDiscoveryHints:
+            this.getDetachedChildReferenceListOrNull(vertexHint) ?? [],
         },
       },
     };
@@ -293,10 +363,12 @@ export class ResolvedTreeStore<TTP extends VertexTypes>
 }
 
 /** Stable detached discovery metadata; all CTT references are restricted. */
-export type VertexResolutionContext<T extends VertexTypes> = Readonly<{
-  depth: number;
-  parentVertex: import('./Vertex').VertexView<T>;
-  parentVertexRef: import('./CTTRef').VertexHandle<T>;
-  hintIndex: number;
-  vertexHint: T['VertexHint'];
+export type ChildDiscoveryContext<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = Readonly<{
+  discoveryDepthInEdges: number;
+  parentVertexAtChildResolution: import('./Vertex').VertexView<InputVertexTypes>;
+  parentVertexHandle: import('./CTTRef').VertexHandle<InputVertexTypes>;
+  parentChildHintIndex: number;
+  childDiscoveryHint: InputVertexTypes['ChildHint'];
 }>;

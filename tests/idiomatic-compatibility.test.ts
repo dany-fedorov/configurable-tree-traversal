@@ -2,29 +2,31 @@ import type { VertexView } from '../src';
 import * as api from '../src';
 import {
   Vertex,
-  MutableRef,
-  DepthFirstTreeTraversal,
-  AsyncDepthFirstTreeTraversal,
-  DagTraversal,
-  DepthFirstPhase as F,
+  MutableValueReference,
+  DepthFirstTreeTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  DepthFirstTreeVisitPhase as F,
   DagVisitorPhase as D,
-  ObjectTreeSource,
-  traverseTreeDepthFirst,
-  traverseTreeBreadthFirst,
+  ObjectPropertyTreeSource,
+  runTreeDepthFirstUntilSuspendedOrTerminal,
+  runTreeBreadthFirstUntilSuspendedOrTerminal,
   traverseDag,
-  traverseTreeDepthFirstAsync,
-  traverseTreeBreadthFirstAsync,
+  runTreeDepthFirstUntilSuspendedOrTerminalAsync,
+  runTreeBreadthFirstUntilSuspendedOrTerminalAsync,
   traverseDagAsync,
 } from '../src';
 
-type T = { VertexData: string; VertexHint: string };
-const content = { $data: 'root', $childHints: [] as string[] };
+type T = { VertexData: string; ChildHint: string };
+const content = { $vertexData: 'root', $childDiscoveryHints: [] as string[] };
 const source = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: { vertexContent: content },
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: { vertexContentInput: content },
   }),
-  resolveChild: () => ({ kind: 'omitted' as const }),
+  resolveChildVertexFromHint: () => ({
+    kind: 'vertexIntentionallyOmitted' as const,
+  }),
 };
 
 test.each([
@@ -33,19 +35,23 @@ test.each([
   { ...content, $c: [] },
 ])('rejects retired vertex content %#', (value) => {
   expect(() => new Vertex<T>(value as never)).toThrow(TypeError);
-  expect(() => new Vertex<T>(content).clone(value as never)).toThrow(TypeError);
+  expect(() =>
+    new Vertex<T>(content).createEditableShallowCloneWithContentOverrides(
+      value as never,
+    ),
+  ).toThrow(TypeError);
 });
 
 test('retired accessors and public runtime exports are absent', () => {
   const vertex = new Vertex<T>(content);
   expect('$d' in vertex).toBe(false);
   expect('$c' in vertex).toBe(false);
-  expect('getId' in new MutableRef(vertex)).toBe(false);
-  const runner = new DagTraversal<T>({ traversableTree: source })
-    .createRunner()
-    .run();
-  expect('getIdOf' in runner.getResolvedGraphView()).toBe(false);
-  expect('getVertexById' in runner.getResolvedGraphView()).toBe(false);
+  expect('getId' in new MutableValueReference(vertex)).toBe(false);
+  const runner = new DagTraversalBuilder<T>({ treeDiscoverySource: source })
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
+  expect('getIdOf' in runner.getLiveResolvedGraphView()).toBe(false);
+  expect('getVertexById' in runner.getLiveResolvedGraphView()).toBe(false);
   expect('DEFER_READY' in api).toBe(false);
   expect('TraversalVisitorFunctionResolutionStyle' in api).toBe(false);
   expect(
@@ -55,16 +61,20 @@ test('retired accessors and public runtime exports are absent', () => {
 
 for (const result of [{ vertexContent: content }, { vertexContent: null }]) {
   test('rejects untagged sync and async tree results', async () => {
-    const invalid = { ...source, resolveRoot: () => result };
+    const invalid = { ...source, resolveRootVertex: () => result };
     expect(() =>
-      new DepthFirstTreeTraversal<T>({ traversableTree: invalid as never })
-        .createRunner()
-        .run(),
+      new DepthFirstTreeTraversalBuilder<T>({
+        treeDiscoverySource: invalid as never,
+      })
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal(),
     ).toThrow(TypeError);
     await expect(
-      new AsyncDepthFirstTreeTraversal<T>({ traversableTree: invalid as never })
-        .createRunner()
-        .run(),
+      new AsyncDepthFirstTreeTraversalBuilder<T>({
+        treeDiscoverySource: invalid as never,
+      })
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal(),
     ).rejects.toThrow(TypeError);
   });
 }
@@ -75,32 +85,40 @@ test.each([
   'disableVisitorFunctionsFor',
 ])('rejects retired execution selector %s before invoking a source', (key) => {
   let calls = 0;
-  const runner = new DepthFirstTreeTraversal<T>({
-    traversableTree: {
+  const runner = new DepthFirstTreeTraversalBuilder<T>({
+    treeDiscoverySource: {
       ...source,
-      resolveRoot() {
+      resolveRootVertex() {
         calls++;
-        return source.resolveRoot();
+        return source.resolveRootVertex();
       },
     },
-  }).createRunner();
-  expect(() => runner.run({ [key]: [] } as never)).toThrow(TypeError);
+  }).createIndependentRunnerFromCurrentOptions();
+  expect(() =>
+    runner.runUntilSuspendedOrTerminal({ [key]: [] } as never),
+  ).toThrow(TypeError);
   expect(calls).toBe(0);
-  runner.run();
+  runner.runUntilSuspendedOrTerminal();
   expect(calls).toBe(1);
 });
 
 test('rejects retired registration policy atomically', () => {
-  const traversal = new DepthFirstTreeTraversal<T>({ traversableTree: source });
+  const traversal = new DepthFirstTreeTraversalBuilder<T>({
+    treeDiscoverySource: source,
+  });
   expect(() =>
-    traversal.addVisitorFor(F.PRE_ORDER, {
+    traversal.registerVisitorCallbackForPhase(F.BEFORE_CHILD_EXPANSION, {
       visitor: () => undefined,
       resolutionStyle: 'CONCURRENT',
     } as never),
   ).toThrow(TypeError);
-  expect(traversal.listVisitorsFor(F.PRE_ORDER)).toEqual([]);
+  expect(
+    traversal.getDetachedVisitorRegistrationRecordsForPhase(
+      F.BEFORE_CHILD_EXPANSION,
+    ),
+  ).toEqual([]);
   expect(() =>
-    traversal.addVisitorGroupFor(F.PRE_ORDER, {
+    traversal.appendVisitorGroupForPhase(F.BEFORE_CHILD_EXPANSION, {
       visitors: [],
       resolutionStyle: 'CONCURRENT',
     } as never),
@@ -114,14 +132,14 @@ test('rejects old hint commands and symbol callback results', () => {
       commands: [
         {
           commandName: 'REWRITE_VERTEX_HINTS_ON_PRE_ORDER',
-          commandArguments: { newHints: [] },
+          commandArguments: { replacementChildHints: [] },
         },
       ],
     },
   ]) {
     expect(() =>
       traverseDag({
-        traversableTree: source,
+        treeDiscoverySource: source,
         visitors: { [D.ON_WORK_READY]: (() => result) as never },
       }),
     ).toThrow(TypeError);
@@ -129,54 +147,62 @@ test('rejects old hint commands and symbol callback results', () => {
 });
 
 test('rejects boolean settlement feedback without consuming the generation', () => {
-  const runner = new DagTraversal<T>({
-    traversableTree: source,
-    workCompletion: 'externalSettlement',
+  const runner = new DagTraversalBuilder<T>({
+    treeDiscoverySource: source,
+    workCompletionPolicy: 'requireExternalWorkSettlement',
   })
-    .createRunner()
-    .run();
-  const work = runner.summary().awaitingSettlement[0]!;
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
+  const work = runner.captureProgressSnapshot().workAwaitingSettlement[0]!;
   for (const outcome of [{ ok: true }, { ok: false, error: 'failure' }]) {
     expect(() =>
-      runner.settle(work.vertexId, outcome as never, work.generation),
+      runner.settleDeferredWork(
+        work.vertexId,
+        outcome as never,
+        work.settlementToken,
+      ),
     ).toThrow(TypeError);
   }
   expect(
-    runner.settle(work.vertexId, { kind: 'workCompleted' }, work.generation),
+    runner.settleDeferredWork(
+      work.vertexId,
+      { kind: 'workCompleted' },
+      work.settlementToken,
+    ),
   ).toBe(true);
 });
 
 test('rejects undefined prerequisite resolution', () => {
   const graph = {
     ...source,
-    resolveRoot: () => ({
-      kind: 'found' as const,
-      vertex: {
+    resolveRootVertex: () => ({
+      kind: 'vertexResolved' as const,
+      resolvedVertexInput: {
         vertexId: 'root',
-        vertexContent: content,
-        dependsOnWork: ['missing'],
+        vertexContentInput: content,
+        workWaitsForWorkOf: ['missing'],
       },
     }),
-    resolvePrerequisite: () => undefined,
+    resolvePrerequisiteByVertexId: () => undefined,
   };
   expect(() =>
-    new DagTraversal<T>({ traversableGraph: graph as never })
-      .createRunner()
-      .run(),
+    new DagTraversalBuilder<T>({ dagDiscoverySource: graph as never })
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal(),
   ).toThrow(TypeError);
 });
 
 test('all convenience helpers reject positional calls before discovery', () => {
   for (const helper of [
-    traverseTreeDepthFirst,
-    traverseTreeBreadthFirst,
+    runTreeDepthFirstUntilSuspendedOrTerminal,
+    runTreeBreadthFirstUntilSuspendedOrTerminal,
     traverseDag,
-    traverseTreeDepthFirstAsync,
-    traverseTreeBreadthFirstAsync,
+    runTreeDepthFirstUntilSuspendedOrTerminalAsync,
+    runTreeBreadthFirstUntilSuspendedOrTerminalAsync,
     traverseDagAsync,
   ]) {
     const positional = helper as unknown as (...args: unknown[]) => unknown;
-    expect(() => positional({ traversableTree: source }, null)).toThrow(
+    expect(() => positional({ treeDiscoverySource: source }, null)).toThrow(
       TypeError,
     );
   }
@@ -184,21 +210,28 @@ test('all convenience helpers reject positional calls before discovery', () => {
 
 test('rejects retired object hooks and returnMe results', () => {
   expect(
-    () => new ObjectTreeSource({}, { makeVertexHook: () => ({}) } as never),
+    () =>
+      new ObjectPropertyTreeSource({}, { makeVertexHook: () => ({}) } as never),
   ).toThrow(TypeError);
-  const objectSource = new ObjectTreeSource(
+  const objectSource = new ObjectPropertyTreeSource(
     { child: 1 },
-    { resolveChildHook: (() => ({ returnMe: content })) as never },
+    {
+      resolveChildPropertyOrUseDefault: (() => ({
+        returnMe: content,
+      })) as never,
+    },
   );
   expect(() =>
-    traverseTreeDepthFirst({ traversableTree: objectSource }),
+    runTreeDepthFirstUntilSuspendedOrTerminal({
+      treeDiscoverySource: objectSource,
+    }),
   ).toThrow(TypeError);
 });
 
 test('object built-in source returns a tagged root', () => {
-  expect(new ObjectTreeSource({}).resolveRoot()).toHaveProperty(
+  expect(new ObjectPropertyTreeSource({}).resolveRootVertex()).toHaveProperty(
     'kind',
-    'found',
+    'vertexResolved',
   );
 });
 
@@ -206,40 +239,63 @@ test('query records round-trip group identity but receive freshly assigned index
   const seen: number[] = [];
   const visitor = (
     _vertex: VertexView<T>,
-    context: { registration: { addedIndex: number } },
+    context: {
+      visitorRegistrationMetadata: { phaseRegistrationInsertionIndex: number };
+    },
   ) => {
-    seen.push(context.registration.addedIndex);
+    seen.push(
+      context.visitorRegistrationMetadata.phaseRegistrationInsertionIndex,
+    );
   };
-  const traversal = new DepthFirstTreeTraversal<T>({ traversableTree: source });
-  traversal.addVisitorGroupFor(F.PRE_ORDER, {
-    visitors: [visitor, visitor],
-    commandCommitMode: 'afterGroup',
+  const traversal = new DepthFirstTreeTraversalBuilder<T>({
+    treeDiscoverySource: source,
   });
-  const records = traversal.listVisitorsFor(F.PRE_ORDER);
+  traversal.appendVisitorGroupForPhase(F.BEFORE_CHILD_EXPANSION, {
+    visitors: [visitor, visitor],
+    visitorCommandCommitTiming: 'afterContiguousVisitorBatch',
+  });
+  const records = traversal.getDetachedVisitorRegistrationRecordsForPhase(
+    F.BEFORE_CHILD_EXPANSION,
+  );
   const group = records[0]!.visitorGroup;
-  records[0]!.addedIndex = 200;
-  records[1]!.addedIndex = -20;
-  traversal.setVisitorsFor(F.PRE_ORDER, records);
-  const replaced = traversal.listVisitorsFor(F.PRE_ORDER);
-  expect(replaced.map((record) => record.addedIndex)).toEqual([0, 1]);
+  records[0]!.phaseRegistrationInsertionIndex = 200;
+  records[1]!.phaseRegistrationInsertionIndex = -20;
+  traversal.replaceVisitorDefinitionsForPhase(
+    F.BEFORE_CHILD_EXPANSION,
+    records,
+  );
+  const replaced = traversal.getDetachedVisitorRegistrationRecordsForPhase(
+    F.BEFORE_CHILD_EXPANSION,
+  );
+  expect(
+    replaced.map((record) => record.phaseRegistrationInsertionIndex),
+  ).toEqual([0, 1]);
   expect(replaced[0]!.visitor).toBe(visitor);
   expect(replaced[0]!.visitorGroup).toBe(group);
   expect(replaced[1]!.visitorGroup).toBe(group);
   expect(replaced[0]).not.toBe(records[0]);
   expect(replaced[0]).not.toHaveProperty('resolutionStyle');
-  traversal.createRunner().run();
+  traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
   expect(seen).toEqual([0, 1]);
 });
 
 test('grouped phase inputs reject retired policy before replacing registrations', () => {
-  const traversal = new DepthFirstTreeTraversal<T>({ traversableTree: source });
+  const traversal = new DepthFirstTreeTraversalBuilder<T>({
+    treeDiscoverySource: source,
+  });
   const visitor = () => undefined;
-  traversal.addVisitorFor(F.PRE_ORDER, visitor);
+  traversal.registerVisitorCallbackForPhase(F.BEFORE_CHILD_EXPANSION, visitor);
   expect(() =>
-    traversal.setVisitorsFor(F.PRE_ORDER, {
+    traversal.replaceVisitorDefinitionsForPhase(F.BEFORE_CHILD_EXPANSION, {
       groups: [],
       resolutionStyle: undefined,
     } as never),
   ).toThrow(TypeError);
-  expect(traversal.listVisitorsFor(F.PRE_ORDER)[0]!.visitor).toBe(visitor);
+  expect(
+    traversal.getDetachedVisitorRegistrationRecordsForPhase(
+      F.BEFORE_CHILD_EXPANSION,
+    )[0]!.visitor,
+  ).toBe(visitor);
 });

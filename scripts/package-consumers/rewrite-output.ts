@@ -1,28 +1,28 @@
 // Packed public contracts; exercise actual calls under both declaration loaders.
 import {
-  ObjectTreeSource,
+  ObjectPropertyTreeSource,
   objectRewrite as rewriteApi,
   rewriteObject,
   type VertexHandle,
-  type VertexTypes,
-  createObjectMutationBinder,
-  type ObjectRewriteCallback,
-  type ObjectRewriteInput,
-  type ObjectRewriteContext,
-  type ObjectTreeVertexTypes,
-  type ResolvedTreeVertexTypes,
-  type ObjectPropertyPatch,
-  DepthFirstPhase,
+  type VertexDataAndChildHintTypes,
+  createObjectPropertyMutationHelperBinder,
+  type ObjectPropertyPostOrderRewriteCallback,
+  type ObjectPropertyRewriteInput,
+  type ObjectPropertyRewriteContext,
+  type ObjectPropertyTreeVertexTypes,
+  type StoredTreeReferenceVertexTypes,
+  type ObjectPropertyKeyValuePatch,
+  DepthFirstTreeVisitPhase,
   TraversalVisitorCommandName,
-  type ObjectCurrentVertexTypes,
-  traverseTreeDepthFirst,
-  rewriteObjectAs,
-  type ObjectTreeOptions,
-  type RewriteObjectOptions,
+  type LiveObjectPropertyVertexTypes,
+  runTreeDepthFirstUntilSuspendedOrTerminal,
+  rewriteObjectWithAssertedOutputType,
+  type ObjectPropertyTreeSourceOptions,
+  type ObjectPropertyRewriteOptions,
 } from 'configurable-tree-traversal';
 import {
   rewriteObject as subpathRewriteObject,
-  rewriteObjectAs as subpathRewriteObjectAs,
+  rewriteObjectWithAssertedOutputType as subpathRewriteObjectAs,
 } from 'configurable-tree-traversal/tools/rewrite-object';
 
 // @ts-expect-error Reconstruction alone does not preserve arbitrary input shape.
@@ -30,9 +30,12 @@ capturedOutputValue(rewriteObject({ count: 1 }))!.count;
 const changed = rewriteObject(
   { count: 1 },
   {
-    rewrite: ({ key }) =>
+    rewritePropertyAfterChildTraversal: ({ propertyKey: key }) =>
       key === 'count'
-        ? { kind: 'rewrite', patch: { key: 'renamed' } }
+        ? {
+            kind: 'patchPropertyKeyOrValue',
+            propertyPatch: { propertyKey: 'renamed' },
+          }
         : undefined,
   },
 );
@@ -40,22 +43,25 @@ const changed = rewriteObject(
 capturedOutputValue(changed)!.count;
 // @ts-expect-error The final output default is conservative too.
 outputValue(changed)!.count;
-const typed = rewriteObjectAs<{ renamed: number }>(
+const typed = rewriteObjectWithAssertedOutputType<{ renamed: number }>(
   { count: 1 },
   {
-    rewrite: ({ key }) =>
+    rewritePropertyAfterChildTraversal: ({ propertyKey: key }) =>
       key === 'count'
-        ? { kind: 'rewrite', patch: { key: 'renamed' } }
+        ? {
+            kind: 'patchPropertyKeyOrValue',
+            propertyPatch: { propertyKey: 'renamed' },
+          }
         : undefined,
   },
 );
 const value: number = outputValue(typed)!.renamed;
 const namespaceValue: number = outputValue(
-  rewriteApi.rewriteObjectAs<number>(1),
+  rewriteApi.rewriteObjectWithAssertedOutputType<number>(1),
 )!;
 const subpathValue: number = outputValue(subpathRewriteObjectAs<number>(1))!;
 const inferred = rewriteObject(1, {
-  convertRootValue: () => ({ converted: true }),
+  convertPresentRootOutputValue: () => ({ converted: true }),
 });
 const converted: boolean = outputValue(inferred)!.converted;
 const snapshotConverted: boolean = capturedOutputValue(inferred)!.converted;
@@ -69,27 +75,36 @@ const explicit = rewriteObject<
   unknown
 >({});
 const explicitValue: number = outputValue(explicit)!.renamed;
-const source = new ObjectTreeSource({ count: 1 });
+const source = new ObjectPropertyTreeSource({ count: 1 });
 // @ts-expect-error The rewrite helper owns its source.
-rewriteObject({}, { traversableTree: source });
+rewriteObject({}, { treeDiscoverySource: source });
 // @ts-expect-error Presence is invalid even with undefined.
-rewriteObject({}, { traversableTree: undefined });
+rewriteObject({}, { treeDiscoverySource: undefined });
 const optionsWithSource = {
-  traversableTree: source,
-  assembleCompositesBeforeRewrite: true,
+  treeDiscoverySource: source,
+  includeAssembledValueInRewriteInput: true,
 };
 // @ts-expect-error Pretyped options cannot provide an ignored source.
 rewriteObject({}, optionsWithSource);
-// @ts-expect-error The explicit helper also owns its source.
-rewriteObjectAs<number>({}, { traversableTree: source });
+rewriteObjectWithAssertedOutputType<number>(
+  {},
+  // @ts-expect-error The explicit helper also owns its source.
+  { treeDiscoverySource: source },
+);
 // @ts-expect-error The explicit helper rejects pretyped source options.
-rewriteObjectAs<number>({}, optionsWithSource);
-// @ts-expect-error The explicit helper rejects a present undefined source.
-rewriteObjectAs<number>({}, { traversableTree: undefined });
-rewriteObjectAs<unknown>(
+rewriteObjectWithAssertedOutputType<number>({}, optionsWithSource);
+rewriteObjectWithAssertedOutputType<number>(
+  {},
+  // @ts-expect-error The explicit helper rejects a present undefined source.
+  { treeDiscoverySource: undefined },
+);
+rewriteObjectWithAssertedOutputType<unknown>(
   {},
   {
-    rewrite: ({ value, key }) => {
+    rewritePropertyAfterChildTraversal: ({
+      propertyValue: value,
+      propertyKey: key,
+    }) => {
       const propertyKey: PropertyKey = key;
       // @ts-expect-error Property values remain unknown despite the explicit output selection.
       const numeric: number = value;
@@ -108,38 +123,43 @@ void [
 ];
 
 const rootAndSubpath: typeof subpathRewriteObject = rewriteObject;
-declare const vertexRef: VertexHandle<VertexTypes>;
-const genericRef: VertexHandle<VertexTypes> = vertexRef;
+declare const vertexHandle: VertexHandle<VertexDataAndChildHintTypes>;
+const genericRef: VertexHandle<VertexDataAndChildHintTypes> = vertexHandle;
 void [rootAndSubpath, genericRef];
 
 rewriteObject<number, string, number, unknown, symbol, string>(1, {
-  getRootPropertyFromInputObject: (value) => ({ key: 'root', value }),
-  getChildrenOfProperty: () => [],
-  rewrite(prop, context) {
+  mapInputToRootProperty: (value) => ({
+    propertyKey: 'root',
+    propertyValue: value,
+  }),
+  enumerateChildPropertyHints: () => [],
+  rewritePropertyAfterChildTraversal(prop, context) {
     // @ts-expect-error A configured visitor can already have rewritten the value.
-    const value: number = prop.value;
+    const value: number = prop.propertyValue;
     // @ts-expect-error Current keys include output keys.
-    const key: string = prop.key;
+    const key: string = prop.propertyKey;
     // @ts-expect-error The live vertex includes rewritten output values.
-    const vertexValue: number = context.vertex.getData().value;
+    const vertexValue: number = context.vertex.getVertexData().propertyValue;
     // @ts-expect-error The live reference includes rewritten output values.
-    const refValue: number = context.vertexRef.getValue().getData().value;
+    const refValue: number = context.vertexHandle
+      .getCurrentVertexView()
+      .getVertexData().propertyValue;
     // @ts-expect-error The live tree includes rewritten output values.
-    const treeValue: number = context.resolvedTreeView
-      .getRoot()!
-      .getValue()
-      .getData().value;
+    const treeValue: number = context.liveResolvedTreeView
+      .getRootVertexHandleOrNull()!
+      .getCurrentVertexView()
+      .getVertexData().propertyValue;
     // @ts-expect-error Previously visited vertices can already be rewritten.
     const previousValue: number = context
-      .previousPhaseVertexRef!.getValue()
-      .getData().value;
+      .previousCommittedVisitVertexHandleForSamePhase!.getCurrentVertexView()
+      .getVertexData().propertyValue;
     // @ts-expect-error Live paths include output keys.
-    const path: string[] = context.getKeyPath();
+    const path: string[] = context.requirePropertyKeyPathFromRoot();
     const originalValue: number = context
-      .originalTreeView!.getRoot()!
-      .getValue()
-      .getData().value;
-    const assembled: unknown = prop.assembledComposite;
+      .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+      .getCurrentVertexView()
+      .getVertexData().propertyValue;
+    const assembled: unknown = prop.assembledValueFromCurrentChildren;
     void [
       value,
       key,
@@ -153,73 +173,93 @@ rewriteObject<number, string, number, unknown, symbol, string>(1, {
     ];
     return undefined;
   },
-  isArray(prop) {
+  matchesArrayAssemblyPredicate(prop) {
     // @ts-expect-error Classifiers inspect current input-or-output data.
-    const value: number = prop.value;
+    const value: number = prop.propertyValue;
     void value;
     return false;
   },
-  isObject(prop) {
+  matchesObjectAssemblyPredicate(prop) {
     // @ts-expect-error Classifiers inspect current input-or-output data.
-    const value: number = prop.value;
+    const value: number = prop.propertyValue;
     void value;
     return false;
   },
-  assembleArray(children, prop, [vertex, context]) {
+  assembleArrayValueFromChildProperties(children, prop, [vertex, context]) {
     // @ts-expect-error Assemblers inspect current input-or-output data.
-    const value: number = prop.value;
+    const value: number = prop.propertyValue;
     // @ts-expect-error An unchanged child can retain its input value.
-    const childValue: string = children[0]!.value;
-    const liveValue: unknown = vertex.getData().value;
-    const pathValue: unknown = context.vertexRef.getValue().getData().value;
+    const childValue: string = children[0]!.propertyValue;
+    const liveValue: unknown = vertex.getVertexData().propertyValue;
+    const pathValue: unknown = context.vertexHandle
+      .getCurrentVertexView()
+      .getVertexData().propertyValue;
     void [value, childValue, liveValue, pathValue];
     return '';
   },
-  assembleObject(children, prop) {
+  assembleObjectValueFromChildProperties(children, prop) {
     // @ts-expect-error An unchanged child can retain its input value.
-    const childValue: string = children[0]!.value;
+    const childValue: string = children[0]!.propertyValue;
     void childValue;
     // @ts-expect-error Assemblers inspect current input-or-output data.
-    const value: number = prop.value;
+    const value: number = prop.propertyValue;
     void value;
     return '';
   },
 });
 
-type ExtendedProp = { key: string; value: number; note: string };
-type Extended = VertexTypes<ExtendedProp, ExtendedProp>;
-const bind = createObjectMutationBinder<Extended, Extended>();
+type ExtendedProp = {
+  propertyKey: string;
+  propertyValue: number;
+  note: string;
+};
+type Extended = VertexDataAndChildHintTypes<ExtendedProp, ExtendedProp>;
+const bind = createObjectPropertyMutationHelperBinder<Extended, Extended>();
 declare const args: Parameters<typeof bind>;
-// @ts-expect-error Object patches change key/value only, even for extended data.
-bind(...args).makeMutationCommand({ kind: 'rewrite', patch: { note: 'new' } });
+bind(...args).createObjectPropertyMutationCommand({
+  kind: 'patchPropertyKeyOrValue',
+  // @ts-expect-error Object patches change key/value only, even for extended data.
+  propertyPatch: { note: 'new' },
+});
 
-const callback: ObjectRewriteCallback<string, number, symbol, string> = (
-  prop,
-  context,
-) => {
-  const input: ObjectRewriteInput<string, number, symbol, string> = prop;
-  const live: ObjectRewriteContext<string, number, symbol, string> = context;
-  const key: string | symbol = input.key;
-  const value: unknown = input.value;
+const callback: ObjectPropertyPostOrderRewriteCallback<
+  string,
+  number,
+  symbol,
+  string
+> = (prop, context) => {
+  const input: ObjectPropertyRewriteInput<string, number, symbol, string> =
+    prop;
+  const live: ObjectPropertyRewriteContext<string, number, symbol, string> =
+    context;
+  const key: string | symbol = input.propertyKey;
+  const value: unknown = input.propertyValue;
   void [live, key, value];
   return undefined;
 };
-const patch: ObjectPropertyPatch<ObjectTreeVertexTypes<string, number>> = {
-  value: 1,
+const patch: ObjectPropertyKeyValuePatch<
+  ObjectPropertyTreeVertexTypes<string, number>
+> = {
+  propertyValue: 1,
 };
-declare const resolved: ResolvedTreeVertexTypes<
-  ObjectTreeVertexTypes<string, number>
+declare const resolved: StoredTreeReferenceVertexTypes<
+  ObjectPropertyTreeVertexTypes<string, number>
 >;
-const retainedValue: number = resolved.VertexData.getValue().getData().value;
-const mapper = ObjectTreeSource.createRootPropertyMapper('root');
-const rootValue: number = mapper(1).value;
+const retainedValue: number =
+  resolved.VertexData.getReferencedValue().getVertexData().propertyValue;
+const mapper =
+  ObjectPropertyTreeSource.createInputValueToRootPropertyMapper('root');
+const rootValue: number = mapper(1).propertyValue;
 void [callback, patch, retainedValue, rootValue];
 
 // Partial patches independently mix keys and values; narrowing either record
 // by its key must never restore a complete-input/complete-output correlation.
-type LiteralInput = ObjectTreeVertexTypes<'input', number>;
-type LiteralOutput = ObjectTreeVertexTypes<'output', string>;
-const bindLiteral = createObjectMutationBinder<LiteralInput, LiteralOutput>();
+type LiteralInput = ObjectPropertyTreeVertexTypes<'input', number>;
+type LiteralOutput = ObjectPropertyTreeVertexTypes<'output', string>;
+const bindLiteral = createObjectPropertyMutationHelperBinder<
+  LiteralInput,
+  LiteralOutput
+>();
 const hybridResult = rewriteObject<
   number,
   'input',
@@ -228,477 +268,525 @@ const hybridResult = rewriteObject<
   'output',
   string
 >(1, {
-  getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
-  getChildrenOfProperty: () => [],
+  mapInputToRootProperty: (value) => ({
+    propertyKey: 'input',
+    propertyValue: value,
+  }),
+  enumerateChildPropertyHints: () => [],
   visitors: {
-    [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
+    [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION]: (vertex, context) => ({
       commands: [
-        bindLiteral(vertex, context).makeMutationCommand({
-          kind: 'rewrite',
-          patch: { value: 'changed' },
+        bindLiteral(vertex, context).createObjectPropertyMutationCommand({
+          kind: 'patchPropertyKeyOrValue',
+          propertyPatch: { propertyValue: 'changed' },
         }),
-        bindLiteral(vertex, context).makeMutationCommand({
-          kind: 'rewrite',
-          patch: { key: 'output' },
+        bindLiteral(vertex, context).createObjectPropertyMutationCommand({
+          kind: 'patchPropertyKeyOrValue',
+          propertyPatch: { propertyKey: 'output' },
         }),
       ],
     }),
-    [DepthFirstPhase.POST_ORDER]: (vertex, context) => {
-      const visitorProperty = vertex.getData();
-      const visitorPropertyKey: 'input' | 'output' = visitorProperty.key;
-      const visitorPropertyValue: unknown = visitorProperty.value;
+    [DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES]: (vertex, context) => {
+      const visitorProperty = vertex.getVertexData();
+      const visitorPropertyKey: 'input' | 'output' =
+        visitorProperty.propertyKey;
+      const visitorPropertyValue: unknown = visitorProperty.propertyValue;
       void [visitorPropertyKey, visitorPropertyValue];
-      if (visitorProperty.key === 'input') {
+      if (visitorProperty.propertyKey === 'input') {
         // @ts-expect-error A value-only patch can leave an input key with an output value.
-        const numberOnly: number = visitorProperty.value;
+        const numberOnly: number = visitorProperty.propertyValue;
         void numberOnly;
       }
-      if (visitorProperty.key === 'output') {
+      if (visitorProperty.propertyKey === 'output') {
         // @ts-expect-error A key-only patch can leave an output key with an input value.
-        const stringOnly: string = visitorProperty.value;
+        const stringOnly: string = visitorProperty.propertyValue;
         void stringOnly;
       }
-      const visitorRef = context.vertexRef.getValue().getData();
-      const visitorRefKey: 'input' | 'output' = visitorRef.key;
-      const visitorRefValue: unknown = visitorRef.value;
+      const visitorRef = context.vertexHandle
+        .getCurrentVertexView()
+        .getVertexData();
+      const visitorRefKey: 'input' | 'output' = visitorRef.propertyKey;
+      const visitorRefValue: unknown = visitorRef.propertyValue;
       void [visitorRefKey, visitorRefValue];
-      if (visitorRef.key === 'input') {
+      if (visitorRef.propertyKey === 'input') {
         // @ts-expect-error A value-only patch can leave an input key with an output value.
-        const numberOnly: number = visitorRef.value;
+        const numberOnly: number = visitorRef.propertyValue;
         void numberOnly;
       }
-      if (visitorRef.key === 'output') {
+      if (visitorRef.propertyKey === 'output') {
         // @ts-expect-error A key-only patch can leave an output key with an input value.
-        const stringOnly: string = visitorRef.value;
+        const stringOnly: string = visitorRef.propertyValue;
         void stringOnly;
       }
       return undefined;
     },
   },
-  rewrite(prop, context) {
+  rewritePropertyAfterChildTraversal(prop, context) {
     const direct = prop;
-    const directKey: 'input' | 'output' = direct.key;
-    const directValue: unknown = direct.value;
+    const directKey: 'input' | 'output' = direct.propertyKey;
+    const directValue: unknown = direct.propertyValue;
     void [directKey, directValue];
-    if (direct.key === 'input') {
+    if (direct.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = direct.value;
+      const numberOnly: number = direct.propertyValue;
       void numberOnly;
     }
-    if (direct.key === 'output') {
+    if (direct.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = direct.value;
+      const stringOnly: string = direct.propertyValue;
       void stringOnly;
     }
-    const vertex = context.vertex.getData();
-    const vertexKey: 'input' | 'output' = vertex.key;
-    const vertexValue: unknown = vertex.value;
+    const vertex = context.vertex.getVertexData();
+    const vertexKey: 'input' | 'output' = vertex.propertyKey;
+    const vertexValue: unknown = vertex.propertyValue;
     void [vertexKey, vertexValue];
-    if (vertex.key === 'input') {
+    if (vertex.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = vertex.value;
+      const numberOnly: number = vertex.propertyValue;
       void numberOnly;
     }
-    if (vertex.key === 'output') {
+    if (vertex.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = vertex.value;
+      const stringOnly: string = vertex.propertyValue;
       void stringOnly;
     }
-    const ref = context.vertexRef.getValue().getData();
-    const refKey: 'input' | 'output' = ref.key;
-    const refValue: unknown = ref.value;
+    const ref = context.vertexHandle.getCurrentVertexView().getVertexData();
+    const refKey: 'input' | 'output' = ref.propertyKey;
+    const refValue: unknown = ref.propertyValue;
     void [refKey, refValue];
-    if (ref.key === 'input') {
+    if (ref.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = ref.value;
+      const numberOnly: number = ref.propertyValue;
       void numberOnly;
     }
-    if (ref.key === 'output') {
+    if (ref.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = ref.value;
+      const stringOnly: string = ref.propertyValue;
       void stringOnly;
     }
-    const tree = context.resolvedTreeView.getRoot()!.getValue().getData();
-    const treeKey: 'input' | 'output' = tree.key;
-    const treeValue: unknown = tree.value;
+    const tree = context.liveResolvedTreeView
+      .getRootVertexHandleOrNull()!
+      .getCurrentVertexView()
+      .getVertexData();
+    const treeKey: 'input' | 'output' = tree.propertyKey;
+    const treeValue: unknown = tree.propertyValue;
     void [treeKey, treeValue];
-    if (tree.key === 'input') {
+    if (tree.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = tree.value;
+      const numberOnly: number = tree.propertyValue;
       void numberOnly;
     }
-    if (tree.key === 'output') {
+    if (tree.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = tree.value;
+      const stringOnly: string = tree.propertyValue;
       void stringOnly;
     }
-    const previous = context.previousPhaseVertexRef!.getValue().getData();
-    const previousKey: 'input' | 'output' = previous.key;
-    const previousValue: unknown = previous.value;
+    const previous = context
+      .previousCommittedVisitVertexHandleForSamePhase!.getCurrentVertexView()
+      .getVertexData();
+    const previousKey: 'input' | 'output' = previous.propertyKey;
+    const previousValue: unknown = previous.propertyValue;
     void [previousKey, previousValue];
-    if (previous.key === 'input') {
+    if (previous.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = previous.value;
+      const numberOnly: number = previous.propertyValue;
       void numberOnly;
     }
-    if (previous.key === 'output') {
+    if (previous.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = previous.value;
+      const stringOnly: string = previous.propertyValue;
       void stringOnly;
     }
     const original: number = context
-      .originalTreeView!.getRoot()!
-      .getValue()
-      .getData().value;
+      .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+      .getCurrentVertexView()
+      .getVertexData().propertyValue;
     void original;
     return undefined;
   },
-  isArray(prop) {
+  matchesArrayAssemblyPredicate(prop) {
     const classified = prop;
-    const classifiedKey: 'input' | 'output' = classified.key;
-    const classifiedValue: unknown = classified.value;
+    const classifiedKey: 'input' | 'output' = classified.propertyKey;
+    const classifiedValue: unknown = classified.propertyValue;
     void [classifiedKey, classifiedValue];
-    if (classified.key === 'input') {
+    if (classified.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = classified.value;
+      const numberOnly: number = classified.propertyValue;
       void numberOnly;
     }
-    if (classified.key === 'output') {
+    if (classified.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = classified.value;
+      const stringOnly: string = classified.propertyValue;
       void stringOnly;
     }
     return false;
   },
-  isObject(prop) {
+  matchesObjectAssemblyPredicate(prop) {
     const classified = prop;
-    const classifiedKey: 'input' | 'output' = classified.key;
-    const classifiedValue: unknown = classified.value;
+    const classifiedKey: 'input' | 'output' = classified.propertyKey;
+    const classifiedValue: unknown = classified.propertyValue;
     void [classifiedKey, classifiedValue];
-    if (classified.key === 'input') {
+    if (classified.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = classified.value;
+      const numberOnly: number = classified.propertyValue;
       void numberOnly;
     }
-    if (classified.key === 'output') {
+    if (classified.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = classified.value;
+      const stringOnly: string = classified.propertyValue;
       void stringOnly;
     }
     return false;
   },
-  assembleArray(children, prop, [vertex, context]) {
+  assembleArrayValueFromChildProperties(children, prop, [vertex, context]) {
     const child = children[0]!;
-    const childKey: 'input' | 'output' = child.key;
-    const childValue: unknown = child.value;
+    const childKey: 'input' | 'output' = child.propertyKey;
+    const childValue: unknown = child.propertyValue;
     void [childKey, childValue];
-    if (child.key === 'input') {
+    if (child.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = child.value;
+      const numberOnly: number = child.propertyValue;
       void numberOnly;
     }
-    if (child.key === 'output') {
+    if (child.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = child.value;
+      const stringOnly: string = child.propertyValue;
       void stringOnly;
     }
     const parent = prop;
-    const parentKey: 'input' | 'output' = parent.key;
-    const parentValue: unknown = parent.value;
+    const parentKey: 'input' | 'output' = parent.propertyKey;
+    const parentValue: unknown = parent.propertyValue;
     void [parentKey, parentValue];
-    if (parent.key === 'input') {
+    if (parent.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = parent.value;
+      const numberOnly: number = parent.propertyValue;
       void numberOnly;
     }
-    if (parent.key === 'output') {
+    if (parent.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = parent.value;
+      const stringOnly: string = parent.propertyValue;
       void stringOnly;
     }
-    const visitorVertex = vertex.getData();
-    const visitorVertexKey: 'input' | 'output' = visitorVertex.key;
-    const visitorVertexValue: unknown = visitorVertex.value;
+    const visitorVertex = vertex.getVertexData();
+    const visitorVertexKey: 'input' | 'output' = visitorVertex.propertyKey;
+    const visitorVertexValue: unknown = visitorVertex.propertyValue;
     void [visitorVertexKey, visitorVertexValue];
-    if (visitorVertex.key === 'input') {
+    if (visitorVertex.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = visitorVertex.value;
+      const numberOnly: number = visitorVertex.propertyValue;
       void numberOnly;
     }
-    if (visitorVertex.key === 'output') {
+    if (visitorVertex.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = visitorVertex.value;
+      const stringOnly: string = visitorVertex.propertyValue;
       void stringOnly;
     }
-    const visitorRef = context.vertexRef.getValue().getData();
-    const visitorRefKey: 'input' | 'output' = visitorRef.key;
-    const visitorRefValue: unknown = visitorRef.value;
+    const visitorRef = context.vertexHandle
+      .getCurrentVertexView()
+      .getVertexData();
+    const visitorRefKey: 'input' | 'output' = visitorRef.propertyKey;
+    const visitorRefValue: unknown = visitorRef.propertyValue;
     void [visitorRefKey, visitorRefValue];
-    if (visitorRef.key === 'input') {
+    if (visitorRef.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = visitorRef.value;
+      const numberOnly: number = visitorRef.propertyValue;
       void numberOnly;
     }
-    if (visitorRef.key === 'output') {
+    if (visitorRef.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = visitorRef.value;
+      const stringOnly: string = visitorRef.propertyValue;
       void stringOnly;
     }
     return 'assembled';
   },
-  assembleObject(children, prop, [vertex, context]) {
+  assembleObjectValueFromChildProperties(children, prop, [vertex, context]) {
     const child = children[0]!;
-    const childKey: 'input' | 'output' = child.key;
-    const childValue: unknown = child.value;
+    const childKey: 'input' | 'output' = child.propertyKey;
+    const childValue: unknown = child.propertyValue;
     void [childKey, childValue];
-    if (child.key === 'input') {
+    if (child.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = child.value;
+      const numberOnly: number = child.propertyValue;
       void numberOnly;
     }
-    if (child.key === 'output') {
+    if (child.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = child.value;
+      const stringOnly: string = child.propertyValue;
       void stringOnly;
     }
     const parent = prop;
-    const parentKey: 'input' | 'output' = parent.key;
-    const parentValue: unknown = parent.value;
+    const parentKey: 'input' | 'output' = parent.propertyKey;
+    const parentValue: unknown = parent.propertyValue;
     void [parentKey, parentValue];
-    if (parent.key === 'input') {
+    if (parent.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = parent.value;
+      const numberOnly: number = parent.propertyValue;
       void numberOnly;
     }
-    if (parent.key === 'output') {
+    if (parent.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = parent.value;
+      const stringOnly: string = parent.propertyValue;
       void stringOnly;
     }
-    const visitorVertex = vertex.getData();
-    const visitorVertexKey: 'input' | 'output' = visitorVertex.key;
-    const visitorVertexValue: unknown = visitorVertex.value;
+    const visitorVertex = vertex.getVertexData();
+    const visitorVertexKey: 'input' | 'output' = visitorVertex.propertyKey;
+    const visitorVertexValue: unknown = visitorVertex.propertyValue;
     void [visitorVertexKey, visitorVertexValue];
-    if (visitorVertex.key === 'input') {
+    if (visitorVertex.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = visitorVertex.value;
+      const numberOnly: number = visitorVertex.propertyValue;
       void numberOnly;
     }
-    if (visitorVertex.key === 'output') {
+    if (visitorVertex.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = visitorVertex.value;
+      const stringOnly: string = visitorVertex.propertyValue;
       void stringOnly;
     }
-    const previous = context.previousPhaseVertexRef!.getValue().getData();
-    const previousKey: 'input' | 'output' = previous.key;
-    const previousValue: unknown = previous.value;
+    const previous = context
+      .previousCommittedVisitVertexHandleForSamePhase!.getCurrentVertexView()
+      .getVertexData();
+    const previousKey: 'input' | 'output' = previous.propertyKey;
+    const previousValue: unknown = previous.propertyValue;
     void [previousKey, previousValue];
-    if (previous.key === 'input') {
+    if (previous.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = previous.value;
+      const numberOnly: number = previous.propertyValue;
       void numberOnly;
     }
-    if (previous.key === 'output') {
+    if (previous.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = previous.value;
+      const stringOnly: string = previous.propertyValue;
       void stringOnly;
     }
     return 'assembled';
   },
-  resolveChildHook(_hint, context) {
-    const parent = context.resolutionContext.parentVertexRef
-      .getValue()
-      .getData();
-    const parentKey: 'input' | 'output' = parent.key;
-    const parentValue: unknown = parent.value;
+  resolveChildPropertyOrUseDefault(_hint, context) {
+    const parent = context.childDiscoveryContext.parentVertexHandle
+      .getCurrentVertexView()
+      .getVertexData();
+    const parentKey: 'input' | 'output' = parent.propertyKey;
+    const parentValue: unknown = parent.propertyValue;
     void [parentKey, parentValue];
-    if (parent.key === 'input') {
+    if (parent.propertyKey === 'input') {
       // @ts-expect-error A value-only patch can leave an input key with an output value.
-      const numberOnly: number = parent.value;
+      const numberOnly: number = parent.propertyValue;
       void numberOnly;
     }
-    if (parent.key === 'output') {
+    if (parent.propertyKey === 'output') {
       // @ts-expect-error A key-only patch can leave an output key with an input value.
-      const stringOnly: string = parent.value;
+      const stringOnly: string = parent.propertyValue;
       void stringOnly;
     }
-    return { kind: 'useDefault' };
+    return { kind: 'useDefaultChildPropertyResolution' };
   },
 });
 const resultProperty = hybridResult.traversalRunner
-  .getResolvedTreeView()
-  .getRoot()!
-  .getValue()
-  .getData();
-const resultPropertyKey: 'input' | 'output' = resultProperty.key;
-const resultPropertyValue: unknown = resultProperty.value;
+  .getLiveResolvedTreeView()
+  .getRootVertexHandleOrNull()!
+  .getCurrentVertexView()
+  .getVertexData();
+const resultPropertyKey: 'input' | 'output' = resultProperty.propertyKey;
+const resultPropertyValue: unknown = resultProperty.propertyValue;
 void [resultPropertyKey, resultPropertyValue];
-if (resultProperty.key === 'input') {
+if (resultProperty.propertyKey === 'input') {
   // @ts-expect-error A value-only patch can leave an input key with an output value.
-  const numberOnly: number = resultProperty.value;
+  const numberOnly: number = resultProperty.propertyValue;
   void numberOnly;
 }
-if (resultProperty.key === 'output') {
+if (resultProperty.propertyKey === 'output') {
   // @ts-expect-error A key-only patch can leave an output key with an input value.
-  const stringOnly: string = resultProperty.value;
+  const stringOnly: string = resultProperty.propertyValue;
   void stringOnly;
 }
 
 type MetaInputProp = {
-  key: 'input';
-  value: number;
+  propertyKey: 'input';
+  propertyValue: number;
   tag: 'input';
   originalNote: object;
 };
 type MetaOutputProp = {
-  key: 'output';
-  value: string;
+  propertyKey: 'output';
+  propertyValue: string;
   tag: 'output';
   outputNote: object;
 };
-type MetaInput = VertexTypes<MetaInputProp, MetaInputProp>;
-type MetaOutput = VertexTypes<MetaOutputProp, MetaOutputProp>;
-const bindMetadata = createObjectMutationBinder<MetaInput, MetaOutput>({
-  isArray(prop) {
+type MetaInput = VertexDataAndChildHintTypes<MetaInputProp, MetaInputProp>;
+type MetaOutput = VertexDataAndChildHintTypes<MetaOutputProp, MetaOutputProp>;
+const bindMetadata = createObjectPropertyMutationHelperBinder<
+  MetaInput,
+  MetaOutput
+>({
+  matchesArrayAssemblyPredicate(prop) {
     if (prop.tag === 'input') {
       const metadata: object = prop.originalNote;
       // @ts-expect-error Retained metadata does not prove a property still has its input value.
-      const numberOnly: number = prop.value;
+      const numberOnly: number = prop.propertyValue;
       void [metadata, numberOnly];
     }
     if (prop.tag === 'output') {
       const metadata: object = prop.outputNote;
       // @ts-expect-error Metadata cannot restore key/value correlations after partial patches.
-      const outputKey: 'output' = prop.key;
+      const outputKey: 'output' = prop.propertyKey;
       void [metadata, outputKey];
     }
     return false;
   },
-  assembleObject(children, prop, [vertex, context]) {
+  assembleObjectValueFromChildProperties(children, prop, [vertex, context]) {
     const child = children[0]!;
     if (child.tag === 'input') {
       // @ts-expect-error Retained input metadata may accompany rewritten output values.
-      const numberOnly: number = child.value;
+      const numberOnly: number = child.propertyValue;
       void numberOnly;
     }
     const parent = prop;
     if (parent.tag === 'input') {
       // @ts-expect-error Retained input metadata may accompany rewritten output values.
-      const numberOnly: number = parent.value;
+      const numberOnly: number = parent.propertyValue;
       void numberOnly;
     }
-    const vertexProperty = vertex.getData();
+    const vertexProperty = vertex.getVertexData();
     if (vertexProperty.tag === 'input') {
       // @ts-expect-error Retained input metadata may accompany rewritten output values.
-      const numberOnly: number = vertexProperty.value;
+      const numberOnly: number = vertexProperty.propertyValue;
       void numberOnly;
     }
-    const refProperty = context.vertexRef.getValue().getData();
+    const refProperty = context.vertexHandle
+      .getCurrentVertexView()
+      .getVertexData();
     if (refProperty.tag === 'input') {
       // @ts-expect-error Retained input metadata may accompany rewritten output values.
-      const numberOnly: number = refProperty.value;
+      const numberOnly: number = refProperty.propertyValue;
       void numberOnly;
     }
     return 'assembled';
   },
 });
 declare const metadataArgs: Parameters<typeof bindMetadata>;
-const metadataCommand = bindMetadata(...metadataArgs).makeMutationCommand({
-  kind: 'rewrite',
-  patch: { value: 'changed' },
+const metadataCommand = bindMetadata(
+  ...metadataArgs,
+).createObjectPropertyMutationCommand({
+  kind: 'patchPropertyKeyOrValue',
+  propertyPatch: { propertyValue: 'changed' },
 });
 if (
   metadataCommand.commandName ===
-  TraversalVisitorCommandName.REWRITE_VERTEX_DATA
+  TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA
 ) {
   // @ts-expect-error A partial patch does not guarantee a complete output record.
-  const outputOnly: string = metadataCommand.commandArguments.newData.value;
+  const outputOnly: string =
+    metadataCommand.commandArguments.replacementVertexData.propertyValue;
   void outputOnly;
 }
 
-type LiteralCurrent = ObjectCurrentVertexTypes<LiteralInput, LiteralOutput>;
+type LiteralCurrent = LiveObjectPropertyVertexTypes<
+  LiteralInput,
+  LiteralOutput
+>;
 const mixedValue: LiteralCurrent['VertexData'] = {
-  key: 'input',
-  value: 'changed',
+  propertyKey: 'input',
+  propertyValue: 'changed',
 };
-const mixedKey: LiteralCurrent['VertexData'] = { key: 'output', value: 1 };
-const assembledMap = new Map<VertexHandle<LiteralCurrent>, unknown>();
-const composedBinder = createObjectMutationBinder<LiteralInput, LiteralOutput>({
-  assembledMap,
+const mixedKey: LiteralCurrent['VertexData'] = {
+  propertyKey: 'output',
+  propertyValue: 1,
+};
+const assemblyValues = new Map<VertexHandle<LiteralCurrent>, unknown>();
+const assemblyCache = {
+  hasAssembledValueForVertex: (vertexHandle: VertexHandle<LiteralCurrent>) =>
+    assemblyValues.has(vertexHandle),
+  getAssembledValueForVertex: (vertexHandle: VertexHandle<LiteralCurrent>) =>
+    assemblyValues.get(vertexHandle),
+  setAssembledValueForVertex: (
+    vertexHandle: VertexHandle<LiteralCurrent>,
+    value: unknown,
+  ) => assemblyValues.set(vertexHandle, value),
+};
+const composedBinder = createObjectPropertyMutationHelperBinder<
+  LiteralInput,
+  LiteralOutput
+>({
+  assemblyCache,
 });
-const composedRunner = traverseTreeDepthFirst<LiteralInput, LiteralCurrent>({
-  traversableTree: new ObjectTreeSource<
+const composedRunner = runTreeDepthFirstUntilSuspendedOrTerminal<
+  LiteralInput,
+  LiteralCurrent
+>({
+  treeDiscoverySource: new ObjectPropertyTreeSource<
     number,
     'input',
     number,
     'output',
     string
   >(1, {
-    getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
-    getChildrenOfProperty: () => [],
+    mapInputToRootProperty: (value) => ({
+      propertyKey: 'input',
+      propertyValue: value,
+    }),
+    enumerateChildPropertyHints: () => [],
   }),
   visitors: {
-    [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
+    [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION]: (vertex, context) => ({
       commands: [
-        composedBinder(vertex, context).makeMutationCommand({
-          kind: 'rewrite',
-          patch: { key: 'output' },
+        composedBinder(vertex, context).createObjectPropertyMutationCommand({
+          kind: 'patchPropertyKeyOrValue',
+          propertyPatch: { propertyKey: 'output' },
         }),
       ],
     }),
   },
 });
 const composedValue = composedRunner
-  .getResolvedTreeView()
-  .getRoot()!
-  .getValue()
-  .getData();
-if (composedValue.key === 'output') {
+  .getLiveResolvedTreeView()
+  .getRootVertexHandleOrNull()!
+  .getCurrentVertexView()
+  .getVertexData();
+if (composedValue.propertyKey === 'output') {
   // @ts-expect-error Public generic traversal composition keeps partial-patch values broad.
-  const outputOnly: string = composedValue.value;
+  const outputOnly: string = composedValue.propertyValue;
   void outputOnly;
 }
-const mixedMetadata: ObjectCurrentVertexTypes<
+const mixedMetadata: LiveObjectPropertyVertexTypes<
   MetaInput,
   MetaOutput
 >['VertexData'] = {
   tag: 'input',
   originalNote: {},
-  key: 'output',
-  value: 'changed',
+  propertyKey: 'output',
+  propertyValue: 'changed',
 };
 const assembledOutput: unknown = bindMetadata(
   ...metadataArgs,
-).assembleComposite();
+).assembleCompositeFromCurrentChildren();
 const retainedMetadata: MetaInputProp = metadataArgs[1]
-  .originalTreeView!.getRoot()!
-  .getValue()
-  .getData();
+  .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+  .getCurrentVertexView()
+  .getVertexData();
 void [mixedValue, mixedKey, mixedMetadata, assembledOutput, retainedMetadata];
 
-const objectDomainProbeBinder = createObjectMutationBinder<
-  ObjectTreeVertexTypes<'root', number>,
-  ObjectTreeVertexTypes<'replacement', string>
+const objectDomainProbeBinder = createObjectPropertyMutationHelperBinder<
+  ObjectPropertyTreeVertexTypes<'root', number>,
+  ObjectPropertyTreeVertexTypes<'replacement', string>
 >();
 declare const objectDomainProbeArgs: Parameters<typeof objectDomainProbeBinder>;
 {
   // @ts-expect-error Default discovery cannot promise narrow keys or values.
-  new ObjectTreeSource<number, 'root', number>(1);
+  new ObjectPropertyTreeSource<number, 'root', number>(1);
   const rootOnly = {
-    getRootPropertyFromInputObject: (value: number) => ({
-      key: 'root' as const,
-      value,
+    mapInputToRootProperty: (value: number) => ({
+      propertyKey: 'root' as const,
+      propertyValue: value,
     }),
   };
   // @ts-expect-error A root adapter alone cannot validate descendant domains.
-  new ObjectTreeSource<number, 'root', number>(1, rootOnly);
+  new ObjectPropertyTreeSource<number, 'root', number>(1, rootOnly);
   // @ts-expect-error Spreading a root-only bag cannot bypass required discovery.
-  new ObjectTreeSource<number, 'root', number>(1, { ...rootOnly });
-  const childrenOnly = { getChildrenOfProperty: () => [] };
+  new ObjectPropertyTreeSource<number, 'root', number>(1, { ...rootOnly });
+  const childrenOnly = { enumerateChildPropertyHints: () => [] };
   // @ts-expect-error A child adapter alone cannot validate the root domain.
-  new ObjectTreeSource<number, 'root', number>(1, childrenOnly);
+  new ObjectPropertyTreeSource<number, 'root', number>(1, childrenOnly);
   // @ts-expect-error Options themselves retain required adapters.
-  const unsafeOptions: ObjectTreeOptions<
+  const unsafeOptions: ObjectPropertyTreeSourceOptions<
     number,
     'root',
     number,
@@ -710,7 +798,7 @@ declare const objectDomainProbeArgs: Parameters<typeof objectDomainProbeBinder>;
   // @ts-expect-error Output generics alone cannot assert converted output.
   rewriteObject<number, PropertyKey, unknown, string>(1);
   // @ts-expect-error Pretyped options cannot omit the required converter.
-  const noConverter: RewriteObjectOptions<
+  const noConverter: ObjectPropertyRewriteOptions<
     number,
     PropertyKey,
     unknown,
@@ -719,57 +807,68 @@ declare const objectDomainProbeArgs: Parameters<typeof objectDomainProbeBinder>;
     unknown
   > = {};
   const outputOnly = {
-    convertRootValue: (value: string) => value.toUpperCase(),
+    convertPresentRootOutputValue: (value: string) => value.toUpperCase(),
   };
   // @ts-expect-error A converter must accept arbitrary reconstructed/current values.
   rewriteObject(1, outputOnly);
   // @ts-expect-error Spread converters cannot narrow their input domain.
   rewriteObject(1, { ...outputOnly });
-  const precise = ObjectTreeSource.fromProperties(1, {
+  const precise = ObjectPropertyTreeSource.fromPropertyAdapters(1, {
     ...rootOnly,
     ...childrenOnly,
   });
   const rootValue: number =
-    precise.resolveRoot().vertex.vertexContent.$data.value;
-  const defaultChildren = ObjectTreeSource.getChildrenOfPropertyDefault({
-    key: 'root' as const,
-    value: { child: 'text' },
-  });
+    precise.resolveRootVertex().resolvedVertexInput.vertexContentInput
+      .$vertexData.propertyValue;
+  const defaultChildren =
+    ObjectPropertyTreeSource.enumerateOwnEnumerableChildProperties({
+      propertyKey: 'root' as const,
+      propertyValue: { child: 'text' },
+    });
   // @ts-expect-error Discovery includes arbitrary descendant values.
-  const numeric: number = defaultChildren[0]!.value;
+  const numeric: number = defaultChildren[0]!.propertyValue;
   // @ts-expect-error Discovery includes arbitrary descendant keys.
-  const rootKey: 'root' = defaultChildren[0]!.key;
-  const mapper = ObjectTreeSource.createRootPropertyMapper('root' as const);
-  const mappedValue: { count: number } = mapper({ count: 1 }).value;
-  const mappedKey: 'root' = mapper(1).key;
+  const rootKey: 'root' = defaultChildren[0]!.propertyKey;
+  const mapper = ObjectPropertyTreeSource.createInputValueToRootPropertyMapper(
+    'root' as const,
+  );
+  const mappedValue: { count: number } = mapper({ count: 1 }).propertyValue;
+  const mappedKey: 'root' = mapper(1).propertyKey;
   const converted = rewriteObject([1, 2], {
-    convertRootValue(value, context) {
-      const complete: boolean = context.complete;
+    convertPresentRootOutputValue(value, context) {
+      const complete: boolean = context.isTraversalFinished;
       // @ts-expect-error The converter sees mixed reconstruction, never a guaranteed string.
       value.toUpperCase();
       return { value, complete };
     },
   });
   const complete: boolean = outputValue(converted)!.complete;
-  const bind = createObjectMutationBinder<
-    ObjectTreeVertexTypes<'root', number>,
-    ObjectTreeVertexTypes<'replacement', string>
+  const bind = createObjectPropertyMutationHelperBinder<
+    ObjectPropertyTreeVertexTypes<'root', number>,
+    ObjectPropertyTreeVertexTypes<'replacement', string>
   >();
   const args: Parameters<typeof bind> = objectDomainProbeArgs;
   // @ts-expect-error Even narrow replacement payloads do not promise narrow assembled values.
-  const assembled: string = bind(...args).assembleComposite();
+  const assembled: string = bind(
+    ...args,
+  ).assembleCompositeFromCurrentChildren();
   rewriteObject<number, 'root', number, unknown, 'replacement', string>(1, {
     ...rootOnly,
     ...childrenOnly,
-    rewrite(prop, context) {
+    rewritePropertyAfterChildTraversal(prop, context) {
       // @ts-expect-error Current values may include mixed reconstructed containers.
-      const narrow: number | string = prop.value;
+      const narrow: number | string = prop.propertyValue;
       // @ts-expect-error An assembled container need not be a replacement payload.
-      const assembled: string | undefined = prop.assembledComposite;
+      const assembled: string | undefined =
+        prop.assembledValueFromCurrentChildren;
       // @ts-expect-error Live values retain the unknown assembly domain.
-      const live: number | string = context.vertex.getData().value;
+      const live: number | string =
+        context.vertex.getVertexData().propertyValue;
       void [narrow, assembled, live];
-      return { kind: 'rewrite', patch: { value: 'valid replacement' } };
+      return {
+        kind: 'patchPropertyKeyOrValue',
+        propertyPatch: { propertyValue: 'valid replacement' },
+      };
     },
   });
   void [
@@ -786,60 +885,65 @@ declare const objectDomainProbeArgs: Parameters<typeof objectDomainProbeBinder>;
 
   // A cache written by assembly cannot retain a false string-only read type.
   const narrowCache = new Map<
-    Parameters<typeof bind>[1]['vertexRef'],
+    Parameters<typeof bind>[1]['vertexHandle'],
     string
   >();
-  createObjectMutationBinder<
-    ObjectTreeVertexTypes<'root', number>,
-    ObjectTreeVertexTypes<'replacement', string>
+  createObjectPropertyMutationHelperBinder<
+    ObjectPropertyTreeVertexTypes<'root', number>,
+    ObjectPropertyTreeVertexTypes<'replacement', string>
   >({
     // @ts-expect-error Library assembly writes arbitrary reconstructed values.
-    assembledMap: narrowCache,
+    assemblyCache: narrowCache,
   });
 
   // @ts-expect-error The precise route requires both adapters too.
-  ObjectTreeSource.fromProperties(1, rootOnly);
+  ObjectPropertyTreeSource.fromPropertyAdapters(1, rootOnly);
   // @ts-expect-error A spread bag cannot assert output without conversion.
   rewriteObject<number, PropertyKey, unknown, string>(1, { ...{} });
   rewriteObject<number, 'root', number, unknown, 'replacement', string>(1, {
     ...rootOnly,
     ...childrenOnly,
     // @ts-expect-error Replacement patches retain their declared output payload type.
-    rewrite: () => ({ kind: 'rewrite', patch: { value: 3 } }),
+    rewritePropertyAfterChildTraversal: () => ({
+      kind: 'patchPropertyKeyOrValue',
+      propertyPatch: { propertyValue: 3 },
+    }),
   });
-  const defaultSource = new ObjectTreeSource([1, 'two']);
+  const defaultSource = new ObjectPropertyTreeSource([1, 'two']);
   // @ts-expect-error Raw source discovery remains unknown for mixed containers.
   const raw: number | string =
-    defaultSource.resolveRoot().vertex.vertexContent.$data.value;
-  const defaultMapped = ObjectTreeSource.createRootPropertyMapper()(1);
-  const defaultMappedValue: number = defaultMapped.value;
+    defaultSource.resolveRootVertex().resolvedVertexInput.vertexContentInput
+      .$vertexData.propertyValue;
+  const defaultMapped =
+    ObjectPropertyTreeSource.createInputValueToRootPropertyMapper()(1);
+  const defaultMappedValue: number = defaultMapped.propertyValue;
   const defaultMappedKey: '__TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__' =
-    defaultMapped.key;
+    defaultMapped.propertyKey;
   void [raw, defaultMappedValue, defaultMappedKey];
 }
 
 // @ts-expect-error A generic root key cannot replace the actual default root key.
-ObjectTreeSource.createRootPropertyMapper<'fake'>();
+ObjectPropertyTreeSource.createInputValueToRootPropertyMapper<'fake'>();
 // @ts-expect-error Default child discovery cannot assert arbitrary generic domains.
-ObjectTreeSource.getChildrenOfPropertyDefault<'root', number>({
-  key: 'root',
-  value: 1,
+ObjectPropertyTreeSource.enumerateOwnEnumerableChildProperties<'root', number>({
+  propertyKey: 'root',
+  propertyValue: 1,
 });
 
 function capturedOutputValue<Out>(result: {
-  outputResultAtReturn:
+  capturedOutputResultAtReturn:
     | { readonly kind: 'present'; readonly value: Out }
     | { readonly kind: 'absent' };
 }): Out | null {
-  const output = result.outputResultAtReturn;
+  const output = result.capturedOutputResultAtReturn;
   return output.kind === 'present' ? output.value : null;
 }
 
 function outputValue<Out>(result: {
-  getOutputResult():
+  getFinalOutputResult():
     | { readonly kind: 'present'; readonly value: Out }
     | { readonly kind: 'absent' };
 }): Out | null {
-  const output = result.getOutputResult();
+  const output = result.getFinalOutputResult();
   return output.kind === 'present' ? output.value : null;
 }

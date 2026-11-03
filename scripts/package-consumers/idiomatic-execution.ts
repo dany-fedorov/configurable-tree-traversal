@@ -1,22 +1,22 @@
 import {
-  AsyncDagTraversal,
-  AsyncGraphWalk,
-  DagTraversal,
+  AsyncDagTraversalBuilder,
+  AsyncGraphWalkBuilder,
+  DagTraversalBuilder,
   DagVisitorPhase,
-  DepthFirstTreeTraversal,
-  DepthFirstPhase,
-  GraphWalk,
+  DepthFirstTreeTraversalBuilder,
+  DepthFirstTreeVisitPhase,
+  GraphWalkBuilder,
   type AsyncTraversalExecution,
-  type DagEvent,
+  type DagCommittedMilestoneEvent,
   type SyncTraversalExecution,
   type TraversalExecutionState,
-  type VertexTypes,
-  type TreeVisitor,
-  type AsyncTreeVisitor,
-  type TreeVisitorRecord,
-  type TreeMutationCommandBinder,
-  type TreeMutationCommandBinderFactory,
-  type TreeDagExecutionInspection,
+  type VertexDataAndChildHintTypes,
+  type TreeVertexPhaseVisitorCallback,
+  type AsyncTreeVertexPhaseVisitorCallback,
+  type TreePhaseVisitorRegistrationRecord,
+  type TreeVisitorVertexDataMutationToolsBinder,
+  type TreeVisitorVertexDataMutationToolsBinderFactory,
+  type TreeOrDagExecutionSnapshot,
 } from 'configurable-tree-traversal';
 // @ts-expect-error Removed compatibility capability.
 import type { AsyncCoreExecution } from 'configurable-tree-traversal';
@@ -40,71 +40,95 @@ import type { TraversalVisitorRecord } from 'configurable-tree-traversal';
 import type { MutationCommandBinder } from 'configurable-tree-traversal';
 // @ts-expect-error Tree binder names state their family.
 import type { MutationCommandBinderFactory } from 'configurable-tree-traversal';
-
-type Tree = VertexTypes<string, string>;
+type Tree = VertexDataAndChildHintTypes<string, string>;
 const source = {
-  resolveRoot: () => ({ kind: 'omitted' as const }),
-  resolveChild: () => ({ kind: 'omitted' as const }),
+  resolveRootVertex: () => ({ kind: 'vertexIntentionallyOmitted' as const }),
+  resolveChildVertexFromHint: () => ({
+    kind: 'vertexIntentionallyOmitted' as const,
+  }),
 };
-const tree = new DepthFirstTreeTraversal<Tree>({
-  traversableTree: source,
-}).createRunner();
-const dag = new DagTraversal<Tree>({ traversableTree: source }).createRunner();
-const asyncDag = new AsyncDagTraversal<Tree>({
-  traversableTree: source,
-}).createRunner();
-const walker = new GraphWalk({
-  source: {
-    hydration: 'inlineOrCached' as const,
-    roots: () => [],
-    outgoing: () => [],
+const tree = new DepthFirstTreeTraversalBuilder<Tree>({
+  treeDiscoverySource: source,
+}).createIndependentRunnerFromCurrentOptions();
+const dag = new DagTraversalBuilder<Tree>({
+  treeDiscoverySource: source,
+}).createIndependentRunnerFromCurrentOptions();
+const asyncDag = new AsyncDagTraversalBuilder<Tree>({
+  treeDiscoverySource: source,
+}).createIndependentRunnerFromCurrentOptions();
+const walker = new GraphWalkBuilder({
+  graphWalkDiscoverySource: {
+    vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+    enumerateRootTargets: () => [],
+    enumerateOutgoingLinks: () => [],
   },
-}).createRunner();
-const asyncWalker = new AsyncGraphWalk({
-  source: {
-    hydration: 'inlineOrCached' as const,
-    roots: () => [],
-    outgoing: () => [],
+}).createIndependentRunnerFromCurrentOptions();
+const asyncWalker = new AsyncGraphWalkBuilder({
+  graphWalkDiscoverySource: {
+    vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+    enumerateRootTargets: () => [],
+    enumerateOutgoingLinks: () => [],
   },
-}).createRunner();
-function inspect(execution: TraversalExecutionState) {
-  return execution.inspect().status;
+}).createIndependentRunnerFromCurrentOptions();
+function captureExecutionSnapshot(execution: TraversalExecutionState) {
+  return execution.captureExecutionSnapshot().traversalLifecycleStatus;
 }
-[tree, dag, asyncDag, walker, asyncWalker].forEach(inspect);
-const genericDag: SyncTraversalExecution<DagVisitorPhase, DagEvent<Tree>> = dag;
+[tree, dag, asyncDag, walker, asyncWalker].forEach(captureExecutionSnapshot);
+const genericDag: SyncTraversalExecution<
+  DagVisitorPhase,
+  DagCommittedMilestoneEvent<Tree>
+> = dag;
 const genericAsyncDag: AsyncTraversalExecution<
   DagVisitorPhase,
-  DagEvent<Tree>
+  DagCommittedMilestoneEvent<Tree>
 > = asyncDag;
-genericDag.run({ emitEvents: ['workCompleted', 'subgraphCompleted'] });
-genericAsyncDag.run({
-  emitEvents: ['workCompleted'],
-  visitorPhases: { include: [DagVisitorPhase.ON_WORK_READY] },
+genericDag.runUntilSuspendedOrTerminal({
+  deliveredEventKinds: [
+    'workCompletionCommitted',
+    'subgraphCompletionCommitted',
+  ],
 });
-// @ts-expect-error Callback readiness is not a committed event kind.
-genericDag.run({ emitEvents: [DagVisitorPhase.ON_WORK_READY] });
-// @ts-expect-error Async callback readiness is not a committed event kind.
-genericAsyncDag.run({ emitEvents: [DagVisitorPhase.ON_SUBGRAPH_READY] });
+genericAsyncDag.runUntilSuspendedOrTerminal({
+  deliveredEventKinds: ['workCompletionCommitted'],
+  admittedVisitorCallbackPhases: { include: [DagVisitorPhase.ON_WORK_READY] },
+});
+genericDag.runUntilSuspendedOrTerminal({
+  // @ts-expect-error Callback readiness is not a committed event kind.
+  deliveredEventKinds: [DagVisitorPhase.ON_WORK_READY],
+});
+genericAsyncDag.runUntilSuspendedOrTerminal({
+  // @ts-expect-error Async callback readiness is not a committed event kind.
+  deliveredEventKinds: [DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY],
+});
 // @ts-expect-error Generic inspection preserves family phase variance.
 const widened: SyncTraversalExecution<
-  DepthFirstPhase | DagVisitorPhase,
+  DepthFirstTreeVisitPhase | DagVisitorPhase,
   unknown
 > = tree;
-const detail: TreeDagExecutionInspection = tree.inspect();
-const callback: TreeVisitor<DepthFirstPhase.PRE_ORDER, Tree, Tree> = () =>
-  undefined;
-const asyncCallback: AsyncTreeVisitor<DepthFirstPhase.PRE_ORDER, Tree, Tree> =
-  callback;
-const record: TreeVisitorRecord<
-  DepthFirstPhase.PRE_ORDER,
+const detail: TreeOrDagExecutionSnapshot = tree.captureExecutionSnapshot();
+const callback: TreeVertexPhaseVisitorCallback<
+  Tree,
+  Tree,
+  DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION
+> = () => undefined;
+const asyncCallback: AsyncTreeVertexPhaseVisitorCallback<
+  Tree,
+  Tree,
+  DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION
+> = callback;
+const record: TreePhaseVisitorRegistrationRecord<
+  DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   Tree,
   Tree
 >['visitor'] = callback;
-type Binder = TreeMutationCommandBinder<DepthFirstPhase.PRE_ORDER, Tree, Tree>;
-type Factory = TreeMutationCommandBinderFactory;
+type Binder = TreeVisitorVertexDataMutationToolsBinder<
+  DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+  Tree,
+  Tree
+>;
+type Factory = TreeVisitorVertexDataMutationToolsBinderFactory;
 void [detail, asyncCallback, record, widened];
 export type Binders = [Binder, Factory];
-
 export type RemovedTypes = [
   AsyncCoreExecution<unknown>,
   CoreInspection,
@@ -120,39 +144,55 @@ void [
   TreeTraversalIterable,
   AbstractTreeSource,
 ];
-
 // Scoped operations retain family safety through the packed declarations.
 import {
   TraversalVisitorCommandName as ScopedCommand,
-  DagTraversal as ScopedDagTraversal,
-  AsyncDagTraversal as ScopedAsyncDagTraversal,
-  type MutationCommand as ScopedMutationCommand,
+  DagTraversalBuilder as ScopedDagTraversal,
+  AsyncDagTraversalBuilder as ScopedAsyncDagTraversal,
+  type VertexDataReplacementOrDeletionCommand as ScopedMutationCommand,
 } from 'configurable-tree-traversal';
-declare const scopedTree: import('configurable-tree-traversal').TreeSource<Tree>;
-const wrongTreeDeletion: TreeVisitor<DepthFirstPhase.PRE_ORDER, Tree> = () => ({
-  // @ts-expect-error Graph cascade is not a tree command.
-  commands: [{ commandName: ScopedCommand.DELETE_DAG_VERTEX_CASCADE }],
+declare const scopedTree: import('configurable-tree-traversal').TreeDiscoverySource<Tree>;
+const wrongTreeDeletion: TreeVertexPhaseVisitorCallback<
+  Tree,
+  Tree,
+  DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION
+> = () => ({
+  commands: [
+    {
+      // @ts-expect-error Graph cascade is not a tree command.
+      commandName:
+        ScopedCommand.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+    },
+  ],
 });
 const wrongDagDeletion: import('configurable-tree-traversal').DagVisitor<
   Tree
 > = () => ({
-  // @ts-expect-error Tree subtree deletion is not a DAG command.
-  commands: [{ commandName: ScopedCommand.DELETE_TREE_SUBTREE }],
+  commands: [
+    {
+      // @ts-expect-error Tree subtree deletion is not a DAG command.
+      commandName:
+        ScopedCommand.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS,
+    },
+  ],
 });
 // @ts-expect-error Graph work policies cannot apply to tree discovery.
 new ScopedDagTraversal({
-  traversableTree: scopedTree,
-  rootWorkDependencies: 'ignore',
+  treeDiscoverySource: scopedTree,
+  rootWorkPrerequisitePolicy: 'ignore',
 });
 // @ts-expect-error Async synchronous-source inference preserves policy restrictions.
 new ScopedAsyncDagTraversal({
-  traversableTree: scopedTree,
-  dependsOnWorkDefault: 'none',
+  treeDiscoverySource: scopedTree,
+  undeclaredWorkPrerequisitePolicy: 'none',
 });
 const scopedMutation: ScopedMutationCommand<
   Tree,
-  ScopedCommand.DELETE_TREE_SUBTREE
-> = { commandName: ScopedCommand.DELETE_TREE_SUBTREE };
+  ScopedCommand.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS
+> = {
+  commandName:
+    ScopedCommand.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS,
+};
 // @ts-expect-error Retired command name has no compatibility alias.
 ScopedCommand.DELETE_VERTEX;
 void [wrongTreeDeletion, wrongDagDeletion, scopedMutation];

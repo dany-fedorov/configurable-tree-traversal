@@ -6,19 +6,22 @@ import * as dag from 'configurable-tree-traversal/traversals/dag-traversal';
 const require = createRequire(import.meta.url);
 const cjs = require('configurable-tree-traversal');
 for (const name of [
-  'DagTraversal',
-  'AsyncDagTraversal',
-  'DepthFirstTreeTraversal',
+  'DagTraversalBuilder',
+  'AsyncDagTraversalBuilder',
+  'DepthFirstTreeTraversalBuilder',
   'DagTraversalStallError',
   'TraversalVisitorCommandName',
   'core',
   'dagTraversal',
   'rewriteObject',
-  'rewriteObjectAs',
+  'rewriteObjectWithAssertedOutputType',
 ])
   assert.equal(esm[name], cjs[name]);
-assert.equal(rewrite.rewriteObjectAs, cjs.rewriteObjectAs);
-assert.equal(dag.DagTraversal, cjs.DagTraversal);
+assert.equal(
+  rewrite.rewriteObjectWithAssertedOutputType,
+  cjs.rewriteObjectWithAssertedOutputType,
+);
+assert.equal(dag.DagTraversalBuilder, cjs.DagTraversalBuilder);
 
 const exactThrow = async (operation, expected) => {
   let threw = false;
@@ -33,76 +36,96 @@ const exactThrow = async (operation, expected) => {
 for (const api of [cjs, esm]) {
   const C = api.TraversalVisitorCommandName;
   const D = api.DagVisitorPhase;
-  const F = api.DepthFirstPhase;
+  const F = api.DepthFirstTreeVisitPhase;
   const found = (id, hints = [], declarations = {}) => ({
-    kind: 'found',
-    vertex: {
+    kind: 'vertexResolved',
+    resolvedVertexInput: {
       vertexId: id,
-      vertexContent: { $data: id, $childHints: hints },
+      vertexContentInput: { $vertexData: id, $childDiscoveryHints: hints },
       ...declarations,
     },
   });
   const tree = {
-    resolveRoot: () => ({
-      kind: 'found',
-      vertex: { vertexContent: { $data: 'root', $childHints: [] } },
+    resolveRootVertex: () => ({
+      kind: 'vertexResolved',
+      resolvedVertexInput: {
+        vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
+      },
     }),
-    resolveChild: () => ({ kind: 'omitted' }),
+    resolveChildVertexFromHint: () => ({ kind: 'vertexIntentionallyOmitted' }),
   };
   // Both helpers reject presence before any source/rewrite/conversion callback.
-  for (const helper of [api.rewriteObject, api.rewriteObjectAs]) {
-    for (const traversableTree of [undefined, tree]) {
+  for (const helper of [
+    api.rewriteObject,
+    api.rewriteObjectWithAssertedOutputType,
+  ]) {
+    for (const treeDiscoverySource of [undefined, tree]) {
       let calls = 0;
       assert.throws(
         () =>
           helper(
             {},
             {
-              traversableTree,
-              getRootPropertyFromInputObject: () => {
+              treeDiscoverySource,
+              mapInputToRootProperty: () => {
                 calls++;
               },
-              rewrite: () => {
+              rewritePropertyAfterChildTraversal: () => {
                 calls++;
               },
-              convertRootValue: () => {
+              convertPresentRootOutputValue: () => {
                 calls++;
               },
             },
           ),
-        /traversableTree/,
+        /treeDiscoverySource/,
       );
       assert.equal(calls, 0);
     }
   }
-  assert.equal(outputValue(api.rewriteObjectAs(3)), 3); // No schema validation.
+  assert.equal(outputValue(api.rewriteObjectWithAssertedOutputType(3)), 3); // No schema validation.
   assert.deepEqual(
     outputValue(
       api.rewriteObject([10, 20], {
-        arrayIndexPolicy: 'preserveNumericKeys',
-        rewrite: (p) =>
-          typeof p.key === 'number'
-            ? { kind: 'rewrite', patch: { key: p.key + 2 } }
-            : { kind: 'keep' },
+        arrayAssemblyIndexPolicy: 'preserveNumericIndicesAndArrayLength',
+        rewritePropertyAfterChildTraversal: (p) =>
+          typeof p.propertyKey === 'number'
+            ? {
+                kind: 'patchPropertyKeyOrValue',
+                propertyPatch: { propertyKey: p.propertyKey + 2 },
+              }
+            : { kind: 'keepPropertyAndAssembleCurrentChildren' },
       }),
     ),
     [, , 10, 20],
   );
   const trailing = outputValue(
     api.rewriteObject([10, 20], {
-      arrayIndexPolicy: 'preserveNumericKeys',
-      rewrite: (p) => (p.key === 1 ? { kind: 'delete' } : { kind: 'keep' }),
+      arrayAssemblyIndexPolicy: 'preserveNumericIndicesAndArrayLength',
+      rewritePropertyAfterChildTraversal: (p) =>
+        p.propertyKey === 1
+          ? { kind: 'deletePropertySubtree' }
+          : { kind: 'keepPropertyAndAssembleCurrentChildren' },
     }),
   );
   assert.equal(trailing.length, 2);
   assert.deepEqual(Object.keys(trailing), ['0']);
-  for (const propertyCollision of ['error', 'firstWins', 'lastWins']) {
+  for (const assembledPropertyKeyCollisionPolicy of [
+    'throwOnDuplicateKey',
+    'keepFirstProperty',
+    'keepLastProperty',
+  ]) {
     const options = {
-      propertyCollision,
-      rewrite: (p) =>
-        p.key === 'b' ? { kind: 'rewrite', patch: { key: 'a' } } : undefined,
+      assembledPropertyKeyCollisionPolicy,
+      rewritePropertyAfterChildTraversal: (p) =>
+        p.propertyKey === 'b'
+          ? {
+              kind: 'patchPropertyKeyOrValue',
+              propertyPatch: { propertyKey: 'a' },
+            }
+          : undefined,
     };
-    if (propertyCollision === 'error') {
+    if (assembledPropertyKeyCollisionPolicy === 'throwOnDuplicateKey') {
       assert.throws(
         () => api.rewriteObject({ a: 1, b: 2 }, options),
         TypeError,
@@ -111,7 +134,8 @@ for (const api of [cjs, esm]) {
       assert.deepEqual(
         outputValue(api.rewriteObject({ a: 1, b: 2 }, options)),
         {
-          a: propertyCollision === 'firstWins' ? 1 : 2,
+          a:
+            assembledPropertyKeyCollisionPolicy === 'keepFirstProperty' ? 1 : 2,
         },
       );
     }
@@ -123,7 +147,10 @@ for (const api of [cjs, esm]) {
     { kind: 'rewrite', value: 1 },
   ]) {
     assert.throws(
-      () => api.rewriteObject(1, { rewrite: () => operation }),
+      () =>
+        api.rewriteObject(1, {
+          rewritePropertyAfterChildTraversal: () => operation,
+        }),
       TypeError,
     );
   }
@@ -137,21 +164,28 @@ for (const api of [cjs, esm]) {
     { count: 1 },
     {
       visitors: {
-        [F.POST_ORDER]: {
-          priority: 200,
+        [F.AFTER_CHILD_SUBTREES]: {
+          descendingExecutionPriorityWithinGroup: 200,
           visitor: (_v, o) => {
             if (o.isTreeRoot && !paused) {
               paused = true;
-              return { commands: [{ commandName: C.PAUSE_TRAVERSAL }] };
+              return {
+                commands: [
+                  { commandName: C.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+                ],
+              };
             }
           },
         },
       },
-      rewrite: ({ key }) =>
+      rewritePropertyAfterChildTraversal: ({ propertyKey: key }) =>
         key === 'count'
-          ? { kind: 'rewrite', patch: { key: 'renamed' } }
+          ? {
+              kind: 'patchPropertyKeyOrValue',
+              propertyPatch: { propertyKey: 'renamed' },
+            }
           : undefined,
-      convertRootValue: (value) => {
+      convertPresentRootOutputValue: (value) => {
         conversions++;
         if (conversions === 2) throw undefined;
         return { value };
@@ -160,57 +194,67 @@ for (const api of [cjs, esm]) {
   );
   assert.deepEqual(capturedOutputValue(result), { value: { count: 1 } });
   assert.throws(() => outputValue(result), /not complete/i);
-  result.traversalRunner.run();
+  result.traversalRunner.runUntilSuspendedOrTerminal();
   await exactThrow(() => outputValue(result), undefined);
   const final = outputValue(result);
   assert.deepEqual(final, { value: { renamed: 1 } });
   assert.equal(outputValue(result), final);
   assert.equal(conversions, 3);
   assert.deepEqual(capturedOutputValue(result), { value: { count: 1 } });
-  const finished = api.rewriteObjectAs(null);
+  const finished = api.rewriteObjectWithAssertedOutputType(null);
   assert.equal(outputValue(finished), capturedOutputValue(finished));
 
   // All six builders detach arrays and wrappers, sharing closure/group identity.
   for (const [TreeTraversal, phase, graphMode] of [
-    [api.DepthFirstTreeTraversal, F.PRE_ORDER, false],
-    [api.AsyncDepthFirstTreeTraversal, F.PRE_ORDER, false],
-    [api.BreadthFirstTreeTraversal, api.BreadthFirstPhase.LEVEL_ORDER, false],
+    [api.DepthFirstTreeTraversalBuilder, F.BEFORE_CHILD_EXPANSION, false],
+    [api.AsyncDepthFirstTreeTraversalBuilder, F.BEFORE_CHILD_EXPANSION, false],
     [
-      api.AsyncBreadthFirstTreeTraversal,
-      api.BreadthFirstPhase.LEVEL_ORDER,
+      api.BreadthFirstTreeTraversalBuilder,
+      api.BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
       false,
     ],
-    [api.DagTraversal, D.ON_WORK_READY, true],
-    [api.AsyncDagTraversal, D.ON_WORK_READY, true],
+    [
+      api.AsyncBreadthFirstTreeTraversalBuilder,
+      api.BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
+      false,
+    ],
+    [api.DagTraversalBuilder, D.ON_WORK_READY, true],
+    [api.AsyncDagTraversalBuilder, D.ON_WORK_READY, true],
   ]) {
     const calls = [];
     const builder = new TreeTraversal(
       graphMode
         ? {
-            traversableGraph: {
-              resolveRoot: () => found('root'),
-              resolveChild: () => found('unused'),
+            dagDiscoverySource: {
+              resolveRootVertex: () => found('root'),
+              resolveChildHint: () => found('unused'),
             },
           }
-        : { traversableTree: tree },
+        : { treeDiscoverySource: tree },
     );
     let runner;
-    builder.setVisitorsFor(phase, {
+    builder.replaceVisitorDefinitionsForPhase(phase, {
       groups: [
         {
           visitors: [
             () => {
               calls.push('original');
-              assert.equal(runner.requestPause(), true);
-              assert.equal(runner.requestPause(), false);
+              assert.equal(
+                runner.requestPauseAfterAdmittedCallbacksDrain(),
+                true,
+              );
+              assert.equal(
+                runner.requestPauseAfterAdmittedCallbacksDrain(),
+                false,
+              );
             },
           ],
         },
       ],
     });
-    const before = builder.listVisitorsFor(phase);
-    builder.setVisitorsFor(phase, before);
-    const copy = builder.listVisitorsFor(phase);
+    const before = builder.getDetachedVisitorRegistrationRecordsForPhase(phase);
+    builder.replaceVisitorDefinitionsForPhase(phase, before);
+    const copy = builder.getDetachedVisitorRegistrationRecordsForPhase(phase);
     assert.notEqual(copy, before);
     assert.notEqual(copy[0], before[0]);
     assert.equal(copy[0].visitor, before[0].visitor);
@@ -219,72 +263,92 @@ for (const api of [cjs, esm]) {
     copy[0].visitor = () => {
       calls.push('replacement');
     };
-    copy[0].priority = -99;
-    copy[0].commandCommitMode = 'afterGroup';
+    copy[0].descendingExecutionPriorityWithinGroup = -99;
+    copy[0].visitorCommandCommitTiming = 'afterContiguousVisitorBatch';
     copy.length = 0;
-    runner = builder.createRunner();
-    assert.equal(runner.requestPause(), false);
-    await runner.run();
-    assert.equal(runner.getStopReason(), 'paused');
+    runner = builder.createIndependentRunnerFromCurrentOptions();
+    assert.equal(runner.requestPauseAfterAdmittedCallbacksDrain(), false);
+    await runner.runUntilSuspendedOrTerminal();
+    assert.equal(runner.getTraversalStopReason(), 'paused');
     assert.deepEqual(calls, ['original']);
-    assert.equal(runner.requestPause(), false);
-    await runner.run();
-    assert.equal(runner.getStatus(), 'FINISHED');
+    assert.equal(runner.requestPauseAfterAdmittedCallbacksDrain(), false);
+    await runner.runUntilSuspendedOrTerminal();
+    assert.equal(runner.getTraversalLifecycleStatus(), 'FINISHED');
     assert.deepEqual(calls, ['original']);
   }
 
-  for (const TreeTraversal of [api.DagTraversal, api.AsyncDagTraversal]) {
+  for (const TreeTraversal of [
+    api.DagTraversalBuilder,
+    api.AsyncDagTraversalBuilder,
+  ]) {
     // Preparation works in both source modes; run adopts without discovery replay.
     for (const graphMode of [false, true]) {
       let sources = 0;
       let visits = 0;
-      const resolveRoot = () => {
+      const resolveRootVertex = () => {
         sources++;
-        return graphMode ? found('root') : tree.resolveRoot();
+        return graphMode ? found('root') : tree.resolveRootVertex();
       };
       const runner = new TreeTraversal({
         ...(graphMode
           ? {
-              traversableGraph: {
-                resolveRoot,
-                resolveChild: () => found('unused'),
+              dagDiscoverySource: {
+                resolveRootVertex: resolveRootVertex,
+                resolveChildHint: () => found('unused'),
               },
             }
-          : { traversableTree: { ...tree, resolveRoot } }),
-        workCompletion: 'externalSettlement',
+          : {
+              treeDiscoverySource: {
+                ...tree,
+                resolveRootVertex: resolveRootVertex,
+              },
+            }),
+        workCompletionPolicy: 'requireExternalWorkSettlement',
         visitors: {
           [D.ON_WORK_READY]: () => {
             visits++;
           },
         },
-      }).createRunner();
-      assert.equal(await runner.prepare(), runner);
-      assert.equal(runner.getStopReason(), 'prepared');
-      assert.equal(runner.summary().discovery.mode, 'eager');
+      }).createIndependentRunnerFromCurrentOptions();
+      assert.equal(await runner.discoverValidateAndFreezeTopology(), runner);
+      assert.equal(runner.getTraversalStopReason(), 'prepared');
+      assert.equal(
+        runner.captureProgressSnapshot().discovery.timing,
+        'completeBeforeAnyVisitor',
+      );
       assert.equal(visits, 0);
-      assert.deepEqual(runner.summary().completedWorkIds, []);
-      assert.deepEqual(runner.summary().awaitingSettlement, []);
-      await runner.prepare();
+      assert.deepEqual(
+        runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+        [],
+      );
+      assert.deepEqual(
+        runner.captureProgressSnapshot().workAwaitingSettlement,
+        [],
+      );
+      await runner.discoverValidateAndFreezeTopology();
       assert.equal(sources, 1);
       const events = [];
-      for await (const event of runner.iterateEvents()) events.push(event);
+      for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+        events.push(event);
       assert.deepEqual(events, []);
       assert.equal(visits, 1);
       assert.equal(sources, 1);
-      const snapshot = runner.summary();
-      const work = snapshot.awaitingSettlement[0];
-      assert.equal(typeof work.generation, 'symbol');
-      const preserved = runner.summary().awaitingSettlement[0];
+      const snapshot = runner.captureProgressSnapshot();
+      const work = snapshot.workAwaitingSettlement[0];
+      assert.equal(typeof work.settlementToken, 'symbol');
+      const preserved =
+        runner.captureProgressSnapshot().workAwaitingSettlement[0];
       assert.notEqual(work, preserved);
-      work.generation = Symbol();
-      snapshot.awaitingSettlement.length = 0;
+      work.settlementToken = Symbol();
+      snapshot.workAwaitingSettlement.length = 0;
       assert.equal(
-        runner.summary().awaitingSettlement[0].generation,
-        preserved.generation,
+        runner.captureProgressSnapshot().workAwaitingSettlement[0]
+          .settlementToken,
+        preserved.settlementToken,
       );
       assert.throws(
         () =>
-          runner.settle(
+          runner.settleDeferredWork(
             preserved.vertexId,
             { kind: 'workCompleted' },
             Symbol(),
@@ -292,43 +356,52 @@ for (const api of [cjs, esm]) {
         TypeError,
       );
       assert.equal(
-        runner.settle(
+        runner.settleDeferredWork(
           preserved.vertexId,
           { kind: 'workCompleted' },
-          preserved.generation,
+          preserved.settlementToken,
         ),
         true,
       );
-      assert.deepEqual(runner.summary().awaitingSettlement, []);
-      for await (const event of runner.iterateEvents()) events.push(event);
       assert.deepEqual(
-        events.map(({ kind }) => kind),
-        ['workCompleted', 'subgraphCompleted'],
+        runner.captureProgressSnapshot().workAwaitingSettlement,
+        [],
       );
-      assert.equal(runner.getStopReason(), 'finished');
+      for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+        events.push(event);
+      assert.deepEqual(
+        events.map(({ eventKind }) => eventKind),
+        ['workCompletionCommitted', 'subgraphCompletionCommitted'],
+      );
+      assert.equal(runner.getTraversalStopReason(), 'finished');
       assert.equal(sources, 1);
       assert.equal(
-        runner.settle(
+        runner.settleDeferredWork(
           preserved.vertexId,
           { kind: 'workCompleted' },
-          preserved.generation,
+          preserved.settlementToken,
         ),
         false,
       );
-      await assert.rejects(async () => runner.prepare(), /prepar/i);
+      await assert.rejects(
+        async () => runner.discoverValidateAndFreezeTopology(),
+        /prepar/i,
+      );
     }
     for (const sourceMode of ['tree', 'graph']) {
       const input =
         sourceMode === 'tree'
-          ? { traversableTree: tree }
+          ? { treeDiscoverySource: tree }
           : {
-              traversableGraph: {
-                resolveRoot: () => found('root'),
-                resolveChild: () => found('unused'),
+              dagDiscoverySource: {
+                resolveRootVertex: () => found('root'),
+                resolveChildHint: () => found('unused'),
               },
             };
-      const fresh = new TreeTraversal(input).createRunner();
-      const before = fresh.inspect();
+      const fresh = new TreeTraversal(
+        input,
+      ).createIndependentRunnerFromCurrentOptions();
+      const before = fresh.captureExecutionSnapshot();
       assert.throws(
         () =>
           new TreeTraversal({
@@ -337,166 +410,195 @@ for (const api of [cjs, esm]) {
           }),
         TypeError,
       );
-      assert.deepEqual(fresh.inspect(), before);
-      await fresh.run();
-      assert.equal(fresh.getStopReason(), 'finished');
+      assert.deepEqual(fresh.captureExecutionSnapshot(), before);
+      await fresh.runUntilSuspendedOrTerminal();
+      assert.equal(fresh.getTraversalStopReason(), 'finished');
       const frozen = new TreeTraversal({
         ...input,
         visitors: {
           [D.ON_WORK_READY]: () => ({
             commands: [
               {
-                commandName: C.REWRITE_CHILD_HINTS,
-                commandArguments: { newHints: [] },
+                commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+                commandArguments: { replacementChildHints: [] },
               },
             ],
           }),
         },
-      }).createRunner();
-      await frozen.prepare();
-      await assert.rejects(async () => frozen.run(), /topology|eager/i);
+      }).createIndependentRunnerFromCurrentOptions();
+      await frozen.discoverValidateAndFreezeTopology();
+      await assert.rejects(
+        async () => frozen.runUntilSuspendedOrTerminal(),
+        /topology|eager/i,
+      );
     }
     const empty = new TreeTraversal({
-      traversableGraph: {
-        resolveRoot: () => ({
-          identity: null,
-          kind: 'omitted',
-          satisfiesDependencies: true,
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          omittedVertexIdentity: null,
+          kind: 'vertexIntentionallyOmitted',
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true,
         }),
-        resolveChild: () => found('unused'),
+        resolveChildHint: () => found('unused'),
       },
-    }).createRunner();
-    await empty.prepare();
-    assert.equal(empty.getStopReason(), 'prepared');
-    await empty.run();
-    assert.equal(empty.getStopReason(), 'finished');
+    }).createIndependentRunnerFromCurrentOptions();
+    await empty.discoverValidateAndFreezeTopology();
+    assert.equal(empty.getTraversalStopReason(), 'prepared');
+    await empty.runUntilSuspendedOrTerminal();
+    assert.equal(empty.getTraversalStopReason(), 'finished');
     const seeded = new TreeTraversal({
-      completedWork: new Set(['root']),
-      traversableGraph: {
-        resolveRoot: () => found('root'),
-        resolveChild: () => found('unused'),
+      acceptedCompletedWorkVertexIds: new Set(['root']),
+      dagDiscoverySource: {
+        resolveRootVertex: () => found('root'),
+        resolveChildHint: () => found('unused'),
       },
-    }).createRunner();
-    await seeded.prepare();
+    }).createIndependentRunnerFromCurrentOptions();
+    await seeded.discoverValidateAndFreezeTopology();
     const seededEvents = [];
-    for await (const event of seeded.iterateEvents())
-      seededEvents.push(event.kind);
-    assert.deepEqual(seededEvents, ['subgraphCompleted']);
+    for await (const event of seeded.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+      seededEvents.push(event.eventKind);
+    assert.deepEqual(seededEvents, ['subgraphCompletionCommitted']);
 
     // Own-property validation runs before generated/prerequisite fallback.
     class Inherited {
       get vertexId() {
         return 42;
       }
-      vertexContent = { $data: 'value', $childHints: [] };
+      vertexContentInput = { $vertexData: 'value', $childDiscoveryHints: [] };
     }
     for (const tagged of [false, true]) {
       for (const stage of ['root', 'child', 'prerequisite']) {
         const instance = new Inherited();
         const inherited = () =>
-          tagged ? { kind: 'found', vertex: instance } : instance;
+          tagged
+            ? { kind: 'vertexResolved', resolvedVertexInput: instance }
+            : instance;
         const rejected = new TreeTraversal({
-          traversableGraph: {
-            resolveRoot: () =>
+          dagDiscoverySource: {
+            resolveRootVertex: () =>
               stage === 'root'
                 ? inherited()
                 : found(
                     'root',
                     stage === 'child' ? ['child'] : [],
-                    stage === 'prerequisite' ? { dependsOnWork: [42] } : {},
+                    stage === 'prerequisite'
+                      ? { workWaitsForWorkOf: [42] }
+                      : {},
                   ),
-            resolveChild: inherited,
-            resolvePrerequisite: inherited,
+            resolveChildHint: inherited,
+            resolvePrerequisiteByVertexId: inherited,
           },
-        }).createRunner();
-        await assert.rejects(async () => rejected.prepare(), TypeError);
-        assert.equal(rejected.requestPause(), false);
+        }).createIndependentRunnerFromCurrentOptions();
+        await assert.rejects(
+          async () => rejected.discoverValidateAndFreezeTopology(),
+          TypeError,
+        );
+        assert.equal(rejected.requestPauseAfterAdmittedCallbacksDrain(), false);
       }
       const instance = new Inherited();
       const own = new TreeTraversal({
-        traversableGraph: {
-          resolveRoot: () => ({
-            kind: 'found',
-            vertex: {
+        dagDiscoverySource: {
+          resolveRootVertex: () => ({
+            kind: 'vertexResolved',
+            resolvedVertexInput: {
               vertexId: instance.vertexId,
-              vertexContent: instance.vertexContent,
+              vertexContentInput: instance.vertexContentInput,
             },
           }),
-          resolveChild: () => found('unused'),
+          resolveChildHint: () => found('unused'),
         },
-      }).createRunner();
-      await own.run();
-      assert.deepEqual(own.summary().completedWorkIds, [42]);
+      }).createIndependentRunnerFromCurrentOptions();
+      await own.runUntilSuspendedOrTerminal();
+      assert.deepEqual(
+        own.captureProgressSnapshot().workCompletionCommittedVertexIds,
+        [42],
+      );
     }
     for (const error of [undefined, null, {}]) {
       const failedGetter = new TreeTraversal({
-        traversableGraph: {
-          resolveRoot: () => ({
-            kind: 'found',
-            vertex: {
+        dagDiscoverySource: {
+          resolveRootVertex: () => ({
+            kind: 'vertexResolved',
+            resolvedVertexInput: {
               get vertexId() {
                 throw error;
               },
-              vertexContent: { $data: '', $childHints: [] },
+              vertexContentInput: { $vertexData: '', $childDiscoveryHints: [] },
             },
           }),
-          resolveChild: () => found('unused'),
+          resolveChildHint: () => found('unused'),
         },
-      }).createRunner();
-      await exactThrow(() => failedGetter.prepare(), error);
-      await exactThrow(() => failedGetter.run(), error);
+      }).createIndependentRunnerFromCurrentOptions();
+      await exactThrow(
+        () => failedGetter.discoverValidateAndFreezeTopology(),
+        error,
+      );
+      await exactThrow(() => failedGetter.runUntilSuspendedOrTerminal(), error);
     }
     // Capture tagged payload once, without evaluating a replacement payload.
     let reads = 0;
     const captured = new TreeTraversal({
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found',
-          get vertex() {
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          get resolvedVertexInput() {
             reads++;
-            return reads === 1 ? found(undefined).vertex : new Inherited();
+            return reads === 1
+              ? found(undefined).resolvedVertexInput
+              : new Inherited();
           },
         }),
-        resolveChild: () => found('unused'),
+        resolveChildHint: () => found('unused'),
       },
-    }).createRunner();
-    await captured.run();
+    }).createIndependentRunnerFromCurrentOptions();
+    await captured.runUntilSuspendedOrTerminal();
     assert.equal(reads, 1);
-    assert.deepEqual(captured.summary().completedWorkIds, [undefined]);
+    assert.deepEqual(
+      captured.captureProgressSnapshot().workCompletionCommittedVertexIds,
+      [undefined],
+    );
 
     // Original labelled constraints include seeds/missing endpoints and retain ID identity.
     const id = {};
     const missing = Symbol('missing');
     const missingCompletion = Symbol('missing completion');
     const invalid = new TreeTraversal({
-      completedWork: new Set([id]),
-      traversableGraph: {
-        resolveRoot: () =>
+      acceptedCompletedWorkVertexIds: new Set([id]),
+      dagDiscoverySource: {
+        resolveRootVertex: () =>
           found(id, ['child'], {
-            dependsOnWork: [missing],
-            dependsOnSubgraphCompletion: [missingCompletion],
+            workWaitsForWorkOf: [missing],
+            workWaitsForSubgraphCompletionOf: [missingCompletion],
           }),
-        resolveChild: (hint) => found(hint),
+        resolveChildHint: (hint) => found(hint),
       },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
     let failure;
     try {
-      await invalid.prepare();
+      await invalid.discoverValidateAndFreezeTopology();
     } catch (value) {
       failure = value;
     }
     assert(failure instanceof api.DagTraversalStallError);
     assert(failure instanceof esm.DagTraversalStallError);
-    const edge = failure.diagnostics.dependencyEdges[0];
-    assert.equal(edge.waiter.vertexId, id);
-    assert.equal(edge.prerequisite.vertexId, missing);
+    const edge = failure.diagnostics.originalMilestoneConstraints[0];
+    assert.equal(edge.waitingMilestone.vertexId, id);
+    assert.equal(edge.prerequisiteMilestone.vertexId, missing);
     assert.deepEqual(
-      [edge.waiter.milestone, edge.prerequisite.milestone, edge.reason],
-      ['work', 'work', 'workDependency'],
+      [
+        edge.waitingMilestone.milestone,
+        edge.prerequisiteMilestone.milestone,
+        edge.reason,
+      ],
+      ['workCompletion', 'workCompletion', 'workDependency'],
     );
     assert.deepEqual(
-      failure.diagnostics.dependencyEdges.map(
-        ({ waiter, prerequisite, reason }) => [
+      failure.diagnostics.originalMilestoneConstraints.map(
+        ({
+          waitingMilestone: waiter,
+          prerequisiteMilestone: prerequisite,
+          reason,
+        }) => [
           waiter.vertexId,
           waiter.milestone,
           prerequisite.vertexId,
@@ -505,15 +607,15 @@ for (const api of [cjs, esm]) {
         ],
       ),
       [
-        [id, 'work', missing, 'work', 'workDependency'],
+        [id, 'workCompletion', missing, 'workCompletion', 'workDependency'],
         [
           id,
-          'work',
+          'workCompletion',
           missingCompletion,
           'subgraphCompletion',
           'subgraphCompletionDependency',
         ],
-        [id, 'subgraphCompletion', id, 'work', 'ownWork'],
+        [id, 'subgraphCompletion', id, 'workCompletion', 'ownWork'],
         [
           id,
           'subgraphCompletion',
@@ -521,15 +623,17 @@ for (const api of [cjs, esm]) {
           'subgraphCompletion',
           'structuralChild',
         ],
-        ['child', 'subgraphCompletion', 'child', 'work', 'ownWork'],
+        ['child', 'subgraphCompletion', 'child', 'workCompletion', 'ownWork'],
       ],
     );
-    const next = invalid.summary().diagnostics.dependencyEdges[0];
+    const next =
+      invalid.captureProgressSnapshot().invalidDependencyTopologyDiagnostics
+        .originalMilestoneConstraints[0];
     assert.notEqual(next, edge);
-    assert.notEqual(next.waiter, edge.waiter);
-    assert.equal(next.waiter.vertexId, id);
-    edge.waiter.milestone = 'subgraphCompletion';
-    assert.equal(next.waiter.milestone, 'work');
+    assert.notEqual(next.waitingMilestone, edge.waitingMilestone);
+    assert.equal(next.waitingMilestone.vertexId, id);
+    edge.waitingMilestone.milestone = 'subgraphCompletion';
+    assert.equal(next.waitingMilestone.milestone, 'workCompletion');
     assert.equal(Object.isFrozen(id), false);
   }
   // A pause request waits for admitted discovery without canceling it; run adopts it.
@@ -542,51 +646,51 @@ for (const api of [cjs, esm]) {
     entered = resolve;
   });
   let sourceCalls = 0;
-  const preparing = new api.AsyncDagTraversal({
-    traversableGraph: {
-      resolveRoot: async () => {
+  const preparing = new api.AsyncDagTraversalBuilder({
+    dagDiscoverySource: {
+      resolveRootVertex: async () => {
         sourceCalls++;
         entered();
         await gate;
         return found('root');
       },
-      resolveChild: () => found('unused'),
+      resolveChildHint: () => found('unused'),
     },
-  }).createRunner();
+  }).createIndependentRunnerFromCurrentOptions();
   let preparationSettled = false;
-  const operation = preparing.prepare().then(() => {
+  const operation = preparing.discoverValidateAndFreezeTopology().then(() => {
     preparationSettled = true;
   });
   await started;
-  assert.equal(preparing.requestPause(), true);
+  assert.equal(preparing.requestPauseAfterAdmittedCallbacksDrain(), true);
   await Promise.resolve();
   assert.equal(preparationSettled, false);
-  assert.equal(preparing.getStatus(), 'RUNNING');
+  assert.equal(preparing.getTraversalLifecycleStatus(), 'RUNNING');
   release();
   await operation;
-  assert.equal(preparing.getStopReason(), 'paused');
-  await preparing.run();
-  assert.equal(preparing.getStopReason(), 'finished');
+  assert.equal(preparing.getTraversalStopReason(), 'paused');
+  await preparing.runUntilSuspendedOrTerminal();
+  assert.equal(preparing.getTraversalStopReason(), 'finished');
   assert.equal(sourceCalls, 1);
   const legacy = new api.DagTraversalStallError({
-    dependencies: [],
-    unknownPrerequisiteIds: [],
-    dependencyCycleComponents: [],
-    dependencyBlockedIds: [],
-    structurallyIncompleteIds: [],
+    blockedVertexPrerequisiteReports: [],
+    unresolvedPrerequisiteVertexIds: [],
+    milestoneCycleVertexIdComponents: [],
+    nonCyclePrerequisiteBlockedVertexIds: [],
+    incompleteVertexIdsWithoutUnmetPrerequisites: [],
   });
-  assert.deepEqual(legacy.diagnostics.dependencyEdges, []);
+  assert.deepEqual(legacy.diagnostics.originalMilestoneConstraints, []);
 }
 console.log(
   'Verified composable runtime capabilities with shared CJS/ESM identity.',
 );
 
 function outputValue(result) {
-  const output = result.getOutputResult();
+  const output = result.getFinalOutputResult();
   return output.kind === 'present' ? output.value : null;
 }
 
 function capturedOutputValue(result) {
-  const output = result.outputResultAtReturn;
+  const output = result.capturedOutputResultAtReturn;
   return output.kind === 'present' ? output.value : null;
 }

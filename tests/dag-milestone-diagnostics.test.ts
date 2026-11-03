@@ -1,22 +1,22 @@
 import {
-  AsyncDagTraversal,
-  DagTraversal,
+  AsyncDagTraversalBuilder,
+  DagTraversalBuilder,
   DagTraversalStallError,
-  type VertexTypes,
-  type DagWaitEdge,
+  type VertexDataAndChildHintTypes,
+  type DagMilestoneConstraint,
 } from '../src';
 
-type G = VertexTypes<string, string>;
+type G = VertexDataAndChildHintTypes<string, string>;
 function edge(
-  waiter: unknown,
-  fromPhase: 'work' | 'subgraphCompletion',
+  waitingMilestone: unknown,
+  fromPhase: 'workCompletion' | 'subgraphCompletion',
   prerequisite: unknown,
-  toPhase: 'work' | 'subgraphCompletion',
-  reason: DagWaitEdge['reason'],
+  toPhase: 'workCompletion' | 'subgraphCompletion',
+  reason: DagMilestoneConstraint['reason'],
 ) {
   return {
-    waiter: { vertexId: waiter, milestone: fromPhase },
-    prerequisite: { vertexId: prerequisite, milestone: toPhase },
+    waitingMilestone: { vertexId: waitingMilestone, milestone: fromPhase },
+    prerequisiteMilestone: { vertexId: prerequisite, milestone: toPhase },
     reason,
   };
 }
@@ -30,41 +30,66 @@ async function failure(operation: () => unknown) {
   throw new Error('expected a public DAG stall');
 }
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
-  for (const operation of ['run', 'prepare'] as const) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
+  for (const operation of [
+    'runUntilSuspendedOrTerminal',
+    'discoverValidateAndFreezeTopology',
+  ] as const) {
     for (const seeded of [false, true]) {
       test(`${Constructor.name} ${operation} preserves original milestone reasons with seeds=${seeded}`, async () => {
         for (const completion of [false, true]) {
           const runner = new Constructor<G>({
-            discovery: 'eager',
-            ...(seeded ? { completedWork: new Set(['root', 'child']) } : {}),
-            traversableGraph: {
-              resolveRoot: () => ({
-                kind: 'found' as const,
-                vertex: {
+            discoveryTiming: 'completeBeforeAnyVisitor',
+            ...(seeded
+              ? { acceptedCompletedWorkVertexIds: new Set(['root', 'child']) }
+              : {}),
+            dagDiscoverySource: {
+              resolveRootVertex: () => ({
+                kind: 'vertexResolved' as const,
+                resolvedVertexInput: {
                   vertexId: 'root',
-                  dependsOnWork: completion ? [] : ['child'],
-                  vertexContent: { $data: 'root', $childHints: ['child'] },
+                  workWaitsForWorkOf: completion ? [] : ['child'],
+                  vertexContentInput: {
+                    $vertexData: 'root',
+                    $childDiscoveryHints: ['child'],
+                  },
                 },
               }),
-              resolveChild: () => ({
-                kind: 'found' as const,
-                vertex: {
+              resolveChildHint: () => ({
+                kind: 'vertexResolved' as const,
+                resolvedVertexInput: {
                   vertexId: 'child',
                   ...(completion
-                    ? { dependsOnSubgraphCompletion: ['root'] }
-                    : { dependsOnWork: ['root'] }),
-                  vertexContent: { $data: 'child', $childHints: [] },
+                    ? { workWaitsForSubgraphCompletionOf: ['root'] }
+                    : { workWaitsForWorkOf: ['root'] }),
+                  vertexContentInput: {
+                    $vertexData: 'child',
+                    $childDiscoveryHints: [],
+                  },
                 },
               }),
             },
-          }).createRunner();
+          }).createIndependentRunnerFromCurrentOptions();
           const error = await failure(() => runner[operation]());
           const expected = [
             ...(completion
               ? []
-              : [edge('root', 'work', 'child', 'work', 'workDependency')]),
-            edge('root', 'subgraphCompletion', 'root', 'work', 'ownWork'),
+              : [
+                  edge(
+                    'root',
+                    'workCompletion',
+                    'child',
+                    'workCompletion',
+                    'workDependency',
+                  ),
+                ]),
+            edge(
+              'root',
+              'subgraphCompletion',
+              'root',
+              'workCompletion',
+              'ownWork',
+            ),
             edge(
               'root',
               'subgraphCompletion',
@@ -74,21 +99,35 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             ),
             edge(
               'child',
-              'work',
+              'workCompletion',
               'root',
-              completion ? 'subgraphCompletion' : 'work',
+              completion ? 'subgraphCompletion' : 'workCompletion',
               completion ? 'subgraphCompletionDependency' : 'workDependency',
             ),
-            edge('child', 'subgraphCompletion', 'child', 'work', 'ownWork'),
+            edge(
+              'child',
+              'subgraphCompletion',
+              'child',
+              'workCompletion',
+              'ownWork',
+            ),
           ];
           expect(error.diagnostics).toMatchObject({
-            dependencyCycleComponents: [['root', 'child']],
-            dependencyEdges: expected,
+            milestoneCycleVertexIdComponents: [['root', 'child']],
+            originalMilestoneConstraints: expected,
           });
-          const first = runner.summary().diagnostics!;
-          const second = runner.summary().diagnostics!;
-          expect(first).toMatchObject({ dependencyEdges: expected });
-          expect(second).toMatchObject({ dependencyEdges: expected });
+          const first =
+            runner.captureProgressSnapshot()
+              .invalidDependencyTopologyDiagnostics!;
+          const second =
+            runner.captureProgressSnapshot()
+              .invalidDependencyTopologyDiagnostics!;
+          expect(first).toMatchObject({
+            originalMilestoneConstraints: expected,
+          });
+          expect(second).toMatchObject({
+            originalMilestoneConstraints: expected,
+          });
         }
       });
     }
@@ -96,42 +135,52 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 
   test(`${Constructor.name} retains missing endpoints, self loops and disconnected SCC declaration order`, async () => {
     const runner = new Constructor<G>({
-      discovery: 'eager',
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
+      discoveryTiming: 'completeBeforeAnyVisitor',
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: 'root',
-            dependsOnWork: ['missing-work'],
-            dependsOnSubgraphCompletion: ['missing-completion'],
-            vertexContent: { $data: 'root', $childHints: ['a', 'b', 'c'] },
+            workWaitsForWorkOf: ['missing-work'],
+            workWaitsForSubgraphCompletionOf: ['missing-completion'],
+            vertexContentInput: {
+              $vertexData: 'root',
+              $childDiscoveryHints: ['a', 'b', 'c'],
+            },
           },
         }),
-        resolveChild: (id) => ({
-          kind: 'found' as const,
-          vertex: {
+        resolveChildHint: (id) => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: id,
-            dependsOnWork: id === 'a' ? ['b', 'b'] : id === 'b' ? ['a'] : [],
-            dependsOnSubgraphCompletion: id === 'c' ? ['c'] : [],
-            vertexContent: { $data: id, $childHints: [] },
+            workWaitsForWorkOf:
+              id === 'a' ? ['b', 'b'] : id === 'b' ? ['a'] : [],
+            workWaitsForSubgraphCompletionOf: id === 'c' ? ['c'] : [],
+            vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] },
           },
         }),
       },
-    }).createRunner();
-    const error = await failure(() => runner.run());
+    }).createIndependentRunnerFromCurrentOptions();
+    const error = await failure(() => runner.runUntilSuspendedOrTerminal());
     expect(error.diagnostics).toMatchObject({
-      unknownPrerequisiteIds: ['missing-work', 'missing-completion'],
-      dependencyCycleComponents: [['a', 'b'], ['c']],
-      dependencyEdges: [
-        edge('root', 'work', 'missing-work', 'work', 'workDependency'),
+      unresolvedPrerequisiteVertexIds: ['missing-work', 'missing-completion'],
+      milestoneCycleVertexIdComponents: [['a', 'b'], ['c']],
+      originalMilestoneConstraints: [
         edge(
           'root',
-          'work',
+          'workCompletion',
+          'missing-work',
+          'workCompletion',
+          'workDependency',
+        ),
+        edge(
+          'root',
+          'workCompletion',
           'missing-completion',
           'subgraphCompletion',
           'subgraphCompletionDependency',
         ),
-        edge('root', 'subgraphCompletion', 'root', 'work', 'ownWork'),
+        edge('root', 'subgraphCompletion', 'root', 'workCompletion', 'ownWork'),
         edge(
           'root',
           'subgraphCompletion',
@@ -153,67 +202,76 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           'subgraphCompletion',
           'structuralChild',
         ),
-        edge('a', 'work', 'b', 'work', 'workDependency'),
-        edge('a', 'subgraphCompletion', 'a', 'work', 'ownWork'),
-        edge('b', 'work', 'a', 'work', 'workDependency'),
-        edge('b', 'subgraphCompletion', 'b', 'work', 'ownWork'),
+        edge('a', 'workCompletion', 'b', 'workCompletion', 'workDependency'),
+        edge('a', 'subgraphCompletion', 'a', 'workCompletion', 'ownWork'),
+        edge('b', 'workCompletion', 'a', 'workCompletion', 'workDependency'),
+        edge('b', 'subgraphCompletion', 'b', 'workCompletion', 'ownWork'),
         edge(
           'c',
-          'work',
+          'workCompletion',
           'c',
           'subgraphCompletion',
           'subgraphCompletionDependency',
         ),
-        edge('c', 'subgraphCompletion', 'c', 'work', 'ownWork'),
+        edge('c', 'subgraphCompletion', 'c', 'workCompletion', 'ownWork'),
       ],
     });
   });
 
   test(`${Constructor.name} excludes synthetic holder edges from errors and summaries`, async () => {
     const runner = new Constructor<G>({
-      syntheticRoot: true,
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
-            vertexContent: { $data: 'holder', $childHints: ['a', 'b'] },
+      sourceRootIsHiddenEntryHolder: true,
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'holder',
+              $childDiscoveryHints: ['a', 'b'],
+            },
           },
         }),
-        resolveChild: (id) => ({
-          kind: 'found' as const,
-          vertex: {
+        resolveChildHint: (id) => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: id,
-            dependsOnWork: [id === 'a' ? 'b' : 'a'],
-            vertexContent: { $data: id, $childHints: [] },
+            workWaitsForWorkOf: [id === 'a' ? 'b' : 'a'],
+            vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] },
           },
         }),
       },
-    }).createRunner();
-    const error = await failure(() => runner.prepare());
-    const dependencyEdges = [
-      edge('a', 'work', 'b', 'work', 'workDependency'),
-      edge('a', 'subgraphCompletion', 'a', 'work', 'ownWork'),
-      edge('b', 'work', 'a', 'work', 'workDependency'),
-      edge('b', 'subgraphCompletion', 'b', 'work', 'ownWork'),
+    }).createIndependentRunnerFromCurrentOptions();
+    const error = await failure(() =>
+      runner.discoverValidateAndFreezeTopology(),
+    );
+    const originalMilestoneConstraints = [
+      edge('a', 'workCompletion', 'b', 'workCompletion', 'workDependency'),
+      edge('a', 'subgraphCompletion', 'a', 'workCompletion', 'ownWork'),
+      edge('b', 'workCompletion', 'a', 'workCompletion', 'workDependency'),
+      edge('b', 'subgraphCompletion', 'b', 'workCompletion', 'ownWork'),
     ];
-    expect(error.diagnostics).toMatchObject({ dependencyEdges });
-    expect(runner.summary().diagnostics).toMatchObject({ dependencyEdges });
-    expect(runner.summary().diagnostics).toMatchObject({ dependencyEdges });
+    expect(error.diagnostics).toMatchObject({ originalMilestoneConstraints });
+    expect(
+      runner.captureProgressSnapshot().invalidDependencyTopologyDiagnostics,
+    ).toMatchObject({ originalMilestoneConstraints });
+    expect(
+      runner.captureProgressSnapshot().invalidDependencyTopologyDiagnostics,
+    ).toMatchObject({ originalMilestoneConstraints });
   });
 }
 
 test('manual historical diagnostics default to an empty detached edge list', () => {
   const error = new DagTraversalStallError({
-    dependencies: [],
-    unknownPrerequisiteIds: [],
-    dependencyCycleComponents: [],
-    dependencyBlockedIds: [],
-    structurallyIncompleteIds: [],
+    blockedVertexPrerequisiteReports: [],
+    unresolvedPrerequisiteVertexIds: [],
+    milestoneCycleVertexIdComponents: [],
+    nonCyclePrerequisiteBlockedVertexIds: [],
+    incompleteVertexIdsWithoutUnmetPrerequisites: [],
   });
-  expect(error.diagnostics).toMatchObject({ dependencyEdges: [] });
+  expect(error.diagnostics).toMatchObject({ originalMilestoneConstraints: [] });
 });
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test(`${Constructor.name} detaches every edge wrapper while preserving opaque SameValueZero IDs`, async () => {
     const root = {
       value: 1,
@@ -227,31 +285,33 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const twin = { value: 1 };
     const symbol = Symbol('child');
     const ids = [twin, symbol, undefined, NaN, -0];
-    const runner = new Constructor<VertexTypes<unknown, unknown>>({
-      discovery: 'eager',
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
+    const runner = new Constructor<
+      VertexDataAndChildHintTypes<unknown, unknown>
+    >({
+      discoveryTiming: 'completeBeforeAnyVisitor',
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: root,
-            dependsOnWork: [root],
-            vertexContent: { $data: '', $childHints: ids },
+            workWaitsForWorkOf: [root],
+            vertexContentInput: { $vertexData: '', $childDiscoveryHints: ids },
           },
         }),
-        resolveChild: (id) => ({
-          kind: 'found' as const,
-          vertex: {
+        resolveChildHint: (id) => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: id,
-            dependsOnWork: [id, id],
-            vertexContent: { $data: '', $childHints: [] },
+            workWaitsForWorkOf: [id, id],
+            vertexContentInput: { $vertexData: '', $childDiscoveryHints: [] },
           },
         }),
       },
-    }).createRunner();
-    const error = await failure(() => runner.run());
+    }).createIndependentRunnerFromCurrentOptions();
+    const error = await failure(() => runner.runUntilSuspendedOrTerminal());
     const expected = [
-      edge(root, 'work', root, 'work', 'workDependency'),
-      edge(root, 'subgraphCompletion', root, 'work', 'ownWork'),
+      edge(root, 'workCompletion', root, 'workCompletion', 'workDependency'),
+      edge(root, 'subgraphCompletion', root, 'workCompletion', 'ownWork'),
       ...ids.map((id) =>
         edge(
           root,
@@ -262,13 +322,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         ),
       ),
       ...ids.flatMap((id) => [
-        edge(id, 'work', id, 'work', 'workDependency'),
-        edge(id, 'subgraphCompletion', id, 'work', 'ownWork'),
+        edge(id, 'workCompletion', id, 'workCompletion', 'workDependency'),
+        edge(id, 'subgraphCompletion', id, 'workCompletion', 'ownWork'),
       ]),
     ];
     expect(error.diagnostics).toMatchObject({
-      dependencyEdges: expected,
-      dependencyCycleComponents: [
+      originalMilestoneConstraints: expected,
+      milestoneCycleVertexIdComponents: [
         [root],
         [twin],
         [symbol],
@@ -277,111 +337,143 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         [0],
       ],
     });
-    const first = runner.summary().diagnostics!;
-    const second = runner.summary().diagnostics!;
-    const errorEdges = error.diagnostics.dependencyEdges;
-    const firstEdges = first.dependencyEdges;
-    const secondEdges = second.dependencyEdges;
+    const first =
+      runner.captureProgressSnapshot().invalidDependencyTopologyDiagnostics!;
+    const second =
+      runner.captureProgressSnapshot().invalidDependencyTopologyDiagnostics!;
+    const errorEdges = error.diagnostics.originalMilestoneConstraints;
+    const firstEdges = first.originalMilestoneConstraints;
+    const secondEdges = second.originalMilestoneConstraints;
     expect(firstEdges).toEqual(expected);
     expect(firstEdges).not.toBe(secondEdges);
     firstEdges.forEach((item, index) => {
       expect(item).not.toBe(secondEdges[index]);
-      expect(item.waiter).not.toBe(secondEdges[index]!.waiter);
-      expect(item.prerequisite).not.toBe(secondEdges[index]!.prerequisite);
-      expect(item.waiter).not.toBe(item.prerequisite);
+      expect(item.waitingMilestone).not.toBe(
+        secondEdges[index]!.waitingMilestone,
+      );
+      expect(item.prerequisiteMilestone).not.toBe(
+        secondEdges[index]!.prerequisiteMilestone,
+      );
+      expect(item.waitingMilestone).not.toBe(item.prerequisiteMilestone);
     });
-    expect(firstEdges[0]!.waiter.vertexId).toBe(root);
-    expect(firstEdges[0]!.prerequisite.vertexId).toBe(root);
-    expect(firstEdges[2]!.prerequisite.vertexId).toBe(twin);
-    errorEdges[0]!.waiter.vertexId = 'changed error';
-    errorEdges[0]!.prerequisite.milestone = 'subgraphCompletion';
+    expect(firstEdges[0]!.waitingMilestone.vertexId).toBe(root);
+    expect(firstEdges[0]!.prerequisiteMilestone.vertexId).toBe(root);
+    expect(firstEdges[2]!.prerequisiteMilestone.vertexId).toBe(twin);
+    errorEdges[0]!.waitingMilestone.vertexId = 'changed error';
+    errorEdges[0]!.prerequisiteMilestone.milestone = 'subgraphCompletion';
     errorEdges.length = 0;
-    firstEdges[0]!.waiter.vertexId = 'changed summary';
-    firstEdges[0]!.prerequisite.milestone = 'subgraphCompletion';
+    firstEdges[0]!.waitingMilestone.vertexId = 'changed summary';
+    firstEdges[0]!.prerequisiteMilestone.milestone = 'subgraphCompletion';
     firstEdges.push(
-      edge('injected', 'work', 'injected', 'work', 'workDependency'),
+      edge(
+        'injected',
+        'workCompletion',
+        'injected',
+        'workCompletion',
+        'workDependency',
+      ),
     );
     expect(secondEdges).toEqual(expected);
-    expect(runner.summary().diagnostics).toMatchObject({
-      dependencyEdges: expected,
+    expect(
+      runner.captureProgressSnapshot().invalidDependencyTopologyDiagnostics,
+    ).toMatchObject({
+      originalMilestoneConstraints: expected,
     });
     expect(Object.isFrozen(root)).toBe(false);
     expect(Object.isFrozen(twin)).toBe(false);
     root.value = 2;
-    expect(secondEdges[0]!.waiter.vertexId).toBe(root);
+    expect(secondEdges[0]!.waitingMilestone.vertexId).toBe(root);
   });
 }
 
 test('manual labelled diagnostics copy arrays, edges and both milestone records', () => {
   const vertexId = {};
   const input = {
-    dependencies: [],
-    unknownPrerequisiteIds: [],
-    dependencyCycleComponents: [],
-    dependencyBlockedIds: [],
-    structurallyIncompleteIds: [],
-    dependencyEdges: [
-      edge(vertexId, 'work', vertexId, 'work', 'workDependency'),
+    blockedVertexPrerequisiteReports: [],
+    unresolvedPrerequisiteVertexIds: [],
+    milestoneCycleVertexIdComponents: [],
+    nonCyclePrerequisiteBlockedVertexIds: [],
+    incompleteVertexIdsWithoutUnmetPrerequisites: [],
+    originalMilestoneConstraints: [
+      edge(
+        vertexId,
+        'workCompletion',
+        vertexId,
+        'workCompletion',
+        'workDependency',
+      ),
     ],
   };
   const error = new DagTraversalStallError(input);
   expect(error.diagnostics).toMatchObject({
-    dependencyEdges: input.dependencyEdges,
+    originalMilestoneConstraints: input.originalMilestoneConstraints,
   });
-  const edges = error.diagnostics.dependencyEdges;
-  expect(edges).not.toBe(input.dependencyEdges);
-  expect(edges[0]).not.toBe(input.dependencyEdges[0]);
-  expect(edges[0]!.waiter).not.toBe(input.dependencyEdges[0]!.waiter);
-  expect(edges[0]!.prerequisite).not.toBe(
-    input.dependencyEdges[0]!.prerequisite,
+  const edges = error.diagnostics.originalMilestoneConstraints;
+  expect(edges).not.toBe(input.originalMilestoneConstraints);
+  expect(edges[0]).not.toBe(input.originalMilestoneConstraints[0]);
+  expect(edges[0]!.waitingMilestone).not.toBe(
+    input.originalMilestoneConstraints[0]!.waitingMilestone,
   );
-  input.dependencyEdges[0]!.waiter.vertexId = 'changed';
-  input.dependencyEdges[0]!.prerequisite.milestone = 'subgraphCompletion';
-  input.dependencyEdges.length = 0;
+  expect(edges[0]!.prerequisiteMilestone).not.toBe(
+    input.originalMilestoneConstraints[0]!.prerequisiteMilestone,
+  );
+  input.originalMilestoneConstraints[0]!.waitingMilestone.vertexId = 'changed';
+  input.originalMilestoneConstraints[0]!.prerequisiteMilestone.milestone =
+    'subgraphCompletion';
+  input.originalMilestoneConstraints.length = 0;
   expect(edges).toEqual([
-    edge(vertexId, 'work', vertexId, 'work', 'workDependency'),
+    edge(
+      vertexId,
+      'workCompletion',
+      vertexId,
+      'workCompletion',
+      'workDependency',
+    ),
   ]);
-  expect(edges[0]!.waiter.vertexId).toBe(vertexId);
+  expect(edges[0]!.waitingMilestone.vertexId).toBe(vertexId);
   expect(Object.isFrozen(vertexId)).toBe(false);
 });
 
 test('public preparation diagnoses a 10k-node dependency chain without recursion', async () => {
-  type Numeric = VertexTypes<number, number>;
-  const runner = new DagTraversal<Numeric, Numeric, number>({
-    traversableGraph: {
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
+  type Numeric = VertexDataAndChildHintTypes<number, number>;
+  const runner = new DagTraversalBuilder<Numeric, Numeric, number>({
+    dagDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: 0,
-          dependsOnWork: [1],
-          vertexContent: { $data: 0, $childHints: [1] },
+          workWaitsForWorkOf: [1],
+          vertexContentInput: { $vertexData: 0, $childDiscoveryHints: [1] },
         },
       }),
-      resolveChild: (id) => ({
-        kind: 'found' as const,
-        vertex: {
+      resolveChildHint: (id) => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: id,
-          dependsOnWork: [id + 1],
-          vertexContent: { $data: id, $childHints: id < 9999 ? [id + 1] : [] },
+          workWaitsForWorkOf: [id + 1],
+          vertexContentInput: {
+            $vertexData: id,
+            $childDiscoveryHints: id < 9999 ? [id + 1] : [],
+          },
         },
       }),
     },
-  }).createRunner();
-  const error = await failure(() => runner.prepare());
+  }).createIndependentRunnerFromCurrentOptions();
+  const error = await failure(() => runner.discoverValidateAndFreezeTopology());
   expect(error.diagnostics).toMatchObject({
-    dependencyCycleComponents: [],
-    unknownPrerequisiteIds: [10000],
-    dependencyEdges: expect.any(Array),
+    milestoneCycleVertexIdComponents: [],
+    unresolvedPrerequisiteVertexIds: [10000],
+    originalMilestoneConstraints: expect.any(Array),
   });
-  const edges = error.diagnostics.dependencyEdges;
+  const edges = error.diagnostics.originalMilestoneConstraints;
   expect(edges).toHaveLength(29999);
   expect(edges.slice(0, 3)).toEqual([
-    edge(0, 'work', 1, 'work', 'workDependency'),
-    edge(0, 'subgraphCompletion', 0, 'work', 'ownWork'),
+    edge(0, 'workCompletion', 1, 'workCompletion', 'workDependency'),
+    edge(0, 'subgraphCompletion', 0, 'workCompletion', 'ownWork'),
     edge(0, 'subgraphCompletion', 1, 'subgraphCompletion', 'structuralChild'),
   ]);
   expect(edges.slice(-2)).toEqual([
-    edge(9999, 'work', 10000, 'work', 'workDependency'),
-    edge(9999, 'subgraphCompletion', 9999, 'work', 'ownWork'),
+    edge(9999, 'workCompletion', 10000, 'workCompletion', 'workDependency'),
+    edge(9999, 'subgraphCompletion', 9999, 'workCompletion', 'ownWork'),
   ]);
 });

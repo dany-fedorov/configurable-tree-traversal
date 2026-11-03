@@ -1,5 +1,5 @@
 import type { WalkResources } from './WalkResources';
-import type { GraphWalkVertexResult } from '../GraphWalkSource';
+import type { GraphWalkVertexResolutionResult } from '../GraphWalkSource';
 import { rejectThenable } from './rejectThenable';
 
 function record(value: unknown): Record<PropertyKey, unknown> {
@@ -8,15 +8,18 @@ function record(value: unknown): Record<PropertyKey, unknown> {
   return value as Record<PropertyKey, unknown>;
 }
 
-/** Read a tagged value once; data is deliberately shallow and may be undefined. */
-export function copyResolution<Data>(
+/** Read a tagged value firstAdmittedFoundRoutePerVertex; data is deliberately shallow and may be undefined. */
+export function copyResolution<VertexData>(
   value: unknown,
-): GraphWalkVertexResult<Data> {
+): GraphWalkVertexResolutionResult<VertexData> {
   const input = record(value);
   const kind = input['kind'];
   if (kind === 'omitted') return { kind };
-  if (kind === 'found' && Object.prototype.hasOwnProperty.call(input, 'data'))
-    return { kind, data: input['data'] as Data };
+  if (
+    kind === 'found' &&
+    Object.prototype.hasOwnProperty.call(input, 'vertexData')
+  )
+    return { kind, vertexData: input['vertexData'] as VertexData };
   throw new TypeError('Expected found or omitted walking resolution');
 }
 
@@ -34,7 +37,7 @@ export function pullCursor(
   cursor: WalkCursor,
   execution: 'sync' | 'async',
   resources: WalkResources,
-  vertexToken?: symbol,
+  runnerLocalVertexIdentityToken?: symbol,
 ): unknown {
   if (cursor.iterator === null) {
     const input = record(cursor.input);
@@ -43,13 +46,15 @@ export function pullCursor(
         ? input[Symbol.asyncIterator] ?? input[Symbol.iterator]
         : input[Symbol.iterator];
     if (typeof factory !== 'function')
-      throw new TypeError('Expected a walking source iterable');
+      throw new TypeError(
+        'Expected a walking source iterable',
+      );
     const value = factory.call(input);
     // Acquiring an object transfers cleanup ownership before any source-owned
     // getter is read, including the thenable guard's `then` lookup.
     if (value !== null && typeof value === 'object') {
       cursor.iterator = value as Iterator<unknown>;
-      resources.open(cursor.iterator, vertexToken);
+      resources.open(cursor.iterator, runnerLocalVertexIdentityToken);
     }
     rejectThenable(value);
     const iterator = record(value);
@@ -65,43 +70,65 @@ export function readStep(value: unknown): IteratorResult<unknown> {
     : { done: false, value: input['value'] };
 }
 
-export type WalkTarget<ID> = { vertexId: ID; resolution?: unknown };
-export type WalkLink<Edge, ID> = { target: WalkTarget<ID>; data: Edge };
-
-type Adjacency<Edge, ID> = {
-  cursor: WalkCursor | null;
-  links: WalkLink<Edge, ID>[];
+export type WalkTarget<VertexId> = {
+  vertexId: VertexId;
+  resolutionIfNotPreviouslyAdmitted?: unknown;
 };
-export class WalkSourceCache<Data, Edge, ID> {
-  readonly resolutions = new Map<ID, GraphWalkVertexResult<Data>>();
-  readonly adjacency = new Map<ID, Adjacency<Edge, ID>>();
+export type WalkLink<EdgeData, VertexId> = {
+  targetToResolveOnAdmission: WalkTarget<VertexId>;
+  edgeData: EdgeData;
+};
 
-  constructor(private readonly hydration: 'resolver' | 'inlineOrCached') {}
+type Adjacency<EdgeData, VertexId> = {
+  cursor: WalkCursor | null;
+  links: WalkLink<EdgeData, VertexId>[];
+};
+export class WalkSourceCache<VertexData, EdgeData, VertexId> {
+  readonly resolutions = new Map<
+    VertexId,
+    GraphWalkVertexResolutionResult<VertexData>
+  >();
+  readonly adjacency = new Map<VertexId, Adjacency<EdgeData, VertexId>>();
 
-  copyTarget(value: unknown): WalkTarget<ID> {
+  constructor(
+    private readonly vertexResolutionMode:
+      | 'resolverWithOptionalInlineResolution'
+      | 'inlineResolutionOrPreviouslyAdmittedVertex',
+  ) {}
+
+  copyTarget(value: unknown): WalkTarget<VertexId> {
     const input = record(value);
     if (!Object.prototype.hasOwnProperty.call(input, 'vertexId'))
-      throw new TypeError('Expected a walking target vertexId');
-    const vertexId = input['vertexId'] as ID;
-    if (this.hydration === 'inlineOrCached') {
+      throw new TypeError(
+        'Expected a walking target vertexId',
+      );
+    const vertexId = input['vertexId'] as VertexId;
+    if (
+      this.vertexResolutionMode === 'inlineResolutionOrPreviouslyAdmittedVertex'
+    ) {
       const kind = input['kind'];
-      if (kind !== 'inline' && kind !== 'cached')
-        throw new TypeError('Expected an inline or cached walking target');
-      if (kind === 'cached') return { vertexId };
+      if (kind !== 'inlineResolution' && kind !== 'previouslyAdmittedVertex')
+        throw new TypeError(
+          'Expected an inlineResolution or previouslyAdmittedVertex walking target',
+        );
+      if (kind === 'previouslyAdmittedVertex') return { vertexId };
     }
-    // A later inline value cannot replace or revalidate the accepted snapshot.
+    // A later inlineResolution value cannot replace or revalidate the accepted snapshot.
     if (this.resolutions.has(vertexId)) return { vertexId };
-    const resolution = input['resolution'];
-    return { vertexId, resolution };
+    const resolutionIfNotPreviouslyAdmitted =
+      input['resolutionIfNotPreviouslyAdmitted'];
+    return { vertexId, resolutionIfNotPreviouslyAdmitted };
   }
-  copyLink(value: unknown): WalkLink<Edge, ID> {
+  copyLink(value: unknown): WalkLink<EdgeData, VertexId> {
     const input = record(value);
     return {
-      target: this.copyTarget(input['target']),
-      data: input['data'] as Edge,
+      targetToResolveOnAdmission: this.copyTarget(
+        input['targetToResolveOnAdmission'],
+      ),
+      edgeData: input['edgeData'] as EdgeData,
     };
   }
-  entries(vertexId: ID): Adjacency<Edge, ID> {
+  entries(vertexId: VertexId): Adjacency<EdgeData, VertexId> {
     let entry = this.adjacency.get(vertexId);
     if (entry === undefined) {
       entry = { cursor: null, links: [] };

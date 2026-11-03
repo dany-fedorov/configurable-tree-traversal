@@ -1,55 +1,72 @@
 import type { VertexView } from '../src';
 import {
-  DepthFirstTreeTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  AsyncBreadthFirstTreeTraversal,
-  DagTraversal,
-  AsyncDagTraversal,
-  DepthFirstPhase as F,
-  BreadthFirstPhase as B,
+  DepthFirstTreeTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  DepthFirstTreeVisitPhase as F,
+  BreadthFirstTreeVisitPhase as B,
   DagVisitorPhase as D,
   TraversalVisitorCommandName as C,
 } from '../src';
 
-type T = { VertexData: string; VertexHint: string };
+type T = { VertexData: string; ChildHint: string };
 type Shape = 'empty' | 'single' | 'flat' | 'grouped';
-const traversableTree = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
-      vertexContent: { $data: 'root', $childHints: [] as string[] },
+const treeDiscoverySource = {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: {
+        $vertexData: 'root',
+        $childDiscoveryHints: [] as string[],
+      },
     },
   }),
-  resolveChild: () => ({ kind: 'omitted' as const }),
-};
-const traversableGraph = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: { vertexId: 'root', ...traversableTree.resolveRoot().vertex },
+  resolveChildVertexFromHint: () => ({
+    kind: 'vertexIntentionallyOmitted' as const,
   }),
-  resolveChild: () => ({
-    identity: null,
-    satisfiesDependencies: true as const,
-    kind: 'omitted' as const,
+};
+const dagDiscoverySource = {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexId: 'root',
+      ...treeDiscoverySource.resolveRootVertex().resolvedVertexInput,
+    },
+  }),
+  resolveChildHint: () => ({
+    omittedVertexIdentity: null,
+    satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+    kind: 'vertexIntentionallyOmitted' as const,
   }),
 };
 
 function definitions(calls: string[], shape: Shape) {
   const rewrite = (label: string) => (vertex: VertexView<T>) => {
-    calls.push(`${label}:${vertex.getData()}`);
+    calls.push(`${label}:${vertex.getVertexData()}`);
     return {
       commands: [
         {
-          commandName: C.REWRITE_VERTEX_DATA as const,
-          commandArguments: { newData: label },
+          commandName: C.REPLACE_CURRENT_VERTEX_DATA as const,
+          commandArguments: { replacementVertexData: label },
         },
       ],
     };
   };
-  const high = { visitor: rewrite('high'), priority: 30 };
-  const middle = { visitor: rewrite('middle'), priority: 20 };
-  const low = { visitor: rewrite('low'), priority: 10 };
+  const high = {
+    visitor: rewrite('high'),
+    descendingExecutionPriorityWithinGroup: 30,
+  };
+  const middle = {
+    visitor: rewrite('middle'),
+    descendingExecutionPriorityWithinGroup: 20,
+  };
+  const low = {
+    visitor: rewrite('low'),
+    descendingExecutionPriorityWithinGroup: 10,
+  };
   if (shape === 'empty') return [];
   if (shape === 'single') return [high];
   if (shape === 'grouped') {
@@ -57,158 +74,216 @@ function definitions(calls: string[], shape: Shape) {
       groups: [
         { visitors: [high] },
         {
-          commandCommitMode: 'afterGroup' as const,
+          visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
           visitors: [low, middle],
         },
       ],
     };
   }
   return [
-    { ...low, commandCommitMode: 'afterGroup' as const },
+    {
+      ...low,
+      visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
+    },
     high,
-    { ...middle, commandCommitMode: 'afterGroup' as const },
+    {
+      ...middle,
+      visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
+    },
   ];
 }
 
 // Each closure retains its concrete builder, visitor signature and phase.
 const families = [
   {
-    name: 'DepthFirstTreeTraversal',
+    name: 'DepthFirstTreeTraversalBuilder',
     create(calls: string[], shape: Shape) {
-      const traversal = new DepthFirstTreeTraversal<T>({
-        traversableTree,
-        visitors: { [F.PRE_ORDER]: definitions(calls, shape) },
+      const traversal = new DepthFirstTreeTraversalBuilder<T>({
+        treeDiscoverySource,
+        visitors: { [F.BEFORE_CHILD_EXPANSION]: definitions(calls, shape) },
       });
       return {
-        list: () => traversal.listVisitorsFor(F.PRE_ORDER),
-        run: () => traversal.createRunner().run(),
+        list: () =>
+          traversal.getDetachedVisitorRegistrationRecordsForPhase(
+            F.BEFORE_CHILD_EXPANSION,
+          ),
+        runUntilSuspendedOrTerminal: () =>
+          traversal
+            .createIndependentRunnerFromCurrentOptions()
+            .runUntilSuspendedOrTerminal(),
         roundTrip: () =>
-          traversal.setVisitorsFor(
-            F.PRE_ORDER,
-            traversal.listVisitorsFor(F.PRE_ORDER),
+          traversal.replaceVisitorDefinitionsForPhase(
+            F.BEFORE_CHILD_EXPANSION,
+            traversal.getDetachedVisitorRegistrationRecordsForPhase(
+              F.BEFORE_CHILD_EXPANSION,
+            ),
           ),
         replace: () =>
-          traversal.configure({
+          traversal.patchOptionsForFutureRunners({
             visitors: {
-              [F.PRE_ORDER]: () => {
+              [F.BEFORE_CHILD_EXPANSION]: () => {
                 calls.push('configured');
               },
             },
           }),
         add: () =>
-          traversal.addVisitorFor(F.PRE_ORDER, () => {
-            calls.push('added');
-          }),
+          traversal.registerVisitorCallbackForPhase(
+            F.BEFORE_CHILD_EXPANSION,
+            () => {
+              calls.push('added');
+            },
+          ),
       };
     },
   },
   {
-    name: 'AsyncDepthFirstTreeTraversal',
+    name: 'AsyncDepthFirstTreeTraversalBuilder',
     create(calls: string[], shape: Shape) {
-      const traversal = new AsyncDepthFirstTreeTraversal<T>({
-        traversableTree,
-        visitors: { [F.PRE_ORDER]: definitions(calls, shape) },
+      const traversal = new AsyncDepthFirstTreeTraversalBuilder<T>({
+        treeDiscoverySource,
+        visitors: { [F.BEFORE_CHILD_EXPANSION]: definitions(calls, shape) },
       });
       return {
-        list: () => traversal.listVisitorsFor(F.PRE_ORDER),
-        run: () => traversal.createRunner().run(),
+        list: () =>
+          traversal.getDetachedVisitorRegistrationRecordsForPhase(
+            F.BEFORE_CHILD_EXPANSION,
+          ),
+        runUntilSuspendedOrTerminal: () =>
+          traversal
+            .createIndependentRunnerFromCurrentOptions()
+            .runUntilSuspendedOrTerminal(),
         roundTrip: () =>
-          traversal.setVisitorsFor(
-            F.PRE_ORDER,
-            traversal.listVisitorsFor(F.PRE_ORDER),
+          traversal.replaceVisitorDefinitionsForPhase(
+            F.BEFORE_CHILD_EXPANSION,
+            traversal.getDetachedVisitorRegistrationRecordsForPhase(
+              F.BEFORE_CHILD_EXPANSION,
+            ),
           ),
         replace: () =>
-          traversal.configure({
+          traversal.patchOptionsForFutureRunners({
             visitors: {
-              [F.PRE_ORDER]: () => {
+              [F.BEFORE_CHILD_EXPANSION]: () => {
                 calls.push('configured');
               },
             },
           }),
         add: () =>
-          traversal.addVisitorFor(F.PRE_ORDER, () => {
-            calls.push('added');
-          }),
+          traversal.registerVisitorCallbackForPhase(
+            F.BEFORE_CHILD_EXPANSION,
+            () => {
+              calls.push('added');
+            },
+          ),
       };
     },
   },
   {
-    name: 'BreadthFirstTreeTraversal',
+    name: 'BreadthFirstTreeTraversalBuilder',
     create(calls: string[], shape: Shape) {
-      const traversal = new BreadthFirstTreeTraversal<T>({
-        traversableTree,
-        visitors: { [B.LEVEL_ORDER]: definitions(calls, shape) },
+      const traversal = new BreadthFirstTreeTraversalBuilder<T>({
+        treeDiscoverySource,
+        visitors: { [B.AT_LEVEL_ORDER_VERTEX]: definitions(calls, shape) },
       });
       return {
-        list: () => traversal.listVisitorsFor(B.LEVEL_ORDER),
-        run: () => traversal.createRunner().run(),
+        list: () =>
+          traversal.getDetachedVisitorRegistrationRecordsForPhase(
+            B.AT_LEVEL_ORDER_VERTEX,
+          ),
+        runUntilSuspendedOrTerminal: () =>
+          traversal
+            .createIndependentRunnerFromCurrentOptions()
+            .runUntilSuspendedOrTerminal(),
         roundTrip: () =>
-          traversal.setVisitorsFor(
-            B.LEVEL_ORDER,
-            traversal.listVisitorsFor(B.LEVEL_ORDER),
+          traversal.replaceVisitorDefinitionsForPhase(
+            B.AT_LEVEL_ORDER_VERTEX,
+            traversal.getDetachedVisitorRegistrationRecordsForPhase(
+              B.AT_LEVEL_ORDER_VERTEX,
+            ),
           ),
         replace: () =>
-          traversal.configure({
+          traversal.patchOptionsForFutureRunners({
             visitors: {
-              [B.LEVEL_ORDER]: () => {
+              [B.AT_LEVEL_ORDER_VERTEX]: () => {
                 calls.push('configured');
               },
             },
           }),
         add: () =>
-          traversal.addVisitorFor(B.LEVEL_ORDER, () => {
-            calls.push('added');
-          }),
+          traversal.registerVisitorCallbackForPhase(
+            B.AT_LEVEL_ORDER_VERTEX,
+            () => {
+              calls.push('added');
+            },
+          ),
       };
     },
   },
   {
-    name: 'AsyncBreadthFirstTreeTraversal',
+    name: 'AsyncBreadthFirstTreeTraversalBuilder',
     create(calls: string[], shape: Shape) {
-      const traversal = new AsyncBreadthFirstTreeTraversal<T>({
-        traversableTree,
-        visitors: { [B.LEVEL_ORDER]: definitions(calls, shape) },
+      const traversal = new AsyncBreadthFirstTreeTraversalBuilder<T>({
+        treeDiscoverySource,
+        visitors: { [B.AT_LEVEL_ORDER_VERTEX]: definitions(calls, shape) },
       });
       return {
-        list: () => traversal.listVisitorsFor(B.LEVEL_ORDER),
-        run: () => traversal.createRunner().run(),
+        list: () =>
+          traversal.getDetachedVisitorRegistrationRecordsForPhase(
+            B.AT_LEVEL_ORDER_VERTEX,
+          ),
+        runUntilSuspendedOrTerminal: () =>
+          traversal
+            .createIndependentRunnerFromCurrentOptions()
+            .runUntilSuspendedOrTerminal(),
         roundTrip: () =>
-          traversal.setVisitorsFor(
-            B.LEVEL_ORDER,
-            traversal.listVisitorsFor(B.LEVEL_ORDER),
+          traversal.replaceVisitorDefinitionsForPhase(
+            B.AT_LEVEL_ORDER_VERTEX,
+            traversal.getDetachedVisitorRegistrationRecordsForPhase(
+              B.AT_LEVEL_ORDER_VERTEX,
+            ),
           ),
         replace: () =>
-          traversal.configure({
+          traversal.patchOptionsForFutureRunners({
             visitors: {
-              [B.LEVEL_ORDER]: () => {
+              [B.AT_LEVEL_ORDER_VERTEX]: () => {
                 calls.push('configured');
               },
             },
           }),
         add: () =>
-          traversal.addVisitorFor(B.LEVEL_ORDER, () => {
-            calls.push('added');
-          }),
+          traversal.registerVisitorCallbackForPhase(
+            B.AT_LEVEL_ORDER_VERTEX,
+            () => {
+              calls.push('added');
+            },
+          ),
       };
     },
   },
   {
-    name: 'DagTraversal',
+    name: 'DagTraversalBuilder',
     create(calls: string[], shape: Shape) {
-      const traversal = new DagTraversal<T, T, string>({
-        traversableGraph,
+      const traversal = new DagTraversalBuilder<T, T, string>({
+        dagDiscoverySource,
         visitors: { [D.ON_WORK_READY]: definitions(calls, shape) },
       });
       return {
-        list: () => traversal.listVisitorsFor(D.ON_WORK_READY),
-        run: () => traversal.createRunner().run(),
-        roundTrip: () =>
-          traversal.setVisitorsFor(
+        list: () =>
+          traversal.getDetachedVisitorRegistrationRecordsForPhase(
             D.ON_WORK_READY,
-            traversal.listVisitorsFor(D.ON_WORK_READY),
+          ),
+        runUntilSuspendedOrTerminal: () =>
+          traversal
+            .createIndependentRunnerFromCurrentOptions()
+            .runUntilSuspendedOrTerminal(),
+        roundTrip: () =>
+          traversal.replaceVisitorDefinitionsForPhase(
+            D.ON_WORK_READY,
+            traversal.getDetachedVisitorRegistrationRecordsForPhase(
+              D.ON_WORK_READY,
+            ),
           ),
         replace: () =>
-          traversal.configure({
+          traversal.patchOptionsForFutureRunners({
             visitors: {
               [D.ON_WORK_READY]: () => {
                 calls.push('configured');
@@ -216,29 +291,37 @@ const families = [
             },
           }),
         add: () =>
-          traversal.addVisitorFor(D.ON_WORK_READY, () => {
+          traversal.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => {
             calls.push('added');
           }),
       };
     },
   },
   {
-    name: 'AsyncDagTraversal',
+    name: 'AsyncDagTraversalBuilder',
     create(calls: string[], shape: Shape) {
-      const traversal = new AsyncDagTraversal<T, T, string>({
-        traversableGraph,
+      const traversal = new AsyncDagTraversalBuilder<T, T, string>({
+        dagDiscoverySource,
         visitors: { [D.ON_WORK_READY]: definitions(calls, shape) },
       });
       return {
-        list: () => traversal.listVisitorsFor(D.ON_WORK_READY),
-        run: () => traversal.createRunner().run(),
-        roundTrip: () =>
-          traversal.setVisitorsFor(
+        list: () =>
+          traversal.getDetachedVisitorRegistrationRecordsForPhase(
             D.ON_WORK_READY,
-            traversal.listVisitorsFor(D.ON_WORK_READY),
+          ),
+        runUntilSuspendedOrTerminal: () =>
+          traversal
+            .createIndependentRunnerFromCurrentOptions()
+            .runUntilSuspendedOrTerminal(),
+        roundTrip: () =>
+          traversal.replaceVisitorDefinitionsForPhase(
+            D.ON_WORK_READY,
+            traversal.getDetachedVisitorRegistrationRecordsForPhase(
+              D.ON_WORK_READY,
+            ),
           ),
         replace: () =>
-          traversal.configure({
+          traversal.patchOptionsForFutureRunners({
             visitors: {
               [D.ON_WORK_READY]: () => {
                 calls.push('configured');
@@ -246,7 +329,7 @@ const families = [
             },
           }),
         add: () =>
-          traversal.addVisitorFor(D.ON_WORK_READY, () => {
+          traversal.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => {
             calls.push('added');
           }),
       };
@@ -262,13 +345,17 @@ for (const { name, create } of families) {
       const records = traversal.list();
       records.reverse();
       records.splice(0, 1);
-      await traversal.run();
+      await traversal.runUntilSuspendedOrTerminal();
       expect(calls).toEqual(['high:root', 'middle:high', 'low:high']);
       expect(records).toHaveLength(2);
       expect(traversal.list()).toHaveLength(3);
     });
 
-    test.each(['callback', 'priority', 'mode'] as const)(
+    test.each([
+      'callback',
+      'descendingExecutionPriorityWithinGroup',
+      'mode',
+    ] as const)(
       'editing a listed %s preserves execution and earlier snapshots',
       async (field) => {
         const calls: string[] = [];
@@ -279,12 +366,13 @@ for (const { name, create } of families) {
           records[1]!.visitor = () => {
             calls.push('replacement');
           };
-        if (field === 'priority') records[1]!.priority = -100;
+        if (field === 'descendingExecutionPriorityWithinGroup')
+          records[1]!.descendingExecutionPriorityWithinGroup = -100;
         if (field === 'mode') {
-          records[1]!.commandCommitMode = 'afterEachVisitor';
-          records[1]!.commandCommitMode = 'afterEachVisitor';
+          records[1]!.visitorCommandCommitTiming = 'afterEachVisitorCallback';
+          records[1]!.visitorCommandCommitTiming = 'afterEachVisitorCallback';
         }
-        await traversal.run();
+        await traversal.runUntilSuspendedOrTerminal();
         expect(calls).toEqual(['high:root', 'middle:high', 'low:high']);
         const fresh = traversal.list();
         expect(fresh).not.toBe(earlier);
@@ -292,13 +380,19 @@ for (const { name, create } of families) {
           expect(fresh[index]).not.toBe(earlier[index]);
           expect(fresh[index]!.visitor).toBe(earlier[index]!.visitor);
         }
-        expect(earlier[1]!.priority).toBe(20);
-        expect(earlier[1]!.commandCommitMode).toBe('afterGroup');
-        expect(earlier[1]!.commandCommitMode).toBe('afterGroup');
+        expect(earlier[1]!.descendingExecutionPriorityWithinGroup).toBe(20);
+        expect(earlier[1]!.visitorCommandCommitTiming).toBe(
+          'afterContiguousVisitorBatch',
+        );
+        expect(earlier[1]!.visitorCommandCommitTiming).toBe(
+          'afterContiguousVisitorBatch',
+        );
         if (field === 'callback')
           expect(fresh[1]!.visitor).not.toBe(records[1]!.visitor);
-        expect(fresh[1]!.priority).toBe(20);
-        expect(fresh[1]!.commandCommitMode).toBe('afterGroup');
+        expect(fresh[1]!.descendingExecutionPriorityWithinGroup).toBe(20);
+        expect(fresh[1]!.visitorCommandCommitTiming).toBe(
+          'afterContiguousVisitorBatch',
+        );
       },
     );
 
@@ -313,19 +407,19 @@ for (const { name, create } of families) {
         expect(after[index]).not.toBe(before[index]);
         expect(after[index]!.visitor).toBe(before[index]!.visitor);
         expect(after[index]!.visitorGroup).toBe(before[index]!.visitorGroup);
-        expect(after[index]!.visitorGroup!.identity).toBe(
-          before[index]!.visitorGroup!.identity,
+        expect(after[index]!.visitorGroup!.groupIdentity).toBe(
+          before[index]!.visitorGroup!.groupIdentity,
         );
         expect(Object.isFrozen(after[index]!.visitorGroup)).toBe(true);
       }
       expect(after[0]!.visitorGroup).not.toBe(after[1]!.visitorGroup);
       expect(after[1]!.visitorGroup).toBe(after[2]!.visitorGroup);
-      expect(after[1]!.visitorGroup!.explicit).toBe(true);
-      after[1]!.commandCommitMode = 'afterEachVisitor';
+      expect(after[1]!.visitorGroup!.isExplicitlyDeclaredGroup).toBe(true);
+      after[1]!.visitorCommandCommitTiming = 'afterEachVisitorCallback';
       after[1]!.visitor = () => {
         calls.push('replacement');
       };
-      await traversal.run();
+      await traversal.runUntilSuspendedOrTerminal();
       expect(calls).toEqual(['high:root', 'middle:high', 'low:high']);
     });
 
@@ -336,17 +430,17 @@ for (const { name, create } of families) {
       expect(emptySnapshot).not.toBe(empty.list());
       empty.add();
       expect(emptySnapshot).toEqual([]);
-      await empty.run();
+      await empty.runUntilSuspendedOrTerminal();
       expect(calls).toEqual(['added']);
       calls.length = 0;
       const single = create(calls, 'single');
       const earlier = single.list();
       single.list().splice(0, 1);
-      await single.run();
+      await single.runUntilSuspendedOrTerminal();
       expect(calls).toEqual(['high:root']);
       calls.length = 0;
       single.replace();
-      await single.run();
+      await single.runUntilSuspendedOrTerminal();
       expect(calls).toEqual(['configured']);
       expect(earlier).toHaveLength(1);
       expect(single.list()[0]!.visitor).not.toBe(earlier[0]!.visitor);

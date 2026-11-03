@@ -5,13 +5,13 @@ import {
 } from '@core/assertPublicOptions';
 import type { VisitorRecord } from '@core/graph/types';
 import type {
-  NoInferPhase,
-  TreeVisitor,
-  TraversalVisitorFunctionOptions,
+  PreventVisitorReturnFromWideningPhase,
+  TreeVertexPhaseVisitorCallback,
+  VisitorRegistrationOptions,
   VisitorGroupDefinition,
-  VisitorPhaseInput,
+  VisitorDefinitionsForPhase,
 } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
@@ -22,37 +22,53 @@ import { initBreadthFirstVisitors } from './init-helpers/initVisitors';
 import {
   BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeBreadthFirstTraversalInstanceConfigs,
-  type BreadthFirstTreeOptions,
-  type BreadthFirstTreeOptionsPatch,
+  type BreadthFirstTreeTraversalBuilderOptions,
+  type BreadthFirstTreeTraversalBuilderOptionsPatch,
   type BreadthFirstTreeResolvedOptions,
 } from './lib/BreadthFirstTraversalInstanceConfig';
-import type { BreadthFirstPhase } from './lib/BreadthFirstTraversalOrder';
+import type { BreadthFirstTreeVisitPhase } from './lib/BreadthFirstTraversalOrder';
 import {
   InternalBreadthFirstTreeRunner,
   type BreadthFirstTreeRunner,
 } from './lib/BreadthFirstTraversalRunner';
-import type { BreadthFirstTraversalVisitors } from './lib/BreadthFirstTraversalVisitors';
+import type { BreadthFirstTreeVisitorRegistrationsByPhase } from './lib/BreadthFirstTraversalVisitors';
 
-export class BreadthFirstTreeTraversal<
-  TTP extends VertexTypes = VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
+export class BreadthFirstTreeTraversalBuilder<
+  InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > {
-  private icfg: BreadthFirstTreeResolvedOptions<TTP, RW_TTP>;
-  private visitors: BreadthFirstTraversalVisitors<TTP, RW_TTP>;
+  private icfg: BreadthFirstTreeResolvedOptions<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
+  private visitors: BreadthFirstTreeVisitorRegistrationsByPhase<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
 
-  constructor(icfgInput: BreadthFirstTreeOptions<TTP, RW_TTP>) {
+  constructor(
+    icfgInput: BreadthFirstTreeTraversalBuilderOptions<
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >,
+  ) {
     assertPublicOptions(icfgInput, [...TREE_OPTION_KEYS]);
     this.icfg = mergeBreadthFirstTraversalInstanceConfigs(
       BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as BreadthFirstTreeResolvedOptions<
-        TTP,
-        RW_TTP
+        InputVertexTypes,
+        RewrittenVertexTypes
       >,
       icfgInput,
     );
     this.visitors = initBreadthFirstVisitors(this.icfg);
   }
 
-  configure(icfgInput: BreadthFirstTreeOptionsPatch<TTP, RW_TTP>): this {
+  patchOptionsForFutureRunners(
+    icfgInput: BreadthFirstTreeTraversalBuilderOptionsPatch<
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >,
+  ): this {
     assertPublicOptions(icfgInput, [...TREE_OPTION_KEYS]);
     this.icfg = mergeBreadthFirstTraversalInstanceConfigs(
       { ...this.icfg, visitors: this.visitors },
@@ -62,63 +78,136 @@ export class BreadthFirstTreeTraversal<
     return this;
   }
 
-  addVisitorFor<Phase extends BreadthFirstPhase>(
+  registerVisitorCallbackForPhase<Phase extends BreadthFirstTreeVisitPhase>(
     phase: Phase,
-    visitor: TreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>,
-    options: Partial<TraversalVisitorFunctionOptions> = {},
+    visitor: TreeVertexPhaseVisitorCallback<
+      InputVertexTypes,
+      RewrittenVertexTypes,
+      PreventVisitorReturnFromWideningPhase<Phase>
+    >,
+    options: Partial<VisitorRegistrationOptions> = {},
   ): this {
-    assertOwnKeys(options, ['priority', 'commandCommitMode']);
+    assertOwnKeys(options, [
+      'descendingExecutionPriorityWithinGroup',
+      'visitorCommandCommitTiming',
+    ]);
     (
       this.visitors as Record<
         Phase,
-        VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[]
+        VisitorRecord<
+          TreeVertexPhaseVisitorCallback<
+            InputVertexTypes,
+            RewrittenVertexTypes,
+            Phase
+          >
+        >[]
       >
-    )[phase] = appendVisitorDefinition<TreeVisitor<Phase, TTP, RW_TTP>>(
-      this.visitors[phase] as VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[],
+    )[phase] = appendVisitorDefinition<
+      TreeVertexPhaseVisitorCallback<
+        InputVertexTypes,
+        RewrittenVertexTypes,
+        Phase
+      >
+    >(
+      this.visitors[phase] as VisitorRecord<
+        TreeVertexPhaseVisitorCallback<
+          InputVertexTypes,
+          RewrittenVertexTypes,
+          Phase
+        >
+      >[],
       { visitor, ...definedOptions(options) },
     );
     return this;
   }
 
-  addVisitorGroupFor<Phase extends BreadthFirstPhase>(
+  appendVisitorGroupForPhase<Phase extends BreadthFirstTreeVisitPhase>(
     phase: Phase,
     group: VisitorGroupDefinition<
-      TreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>
+      TreeVertexPhaseVisitorCallback<
+        InputVertexTypes,
+        RewrittenVertexTypes,
+        PreventVisitorReturnFromWideningPhase<Phase>
+      >
     >,
   ): this {
     (
       this.visitors as Record<
         Phase,
-        VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[]
+        VisitorRecord<
+          TreeVertexPhaseVisitorCallback<
+            InputVertexTypes,
+            RewrittenVertexTypes,
+            Phase
+          >
+        >[]
       >
-    )[phase] = appendVisitorGroup<TreeVisitor<Phase, TTP, RW_TTP>>(
-      this.visitors[phase] as VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[],
+    )[phase] = appendVisitorGroup<
+      TreeVertexPhaseVisitorCallback<
+        InputVertexTypes,
+        RewrittenVertexTypes,
+        Phase
+      >
+    >(
+      this.visitors[phase] as VisitorRecord<
+        TreeVertexPhaseVisitorCallback<
+          InputVertexTypes,
+          RewrittenVertexTypes,
+          Phase
+        >
+      >[],
       group,
     );
     return this;
   }
 
-  listVisitorsFor<Phase extends BreadthFirstPhase>(
+  getDetachedVisitorRegistrationRecordsForPhase<
+    Phase extends BreadthFirstTreeVisitPhase,
+  >(
     phase: Phase,
-  ): BreadthFirstTraversalVisitors<TTP, RW_TTP>[Phase] {
+  ): BreadthFirstTreeVisitorRegistrationsByPhase<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >[Phase] {
     return copyVisitorRecords(this.visitors[phase]);
   }
 
-  setVisitorsFor<Phase extends BreadthFirstPhase>(
+  replaceVisitorDefinitionsForPhase<Phase extends BreadthFirstTreeVisitPhase>(
     phase: Phase,
-    input: VisitorPhaseInput<TreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>>,
+    input: VisitorDefinitionsForPhase<
+      TreeVertexPhaseVisitorCallback<
+        InputVertexTypes,
+        RewrittenVertexTypes,
+        PreventVisitorReturnFromWideningPhase<Phase>
+      >
+    >,
   ): this {
     (
       this.visitors as Record<
         Phase,
-        VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[]
+        VisitorRecord<
+          TreeVertexPhaseVisitorCallback<
+            InputVertexTypes,
+            RewrittenVertexTypes,
+            Phase
+          >
+        >[]
       >
     )[phase] =
-      normalizeVisitorDefinitions<TreeVisitor<Phase, TTP, RW_TTP>>(input);
+      normalizeVisitorDefinitions<
+        TreeVertexPhaseVisitorCallback<
+          InputVertexTypes,
+          RewrittenVertexTypes,
+          Phase
+        >
+      >(input);
     return this;
   }
 
-  createRunner(): BreadthFirstTreeRunner<TTP, RW_TTP> {
+  createIndependentRunnerFromCurrentOptions(): BreadthFirstTreeRunner<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  > {
     return new InternalBreadthFirstTreeRunner({
       ...this.icfg,
       visitors: this.visitors,

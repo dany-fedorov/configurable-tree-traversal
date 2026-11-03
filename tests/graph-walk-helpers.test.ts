@@ -1,14 +1,14 @@
 import {
   graphWalk,
-  GraphWalkPhase as Phase,
+  GraphWalkObservationKind as Phase,
   TraversalRunnerStatus as Status,
   TraversalVisitorCommandName as Command,
-  walkGraph,
-  walkGraphAsync,
+  createAndRunGraphWalkUntilSuspendedOrTerminal,
+  createAndRunGraphWalkUntilSuspendedOrTerminalAsync,
 } from '../src';
 import {
-  walkGraph as familyWalk,
-  walkGraphAsync as familyWalkAsync,
+  createAndRunGraphWalkUntilSuspendedOrTerminal as familyWalk,
+  createAndRunGraphWalkUntilSuspendedOrTerminalAsync as familyWalkAsync,
 } from '../src/traversals/graph-walk';
 import { InternalAsyncGraphWalkRunner as AsyncGraphWalkRunner } from '../src/traversals/graph-walk/AsyncGraphWalkRunner';
 import { InternalGraphWalkRunner as GraphWalkRunner } from '../src/traversals/graph-walk/GraphWalkRunner';
@@ -23,68 +23,86 @@ it('runs canonical phase-keyed visitors and returns independent sync runners', (
     ],
   );
   const seen: string[] = [];
-  const runner = walkGraph({
-    source,
-    emitEvents: [],
-    visitors: {
-      [Phase.VERTEX]: (event) => {
-        seen.push(`v:${event.vertex.data}`);
+  const runner = createAndRunGraphWalkUntilSuspendedOrTerminal({
+    graphWalkDiscoverySource: source,
+    deliveredEventKinds: [],
+    visitorsByObservationKind: {
+      [Phase.VERTEX_OCCURRENCE]: (event) => {
+        seen.push(`v:${event.vertex.vertexData}`);
       },
-      [Phase.EDGE]: (event) => {
-        seen.push(`e:${event.edge.to}`);
+      [Phase.ADMITTED_EDGE_OCCURRENCE]: (event) => {
+        seen.push(`e:${event.edge.toVertexId}`);
       },
     },
   });
   expect(runner).toBeInstanceOf(GraphWalkRunner);
-  expect(runner.getStatus()).toBe(Status.FINISHED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
   expect(seen).toEqual(['v:A', 'e:B', 'v:B']);
-  expect(runner.summary().counts.uniqueFoundVertices).toBe(2);
-  expect(walkGraph({ source })).not.toBe(runner);
-  expect(familyWalk).toBe(walkGraph);
-  expect(graphWalk.walkGraph).toBe(walkGraph);
+  expect(
+    runner.captureProgressSnapshot().counts.resolvedFoundVertexIdCount,
+  ).toBe(2);
+  expect(
+    createAndRunGraphWalkUntilSuspendedOrTerminal({
+      graphWalkDiscoverySource: source,
+    }),
+  ).not.toBe(runner);
+  expect(familyWalk).toBe(createAndRunGraphWalkUntilSuspendedOrTerminal);
+  expect(graphWalk.createAndRunGraphWalkUntilSuspendedOrTerminal).toBe(
+    createAndRunGraphWalkUntilSuspendedOrTerminal,
+  );
 });
 
 it('awaits async visitors and returns the completed async runner', async () => {
   const seen: string[] = [];
-  const runner = await walkGraphAsync({
-    source: idGraph(
+  const runner = await createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+    graphWalkDiscoverySource: idGraph(
       ['A'],
       [
         ['A', ['B']],
         ['B', []],
       ],
     ),
-    revisit: 'walks',
-    limits: { maxDepth: 1 },
-    emitEvents: [],
-    visitors: {
-      [Phase.VERTEX]: async (event) => {
-        seen.push(`v:${event.vertex.data}`);
+    routeEnumerationPolicy: 'allRoutePrefixesAllowingRepeatedVertices',
+    limits: { maxRouteHopDepth: 1 },
+    deliveredEventKinds: [],
+    visitorsByObservationKind: {
+      [Phase.VERTEX_OCCURRENCE]: async (event) => {
+        seen.push(`v:${event.vertex.vertexData}`);
       },
-      [Phase.EDGE]: async (event) => {
-        seen.push(`e:${event.edge.to}`);
+      [Phase.ADMITTED_EDGE_OCCURRENCE]: async (event) => {
+        seen.push(`e:${event.edge.toVertexId}`);
       },
-      [Phase.PATH]: async (event) => {
-        seen.push(`p:${event.depth}`);
+      [Phase.ROUTE_PREFIX]: async (event) => {
+        seen.push(`p:${event.routeHopLength}`);
       },
     },
   });
   expect(runner).toBeInstanceOf(AsyncGraphWalkRunner);
-  expect(runner.getStatus()).toBe(Status.FINISHED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
   expect(seen).toEqual(['v:A', 'p:0', 'e:B', 'v:B', 'p:1']);
-  expect(familyWalkAsync).toBe(walkGraphAsync);
-  expect(graphWalk.walkGraphAsync).toBe(walkGraphAsync);
+  expect(familyWalkAsync).toBe(
+    createAndRunGraphWalkUntilSuspendedOrTerminalAsync,
+  );
+  expect(graphWalk.createAndRunGraphWalkUntilSuspendedOrTerminalAsync).toBe(
+    createAndRunGraphWalkUntilSuspendedOrTerminalAsync,
+  );
 });
 
 it('returns a halted sync runner that resumes after the admitted callback', () => {
   const seen: string[] = [];
-  const runner = walkGraph({
-    source: idGraph(['A'], [['A', []]]),
-    visitors: {
-      [Phase.VERTEX]: [
+  const runner = createAndRunGraphWalkUntilSuspendedOrTerminal({
+    graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
+    visitorsByObservationKind: {
+      [Phase.VERTEX_OCCURRENCE]: [
         () => {
           seen.push('halt');
-          return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
+          return {
+            commands: [
+              {
+                commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY,
+              },
+            ],
+          };
         },
         () => {
           seen.push('tail');
@@ -92,22 +110,28 @@ it('returns a halted sync runner that resumes after the admitted callback', () =
       ],
     },
   });
-  expect(runner.getStopReason()).toBe('paused');
+  expect(runner.getTraversalStopReason()).toBe('paused');
   expect(seen).toEqual(['halt']);
-  expect(runner.run()).toBe(runner);
+  expect(runner.runUntilSuspendedOrTerminal()).toBe(runner);
   expect(seen).toEqual(['halt', 'tail']);
-  expect(runner.getStatus()).toBe(Status.FINISHED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
 });
 
 it('returns a halted async runner that resumes after the admitted callback', async () => {
   const seen: string[] = [];
-  const runner = await walkGraphAsync({
-    source: idGraph(['A'], [['A', []]]),
-    visitors: {
-      [Phase.VERTEX]: [
+  const runner = await createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+    graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
+    visitorsByObservationKind: {
+      [Phase.VERTEX_OCCURRENCE]: [
         async () => {
           seen.push('halt');
-          return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
+          return {
+            commands: [
+              {
+                commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY,
+              },
+            ],
+          };
         },
         async () => {
           seen.push('tail');
@@ -115,11 +139,11 @@ it('returns a halted async runner that resumes after the admitted callback', asy
       ],
     },
   });
-  expect(runner.getStopReason()).toBe('paused');
+  expect(runner.getTraversalStopReason()).toBe('paused');
   expect(seen).toEqual(['halt']);
-  expect(await runner.run()).toBe(runner);
+  expect(await runner.runUntilSuspendedOrTerminal()).toBe(runner);
   expect(seen).toEqual(['halt', 'tail']);
-  expect(runner.getStatus()).toBe(Status.FINISHED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
 });
 
 it.each([null, undefined, { error: 'opaque' }])(
@@ -130,47 +154,58 @@ it.each([null, undefined, { error: 'opaque' }])(
       throw error;
     };
     const unreadable = {
-      hydration: 'resolver' as const,
-      resolveVertex: source.resolveVertex,
-      get roots(): typeof source.roots {
+      vertexResolutionMode: 'resolverWithOptionalInlineResolution' as const,
+      resolveVertexDataById: source.resolveVertexDataById,
+      get enumerateRootTargets(): typeof source.enumerateRootTargets {
         throw error;
       },
-      outgoing: source.outgoing,
+      enumerateOutgoingLinks: source.enumerateOutgoingLinks,
     };
     try {
-      walkGraph({ source: unreadable });
+      createAndRunGraphWalkUntilSuspendedOrTerminal({
+        graphWalkDiscoverySource: unreadable,
+      });
       throw new Error('Expected constructor failure');
     } catch (caught) {
       expect(caught).toBe(error);
     }
-    await expect(walkGraphAsync({ source: unreadable })).rejects.toBe(error);
+    await expect(
+      createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+        graphWalkDiscoverySource: unreadable,
+      }),
+    ).rejects.toBe(error);
     try {
-      walkGraph({ source: { ...source, roots: throws } });
+      createAndRunGraphWalkUntilSuspendedOrTerminal({
+        graphWalkDiscoverySource: { ...source, enumerateRootTargets: throws },
+      });
       throw new Error('Expected sync source failure');
     } catch (caught) {
       expect(caught).toBe(error);
     }
     try {
-      walkGraph({ source, visitors: { [Phase.VERTEX]: throws } });
+      createAndRunGraphWalkUntilSuspendedOrTerminal({
+        graphWalkDiscoverySource: source,
+        visitorsByObservationKind: { [Phase.VERTEX_OCCURRENCE]: throws },
+      });
       throw new Error('Expected sync visitor failure');
     } catch (caught) {
       expect(caught).toBe(error);
     }
     await expect(
-      walkGraphAsync({
-        source: {
+      createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+        graphWalkDiscoverySource: {
           ...source,
-          roots: async () => {
+          enumerateRootTargets: async () => {
             throw error;
           },
         },
       }),
     ).rejects.toBe(error);
     await expect(
-      walkGraphAsync({
-        source,
-        visitors: {
-          [Phase.VERTEX]: async () => {
+      createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+        graphWalkDiscoverySource: source,
+        visitorsByObservationKind: {
+          [Phase.VERTEX_OCCURRENCE]: async () => {
             throw error;
           },
         },

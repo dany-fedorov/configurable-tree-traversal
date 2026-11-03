@@ -1,13 +1,13 @@
 import { capturedOutputValue } from './helpers/rewriteOutput';
-import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
+import { ObjectPropertyTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
 import {
   rewriteObject,
-  rewriteObjectAs,
+  rewriteObjectWithAssertedOutputType,
 } from '../src/tools/rewrite-object/rewriteObject';
-import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal';
-import { DepthFirstPhase } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { BreadthFirstTreeTraversal } from '../src/traversals/breadth-first-traversal';
-import { BreadthFirstPhase } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalOrder';
+import { DepthFirstTreeTraversalBuilder } from '../src/traversals/depth-first-traversal';
+import { DepthFirstTreeVisitPhase } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { BreadthFirstTreeTraversalBuilder } from '../src/traversals/breadth-first-traversal';
+import { BreadthFirstTreeVisitPhase } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalOrder';
 import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
 
 describe('object rewriting', () => {
@@ -19,9 +19,9 @@ describe('object rewriting', () => {
 
     const outputAtReturn = capturedOutputValue(
       rewriteObject(input, {
-        rewrite: ({ value }) =>
+        rewritePropertyAfterChildTraversal: ({ propertyValue: value }) =>
           typeof value === 'number'
-            ? { kind: 'rewrite', patch: { value: value + 10 } }
+            ? { kind: "patchPropertyKeyOrValue", propertyPatch: { propertyValue: value + 10 } }
             : undefined,
       }),
     );
@@ -42,9 +42,9 @@ describe('object rewriting', () => {
 
     const outputAtReturn = capturedOutputValue(
       rewriteObject(input, {
-        rewrite: ({ value }) =>
+        rewritePropertyAfterChildTraversal: ({ propertyValue: value }) =>
           typeof value === 'number'
-            ? { kind: 'rewrite', patch: { value: value * 10 } }
+            ? { kind: "patchPropertyKeyOrValue", propertyPatch: { propertyValue: value * 10 } }
             : undefined,
       }),
     );
@@ -69,10 +69,10 @@ describe('object rewriting', () => {
     input[metadata] = 'symbol';
 
     const outputAtReturn = capturedOutputValue(
-      rewriteObjectAs<typeof input>(input, {
-        rewrite: ({ value }) =>
+      rewriteObjectWithAssertedOutputType<typeof input>(input, {
+        rewritePropertyAfterChildTraversal: ({ propertyValue: value }) =>
           typeof value === 'string'
-            ? { kind: 'rewrite', patch: { value: value.toUpperCase() } }
+            ? { kind: "patchPropertyKeyOrValue", propertyPatch: { propertyValue: value.toUpperCase() } }
             : undefined,
       }),
     );
@@ -87,8 +87,8 @@ describe('object rewriting', () => {
     expect(
       capturedOutputValue(
         rewriteObject([1, 2, 3], {
-          rewrite: ({ value }) =>
-            value === 2 ? { kind: 'delete' } : undefined,
+          rewritePropertyAfterChildTraversal: ({ propertyValue: value }) =>
+            value === 2 ? { kind: "deletePropertySubtree" } : undefined,
         }),
       ),
     ).toEqual([1, 3]);
@@ -107,8 +107,8 @@ describe('object rewriting', () => {
     expect(
       capturedOutputValue(
         rewriteObject(3, {
-          rewrite: ({ value }) =>
-            value === 3 ? { kind: 'rewrite', patch: { value: 4 } } : undefined,
+          rewritePropertyAfterChildTraversal: ({ propertyValue: value }) =>
+            value === 3 ? { kind: "patchPropertyKeyOrValue", propertyPatch: { propertyValue: 4 } } : undefined,
         }),
       ),
     ).toBe(4);
@@ -116,8 +116,8 @@ describe('object rewriting', () => {
 
   test('returns an absent result when the root is deleted', () => {
     expect(
-      rewriteObject({ value: 1 }, { rewrite: () => ({ kind: 'delete' }) })
-        .outputResultAtReturn,
+      rewriteObject({ value: 1 }, { rewritePropertyAfterChildTraversal: () => ({ kind: "deletePropertySubtree" }) })
+        .capturedOutputResultAtReturn,
     ).toEqual({ kind: 'absent' });
   });
 
@@ -126,15 +126,15 @@ describe('object rewriting', () => {
     const result = rewriteObject(
       { value: 1 },
       {
-        rewrite: () => ({ kind: 'delete' }),
-        convertRootValue: (value) => {
+        rewritePropertyAfterChildTraversal: () => ({ kind: "deletePropertySubtree" }),
+        convertPresentRootOutputValue: (value) => {
           conversions++;
           return value;
         },
       },
     );
-    expect(result.outputResultAtReturn).toEqual({ kind: 'absent' });
-    expect(result.getOutputResult()).toEqual({ kind: 'absent' });
+    expect(result.capturedOutputResultAtReturn).toEqual({ kind: 'absent' });
+    expect(result.getFinalOutputResult()).toEqual({ kind: 'absent' });
     expect(conversions).toBe(0);
   });
 
@@ -144,8 +144,8 @@ describe('object rewriting', () => {
     rewriteObject(
       { a: 1, b: 2 },
       {
-        transformChildHints: (hints) => hints.slice().reverse(),
-        rewrite: ({ key }) => {
+        transformChildHintsBeforeResolution: (hints) => hints.slice().reverse(),
+        rewritePropertyAfterChildTraversal: ({ propertyKey: key }) => {
           visited.push(key);
           return undefined;
         },
@@ -165,17 +165,17 @@ describe('object rewriting', () => {
   test('rejects cycles under breadth-first traversal with repeated branches', () => {
     const shared: { self?: unknown } = {};
     shared.self = shared;
-    const tree = new ObjectTreeSource({ a: shared, b: shared });
-    const traversal = new BreadthFirstTreeTraversal({ traversableTree: tree });
+    const tree = new ObjectPropertyTreeSource({ a: shared, b: shared });
+    const traversal = new BreadthFirstTreeTraversalBuilder({ treeDiscoverySource: tree });
     let visits = 0;
-    traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, () => {
+    traversal.registerVisitorCallbackForPhase(BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX, () => {
       visits += 1;
       if (visits > 20) {
         throw new Error('cycle test guard exceeded');
       }
     });
 
-    expect(() => traversal.createRunner().run()).toThrow(
+    expect(() => traversal.createIndependentRunnerFromCurrentOptions().runUntilSuspendedOrTerminal()).toThrow(
       /object identity cycle/i,
     );
     expect(visits).toBeLessThanOrEqual(20);
@@ -183,21 +183,21 @@ describe('object rewriting', () => {
 
   test('detects cycles introduced by rewritten child hints', () => {
     const input = { child: {} };
-    const tree = new ObjectTreeSource(input);
-    const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
+    const tree = new ObjectPropertyTreeSource(input);
+    const traversal = new DepthFirstTreeTraversalBuilder({ treeDiscoverySource: tree });
     let visits = 0;
-    traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) => {
+    traversal.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, (vertex) => {
       visits += 1;
       if (visits > 20) {
         throw new Error('cycle test guard exceeded');
       }
-      if (vertex.getData().key === 'child') {
+      if (vertex.getVertexData().propertyKey === 'child') {
         return {
           commands: [
             {
-              commandName: TraversalVisitorCommandName.REWRITE_CHILD_HINTS,
+              commandName: TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
               commandArguments: {
-                newHints: [{ key: 'back', value: input }],
+                replacementChildHints: [{ propertyKey: 'back', propertyValue: input }],
               },
             },
           ],
@@ -206,7 +206,7 @@ describe('object rewriting', () => {
       return undefined;
     });
 
-    expect(() => traversal.createRunner().run()).toThrow(
+    expect(() => traversal.createIndependentRunnerFromCurrentOptions().runUntilSuspendedOrTerminal()).toThrow(
       /object identity cycle/i,
     );
     expect(visits).toBeLessThanOrEqual(20);
@@ -215,25 +215,25 @@ describe('object rewriting', () => {
   test('keeps cycle ancestry isolated across concurrent adapter runs', () => {
     const input: { self?: unknown } = {};
     input.self = input;
-    const tree = new ObjectTreeSource(input);
-    const firstTraversal = new DepthFirstTreeTraversal({
-      traversableTree: tree,
+    const tree = new ObjectPropertyTreeSource(input);
+    const firstTraversal = new DepthFirstTreeTraversalBuilder({
+      treeDiscoverySource: tree,
     });
     let visits = 0;
-    firstTraversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => {
+    firstTraversal.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, () => {
       visits += 1;
       if (visits > 20) {
         throw new Error('cycle test guard exceeded');
       }
     });
-    const firstIterator = firstTraversal.createRunner().iterateEvents();
+    const firstIterator = firstTraversal.createIndependentRunnerFromCurrentOptions().runAndIterateObservationEventsUntilSuspendedOrTerminal();
     expect(firstIterator.next().done).toBe(false);
 
-    const secondIterator = new DepthFirstTreeTraversal({
-      traversableTree: tree,
+    const secondIterator = new DepthFirstTreeTraversalBuilder({
+      treeDiscoverySource: tree,
     })
-      .createRunner()
-      .iterateEvents();
+      .createIndependentRunnerFromCurrentOptions()
+      .runAndIterateObservationEventsUntilSuspendedOrTerminal();
     expect(secondIterator.next().done).toBe(false);
     secondIterator.return(undefined);
 
@@ -258,17 +258,17 @@ describe('object rewriting', () => {
 
   test('allows a traversable object adapter to be reused', () => {
     const input = { child: { leaf: 1 } };
-    const tree = new ObjectTreeSource(input);
+    const tree = new ObjectPropertyTreeSource(input);
 
     expect(() =>
-      new DepthFirstTreeTraversal({ traversableTree: tree })
-        .createRunner()
-        .run(),
+      new DepthFirstTreeTraversalBuilder({ treeDiscoverySource: tree })
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal(),
     ).not.toThrow();
     expect(() =>
-      new DepthFirstTreeTraversal({ traversableTree: tree })
-        .createRunner()
-        .run(),
+      new DepthFirstTreeTraversalBuilder({ treeDiscoverySource: tree })
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal(),
     ).not.toThrow();
   });
 });

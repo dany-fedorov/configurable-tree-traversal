@@ -1,112 +1,177 @@
 import {
-  AsyncBreadthFirstTreeTraversal,
-  AsyncDagTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  DagTraversal,
-  DepthFirstTreeTraversal,
-  ObjectTreeSource,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  DepthFirstTreeTraversalBuilder,
+  ObjectPropertyTreeSource,
   Vertex,
-  type TreeSource,
+  type TreeDiscoverySource,
   type VertexContentInput,
-  type VertexTypes,
+  type VertexDataAndChildHintTypes,
 } from '../src';
 
-type T = VertexTypes<string | undefined, string>;
+type T = VertexDataAndChildHintTypes<string | undefined, string>;
 
-const source: TreeSource<T> = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
-      vertexContent: { $data: 'root', $childHints: ['child'] },
+const source: TreeDiscoverySource<T> = {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: {
+        $vertexData: 'root',
+        $childDiscoveryHints: ['child'],
+      },
     },
   }),
-  resolveChild: (hint) => ({
-    kind: 'found' as const,
-    vertex: {
-      vertexContent: { $data: hint, $childHints: [] },
+  resolveChildVertexFromHint: (hint) => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
     },
   }),
 };
 
 describe('canonical vertex content', () => {
   test('retains opaque data and hint elements with owned hint membership', () => {
-    const data = { $d: 'opaque', $childHints: 'also opaque' };
+    const data = { $d: 'opaque', $childDiscoveryHints: 'also opaque' };
     const hint = { marker: Symbol('hint') };
     const hints = [hint];
-    const vertex = new Vertex<VertexTypes<typeof data, typeof hint>>({
-      $data: data,
-      $childHints: hints,
+    const vertex = new Vertex<
+      VertexDataAndChildHintTypes<typeof data, typeof hint>
+    >({
+      $vertexData: data,
+      $childDiscoveryHints: hints,
     });
 
-    expect(vertex.getData()).toBe(data);
-    expect(vertex.$data).toBe(data);
+    expect(vertex.getVertexData()).toBe(data);
+    expect(vertex.$vertexData).toBe(data);
     expect('$d' in vertex).toBe(false);
-    expect(vertex.getChildHints()).not.toBe(hints);
-    expect(vertex.getChildHints()[0]).toBe(hint);
-    expect(vertex.$childHints).toEqual(hints);
+    expect(vertex.getMutableChildDiscoveryHints()).not.toBe(hints);
+    expect(vertex.getMutableChildDiscoveryHints()[0]).toBe(hint);
+    expect(vertex.$childDiscoveryHints).toEqual(hints);
     expect('$c' in vertex).toBe(false);
-    expect(vertex.hasNoChildHints()).toBe(false);
+    expect(vertex.hasChildDiscoveryHints()).toBe(true);
   });
 
   test('copies canonical construction and copies an existing Vertex', () => {
-    const legacy = new Vertex<T>({ $data: 'legacy', $childHints: ['child'] });
+    const legacy = new Vertex<T>({
+      $vertexData: 'legacy',
+      $childDiscoveryHints: ['child'],
+    });
     const copied = new Vertex<T>(legacy);
-    expect(copied.$data).toBe('legacy');
-    expect(copied.$childHints).toEqual(['child']);
-    expect(copied.getChildHints()).not.toBe(legacy.$childHints);
+    expect(copied.$vertexData).toBe('legacy');
+    expect(copied.$childDiscoveryHints).toEqual(['child']);
+    expect(copied.getMutableChildDiscoveryHints()).not.toBe(
+      legacy.$childDiscoveryHints,
+    );
   });
 
   test.each(['replacement', undefined])(
     'clones an existing Vertex with replacement data %s and independently copied hints',
     (data) => {
       const original = new Vertex<T>({
-        $data: 'original',
-        $childHints: ['original-child'],
+        $vertexData: 'original',
+        $childDiscoveryHints: ['original-child'],
       });
       const hints = ['replacement-child'];
-      const replacement = new Vertex<T>({ $data: data, $childHints: hints });
-      const clone = original.clone(replacement);
+      const replacement = new Vertex<T>({
+        $vertexData: data,
+        $childDiscoveryHints: hints,
+      });
+      const clone =
+        original.createEditableShallowCloneWithContentOverrides(replacement);
 
-      expect(clone.getData()).toBe(data);
-      expect(clone.getChildHints()).toEqual(hints);
-      expect(clone.getChildHints()).not.toBe(replacement.$childHints);
+      expect(clone.getVertexData()).toBe(data);
+      expect(clone.getMutableChildDiscoveryHints()).toEqual(hints);
+      expect(clone.getMutableChildDiscoveryHints()).not.toBe(
+        replacement.$childDiscoveryHints,
+      );
       expect(clone).not.toBe(original);
       expect(clone).not.toBe(replacement);
-      expect(original.getData()).toBe('original');
-      expect(original.getChildHints()).toEqual(['original-child']);
+      expect(original.getVertexData()).toBe('original');
+      expect(original.getMutableChildDiscoveryHints()).toEqual([
+        'original-child',
+      ]);
     },
   );
 
   test('clones canonical fields with explicitly undefined data', () => {
-    const vertex = new Vertex<T>({ $data: 'root', $childHints: ['child'] });
-    expect(vertex.clone({ $data: undefined }).getData()).toBeUndefined();
-    expect(vertex.clone({ $data: undefined }).getChildHints()).toEqual([
-      'child',
-    ]);
-    expect(vertex.clone({ $childHints: [] }).hasNoChildHints()).toBe(true);
-    expect(vertex.clone({}).getData()).toBe('root');
-    expect(vertex.clone().getChildHints()).toEqual(vertex.$childHints);
-    expect(vertex.clone().getChildHints()).not.toBe(vertex.$childHints);
-    expect(vertex.getData()).toBe('root');
+    const vertex = new Vertex<T>({
+      $vertexData: 'root',
+      $childDiscoveryHints: ['child'],
+    });
+    expect(
+      vertex
+        .createEditableShallowCloneWithContentOverrides({
+          $vertexData: undefined,
+        })
+        .getVertexData(),
+    ).toBeUndefined();
+    expect(
+      vertex
+        .createEditableShallowCloneWithContentOverrides({
+          $vertexData: undefined,
+        })
+        .getMutableChildDiscoveryHints(),
+    ).toEqual(['child']);
+    expect(
+      vertex
+        .createEditableShallowCloneWithContentOverrides({
+          $childDiscoveryHints: [],
+        })
+        .hasChildDiscoveryHints(),
+    ).toBe(false);
+    expect(
+      vertex.createEditableShallowCloneWithContentOverrides({}).getVertexData(),
+    ).toBe('root');
+    expect(
+      vertex
+        .createEditableShallowCloneWithContentOverrides()
+        .getMutableChildDiscoveryHints(),
+    ).toEqual(vertex.$childDiscoveryHints);
+    expect(
+      vertex
+        .createEditableShallowCloneWithContentOverrides()
+        .getMutableChildDiscoveryHints(),
+    ).not.toBe(vertex.$childDiscoveryHints);
+    expect(vertex.getVertexData()).toBe('root');
   });
 
   test('keeps canonical clone updates including explicitly undefined data', () => {
-    const vertex = new Vertex<T>({ $data: 'root', $childHints: ['child'] });
-    expect(vertex.clone({ $data: undefined }).getData()).toBeUndefined();
-    expect(vertex.clone({ $childHints: [] }).hasNoChildHints()).toBe(true);
-    expect(vertex.clone({ $data: 'new', $childHints: ['next'] }).$data).toBe(
-      'new',
-    );
+    const vertex = new Vertex<T>({
+      $vertexData: 'root',
+      $childDiscoveryHints: ['child'],
+    });
+    expect(
+      vertex
+        .createEditableShallowCloneWithContentOverrides({
+          $vertexData: undefined,
+        })
+        .getVertexData(),
+    ).toBeUndefined();
+    expect(
+      vertex
+        .createEditableShallowCloneWithContentOverrides({
+          $childDiscoveryHints: [],
+        })
+        .hasChildDiscoveryHints(),
+    ).toBe(false);
+    expect(
+      vertex.createEditableShallowCloneWithContentOverrides({
+        $vertexData: 'new',
+        $childDiscoveryHints: ['next'],
+      }).$vertexData,
+    ).toBe('new');
   });
 
   test.each([
-    { $data: 'root', $childHints: [], $d: 'root' },
-    { $data: 'root', $childHints: [], $c: [] },
-    { $d: 'root', $c: [], $data: undefined },
-    { $d: 'root', $c: [], $childHints: [] },
-    { $data: 'root', $c: [] },
-    { $d: 'root', $childHints: [] },
+    { $vertexData: 'root', $childDiscoveryHints: [], $d: 'root' },
+    { $vertexData: 'root', $childDiscoveryHints: [], $c: [] },
+    { $d: 'root', $c: [], $vertexData: undefined },
+    { $d: 'root', $c: [], $childDiscoveryHints: [] },
+    { $vertexData: 'root', $c: [] },
+    { $d: 'root', $childDiscoveryHints: [] },
   ])('rejects mixed construction shapes %#', (content) => {
     expect(
       () => new Vertex<T>(content as unknown as VertexContentInput<T>),
@@ -114,109 +179,132 @@ describe('canonical vertex content', () => {
   });
 
   test.each([
-    { $data: undefined, $d: undefined },
-    { $data: 'new', $c: [] },
-    { $childHints: [], $d: 'new' },
-    { $childHints: [], $c: [] },
+    { $vertexData: undefined, $d: undefined },
+    { $vertexData: 'new', $c: [] },
+    { $childDiscoveryHints: [], $d: 'new' },
+    { $childDiscoveryHints: [], $c: [] },
   ])('rejects mixed clone shapes %#', (content) => {
-    const vertex = new Vertex<T>({ $data: 'root', $childHints: ['child'] });
-    expect(() => vertex.clone(content as never)).toThrow(
-      /canonical.*legacy|legacy.*canonical/i,
-    );
-    expect(vertex.getData()).toBe('root');
-    expect(vertex.getChildHints()).toEqual(['child']);
+    const vertex = new Vertex<T>({
+      $vertexData: 'root',
+      $childDiscoveryHints: ['child'],
+    });
+    expect(() =>
+      vertex.createEditableShallowCloneWithContentOverrides(content as never),
+    ).toThrow(/canonical.*legacy|legacy.*canonical/i);
+    expect(vertex.getVertexData()).toBe('root');
+    expect(vertex.getMutableChildDiscoveryHints()).toEqual(['child']);
   });
 
   test.each([
-    ['DFS', DepthFirstTreeTraversal<T>],
-    ['BFS', BreadthFirstTreeTraversal<T>],
-    ['DAG tree source', DagTraversal<T>],
+    ['DFS', DepthFirstTreeTraversalBuilder<T>],
+    ['BFS', BreadthFirstTreeTraversalBuilder<T>],
+    ['DAG tree source', DagTraversalBuilder<T>],
   ] as const)('follows canonical hints through %s', (_name, TreeTraversal) => {
     const runner = new TreeTraversal({
-      traversableTree: source,
-    }).createRunner();
-    const data = [...runner.iterateEvents()].map(({ vertex }) =>
-      vertex.getData(),
-    );
+      treeDiscoverySource: source,
+    }).createIndependentRunnerFromCurrentOptions();
+    const data = [
+      ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+    ].map(({ vertex }) => vertex.getVertexData());
     expect(data).toContain('root');
     expect(data).toContain('child');
-    const tree = runner.getResolvedGraphView();
-    const root = tree.getRoot()!;
-    const child = tree.getChildrenOf(root)![0]!;
-    expect(child.getValue().getData()).toBe('child');
-    expect(tree.getParentsOf(child)).toEqual([root]);
+    const tree = runner.getLiveResolvedGraphView();
+    const root = tree.getDesignatedRootHandleOrNull()!;
+    const child = tree.getStructuralChildHandlesInSlotOrderOrNull(root)![0]!;
+    expect(child.getCurrentVertexView().getVertexData()).toBe('child');
+    expect(tree.getDistinctStructuralParentHandlesOrNull(child)).toEqual([
+      root,
+    ]);
     // Resolved metadata stores child refs, whereas vertices retain source hints.
-    if ('getResolvedTreeView' in runner) {
-      expect(runner.getResolvedTreeView()!.getChildrenOf(root)).toEqual([
-        child,
-      ]);
+    if ('getLiveResolvedTreeView' in runner) {
+      expect(
+        runner.getLiveResolvedTreeView()!.getChildVertexHandlesOrNull(root),
+      ).toEqual([child]);
     }
-    expect(root.getValue().$childHints).toEqual(['child']);
+    expect(root.getCurrentVertexView().$childDiscoveryHints).toEqual(['child']);
   });
 
   test.each([
-    ['async DFS', AsyncDepthFirstTreeTraversal<T>],
-    ['async BFS', AsyncBreadthFirstTreeTraversal<T>],
-    ['async DAG tree source', AsyncDagTraversal<T>],
+    ['async DFS', AsyncDepthFirstTreeTraversalBuilder<T>],
+    ['async BFS', AsyncBreadthFirstTreeTraversalBuilder<T>],
+    ['async DAG tree source', AsyncDagTraversalBuilder<T>],
   ] as const)(
     'follows canonical hints through %s',
     async (_name, TreeTraversal) => {
       const runner = new TreeTraversal({
-        traversableTree: source,
-      }).createRunner();
+        treeDiscoverySource: source,
+      }).createIndependentRunnerFromCurrentOptions();
       const data: Array<string | undefined> = [];
-      for await (const { vertex } of runner.iterateEvents())
-        data.push(vertex.getData());
+      for await (const {
+        vertex,
+      } of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+        data.push(vertex.getVertexData());
       expect(data).toContain('root');
       expect(data).toContain('child');
     },
   );
 
-  test.each([DagTraversal<T>, AsyncDagTraversal<T>])(
+  test.each([DagTraversalBuilder<T>, AsyncDagTraversalBuilder<T>])(
     'preserves arbitrary graph IDs through canonical content',
     async (TreeTraversal) => {
       const rootId = {};
       const childId = Symbol('child');
       const runner = new TreeTraversal({
-        traversableGraph: {
-          resolveRoot: () => ({
-            kind: 'found' as const,
-            vertex: {
+        dagDiscoverySource: {
+          resolveRootVertex: () => ({
+            kind: 'vertexResolved' as const,
+            resolvedVertexInput: {
               vertexId: rootId,
-              vertexContent: { $data: 'root', $childHints: ['child'] },
+              vertexContentInput: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['child'],
+              },
             },
           }),
-          resolveChild: (hint) => ({
-            kind: 'found' as const,
-            vertex: {
+          resolveChildHint: (hint) => ({
+            kind: 'vertexResolved' as const,
+            resolvedVertexInput: {
               vertexId: childId,
-              vertexContent: { $data: hint, $childHints: [] },
+              vertexContentInput: {
+                $vertexData: hint,
+                $childDiscoveryHints: [],
+              },
             },
           }),
         },
-      }).createRunner();
-      await runner.run();
-      const graph = runner.getResolvedGraphView();
-      expect(graph.getVertexRefById(rootId)?.getValue().getData()).toBe('root');
-      expect(graph.getVertexRefById(childId)?.getValue().getData()).toBe(
-        'child',
-      );
+      }).createIndependentRunnerFromCurrentOptions();
+      await runner.runUntilSuspendedOrTerminal();
+      const graph = runner.getLiveResolvedGraphView();
+      expect(
+        graph
+          .getVertexHandleByIdOrNull(rootId)
+          ?.getCurrentVertexView()
+          .getVertexData(),
+      ).toBe('root');
+      expect(
+        graph
+          .getVertexHandleByIdOrNull(childId)
+          ?.getCurrentVertexView()
+          .getVertexData(),
+      ).toBe('child');
     },
   );
 
   test('accepts canonical object-tree hook content without skipping cycle checks', () => {
     const cycle: { child?: unknown } = {};
     cycle.child = cycle;
-    const tree = new ObjectTreeSource(cycle, {
-      resolveChildHook: (hint) => ({
-        kind: 'found',
-        vertex: { vertexContent: { $data: hint, $childHints: [] } },
+    const tree = new ObjectPropertyTreeSource(cycle, {
+      resolveChildPropertyOrUseDefault: (hint) => ({
+        kind: 'vertexResolved',
+        resolvedVertexInput: {
+          vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
+        },
       }),
     });
     expect(() =>
-      new DepthFirstTreeTraversal({ traversableTree: tree })
-        .createRunner()
-        .run(),
+      new DepthFirstTreeTraversalBuilder({ treeDiscoverySource: tree })
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal(),
     ).toThrow(/object identity cycle/i);
   });
 });

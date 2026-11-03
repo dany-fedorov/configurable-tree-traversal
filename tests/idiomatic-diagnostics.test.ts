@@ -1,67 +1,83 @@
 import {
-  AsyncBreadthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  DepthFirstTreeTraversal,
-  AsyncDagTraversal,
-  AsyncDepthFirstTreeTraversal,
-  DagTraversal,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  DepthFirstTreeTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
   DagVisitorPhase,
   TraversalRunnerStatus,
 } from '../src';
-import type { TreeDagExecutionInspection, VertexTypes } from '../src';
+import type {
+  TreeOrDagExecutionSnapshot,
+  VertexDataAndChildHintTypes,
+} from '../src';
 import { deferred } from './helpers/graph-fixtures';
 
-type G = VertexTypes<string, string>;
+type G = VertexDataAndChildHintTypes<string, string>;
 const root = {
-  kind: 'found' as const,
-  vertex: {
+  kind: 'vertexResolved' as const,
+  resolvedVertexInput: {
     vertexId: undefined,
-    vertexContent: { $data: 'root', $childHints: [] as string[] },
+    vertexContentInput: {
+      $vertexData: 'root',
+      $childDiscoveryHints: [] as string[],
+    },
   },
 };
 
 test('DAG inspection names pending public operations without source IO or engine keys', () => {
-  const snapshots: TreeDagExecutionInspection[] = [];
+  const snapshots: TreeOrDagExecutionSnapshot[] = [];
   const observe = () => {
-    snapshots.push(runner.inspect());
-    expect(runner.inspect()).toEqual(snapshots[snapshots.length - 1]);
+    snapshots.push(runner.captureExecutionSnapshot());
+    expect(runner.captureExecutionSnapshot()).toEqual(
+      snapshots[snapshots.length - 1],
+    );
   };
-  const runner = new DagTraversal<G>({
-    traversableGraph: {
-      resolveRoot: () => {
+  const runner = new DagTraversalBuilder<G>({
+    dagDiscoverySource: {
+      resolveRootVertex: () => {
         observe();
         return {
           ...root,
-          vertex: {
-            ...root.vertex,
-            dependsOnWork: ['external'],
-            vertexContent: { $data: 'root', $childHints: ['child'] },
+          resolvedVertexInput: {
+            ...root.resolvedVertexInput,
+            workWaitsForWorkOf: ['external'],
+            vertexContentInput: {
+              $vertexData: 'root',
+              $childDiscoveryHints: ['child'],
+            },
           },
         };
       },
-      resolvePrerequisite: () => {
+      resolvePrerequisiteByVertexId: () => {
         observe();
         return {
-          kind: 'found',
-          vertex: { vertexContent: { $data: 'external', $childHints: [] } },
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'external',
+              $childDiscoveryHints: [],
+            },
+          },
         };
       },
-      getVertexIdFromHint: (hint) => {
+      tryGetVertexIdentityFromHint: (hint) => {
         observe();
         return { vertexId: hint };
       },
-      resolveChild: (hint) => {
+      resolveChildHint: (hint) => {
         observe();
         return {
-          kind: 'found',
-          vertex: {
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
             vertexId: hint,
-            vertexContent: { $data: hint, $childHints: [] },
+            vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
           },
         };
       },
     },
-    transformChildHints: (hints) => {
+    transformChildHintsBeforeResolution: (hints) => {
       observe();
       return hints;
     },
@@ -70,49 +86,57 @@ test('DAG inspection names pending public operations without source IO or engine
         observe();
       },
     },
-  }).createRunner();
-  runner.run();
-  expect(snapshots.flatMap((snapshot) => snapshot.pendingRequests)).toEqual(
+  }).createIndependentRunnerFromCurrentOptions();
+  runner.runUntilSuspendedOrTerminal();
+  expect(
+    snapshots.flatMap((snapshot) => snapshot.pendingCallbackRequests),
+  ).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
-        operation: 'resolveRoot',
-        owner: { kind: 'root', id: 1, epoch: 0 },
-        valid: true,
+        operation: 'resolveRootVertex',
+        owner: {
+          ownerKind: 'rootResolution',
+          runnerLocalOwnerId: 1,
+          validityGeneration: 0,
+        },
+        ownerStillValid: true,
       }),
       expect.objectContaining({
-        operation: 'resolveChild',
-        owner: expect.objectContaining({ kind: 'frame' }),
-        valid: true,
+        operation: 'resolveChildHint',
+        owner: expect.objectContaining({ ownerKind: 'vertexTraversalFrame' }),
+        ownerStillValid: true,
       }),
       expect.objectContaining({
-        operation: 'resolvePrerequisite',
-        owner: expect.objectContaining({ kind: 'prerequisite' }),
-        valid: true,
+        operation: 'resolvePrerequisiteByVertexId',
+        owner: expect.objectContaining({ ownerKind: 'prerequisiteResolution' }),
+        ownerStillValid: true,
       }),
       expect.objectContaining({
-        operation: 'transformChildHints',
-        valid: true,
+        operation: 'transformChildHintsBeforeResolution',
+        ownerStillValid: true,
       }),
       expect.objectContaining({
-        operation: 'getVertexIdFromHint',
-        valid: true,
+        operation: 'tryGetVertexIdentityFromHint',
+        ownerStillValid: true,
       }),
       expect.objectContaining({
-        operation: 'visit',
-        owner: expect.objectContaining({ kind: 'chain' }),
-        valid: true,
+        operation: 'invokeVisitorCallback',
+        owner: expect.objectContaining({
+          ownerKind: 'vertexPhaseVisitorChain',
+        }),
+        ownerStillValid: true,
       }),
     ]),
   );
   for (const snapshot of snapshots) {
-    for (const request of snapshot.pendingRequests)
+    for (const request of snapshot.pendingCallbackRequests)
       expect(request).not.toHaveProperty('kind');
   }
   const count = snapshots.length;
-  expect(runner.inspect()).toMatchObject({
-    status: TraversalRunnerStatus.FINISHED,
-    pendingRequests: [],
-    inFlightCallbackCount: 0,
+  expect(runner.captureExecutionSnapshot()).toMatchObject({
+    traversalLifecycleStatus: TraversalRunnerStatus.FINISHED,
+    pendingCallbackRequests: [],
+    inFlightInvocationCount: 0,
   });
   expect(snapshots).toHaveLength(count);
 });
@@ -127,212 +151,247 @@ for (const family of ['depth-first', 'breadth-first', 'dag'] as const) {
       await gate.promise;
     };
     const tree = {
-      resolveRoot: () => {
+      resolveRootVertex: () => {
         sourceCalls++;
         return {
-          kind: 'found' as const,
-          vertex: { vertexContent: root.vertex.vertexContent },
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: root.resolvedVertexInput.vertexContentInput,
+          },
         };
       },
-      resolveChild: () => ({ kind: 'omitted' as const }),
+      resolveChildVertexFromHint: () => ({
+        kind: 'vertexIntentionallyOmitted' as const,
+      }),
     };
     const runner =
       family === 'depth-first'
-        ? new AsyncDepthFirstTreeTraversal<G>({
-            traversableTree: tree,
-            visitors: { PRE_ORDER: visitor },
-          }).createRunner()
+        ? new AsyncDepthFirstTreeTraversalBuilder<G>({
+            treeDiscoverySource: tree,
+            visitors: { BEFORE_CHILD_EXPANSION: visitor },
+          }).createIndependentRunnerFromCurrentOptions()
         : family === 'breadth-first'
-        ? new AsyncBreadthFirstTreeTraversal<G>({
-            traversableTree: tree,
-            visitors: { LEVEL_ORDER: visitor },
-          }).createRunner()
-        : new AsyncDagTraversal<G>({
-            traversableGraph: {
-              resolveRoot: () => {
+        ? new AsyncBreadthFirstTreeTraversalBuilder<G>({
+            treeDiscoverySource: tree,
+            visitors: { AT_LEVEL_ORDER_VERTEX: visitor },
+          }).createIndependentRunnerFromCurrentOptions()
+        : new AsyncDagTraversalBuilder<G>({
+            dagDiscoverySource: {
+              resolveRootVertex: () => {
                 sourceCalls++;
                 return root;
               },
-              resolveChild: () => ({
-                identity: null,
-                kind: 'omitted',
-                satisfiesDependencies: true,
+              resolveChildHint: () => ({
+                omittedVertexIdentity: null,
+                kind: 'vertexIntentionallyOmitted',
+                satisfiesWorkAndSubgraphCompletionPrerequisites: true,
               }),
             },
             visitors: { ON_WORK_READY: visitor },
-          }).createRunner();
-    const running = runner.run();
+          }).createIndependentRunnerFromCurrentOptions();
+    const running = runner.runUntilSuspendedOrTerminal();
     await entered.promise;
     const phase =
       family === 'depth-first'
-        ? 'PRE_ORDER'
+        ? 'BEFORE_CHILD_EXPANSION'
         : family === 'breadth-first'
-        ? 'LEVEL_ORDER'
+        ? 'AT_LEVEL_ORDER_VERTEX'
         : 'ON_WORK_READY';
-    const first = runner.inspect();
+    const first = runner.captureExecutionSnapshot();
     expect(first).toMatchObject({
-      inFlightCallbackCount: 1,
-      chains: [
+      inFlightInvocationCount: 1,
+      vertexPhaseVisitorChains: [
         {
-          phase,
-          state: 'running',
-          visitorIndex: 0,
-          waitingFor: 'callback',
-          executionOptions: { visitorPhases: 'all' },
+          visitorPhase: phase,
+          state: 'active',
+          visitorCallbackIndexInPhaseChain: 0,
+          pendingCallbackOrCommandBatch: 'visitorCallbackResult',
+          executionSelectionsAtAdmission: {
+            admittedVisitorCallbackPhases: 'all',
+          },
         },
       ],
-      pendingRequests: [{ operation: 'visit', valid: true }],
+      pendingCallbackRequests: [
+        { operation: 'invokeVisitorCallback', ownerStillValid: true },
+      ],
     });
-    const chain = first.chains[0]!;
-    expect(first.pendingRequests[0]!.owner).toEqual(chain.owner);
+    const chain = first.vertexPhaseVisitorChains[0]!;
+    expect(first.pendingCallbackRequests[0]!.owner).toEqual(chain.owner);
     expect(Object.isFrozen(chain)).toBe(true);
     for (const key of ['order', 'group', 'position', 'config'])
       expect(chain).not.toHaveProperty(key);
-    const graph = runner.getResolvedGraphView();
-    const ref = graph.getVertexRefs()[0]!;
-    expect(graph.get(ref)).toMatchObject({
-      visitStage:
+    const graph = runner.getLiveResolvedGraphView();
+    const ref = graph.getVertexHandles()[0]!;
+    expect(graph.getVertexSnapshotOrNull(ref)).toMatchObject({
+      schedulingVisitStage:
         family === 'dag' ? 'INITIAL_VISIT_STARTED' : 'INITIAL_VISIT_ELIGIBLE',
     });
-    expect(graph.getVisitStageOf(ref)).toBe(
+    expect(graph.getVertexVisitSchedulingStageOrNull(ref)).toBe(
       family === 'dag' ? 'INITIAL_VISIT_STARTED' : 'INITIAL_VISIT_ELIGIBLE',
     );
-    expect(graph.get(ref)).not.toHaveProperty('status');
+    expect(graph.getVertexSnapshotOrNull(ref)).not.toHaveProperty('status');
     expect(graph).not.toHaveProperty('getStatusOf');
-    expect(runner.requestPause()).toBe(true);
-    const pausing = runner.inspect();
+    expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(true);
+    const pausing = runner.captureExecutionSnapshot();
     expect(pausing).toMatchObject({
       pauseRequested: true,
-      inFlightCallbackCount: 1,
-      pendingRequests: [{ operation: 'visit' }],
+      inFlightInvocationCount: 1,
+      pendingCallbackRequests: [{ operation: 'invokeVisitorCallback' }],
     });
-    expect(pausing.pendingRequests[0]!.owner).toEqual(chain.owner);
-    expect(runner.inspect()).toEqual(pausing);
+    expect(pausing.pendingCallbackRequests[0]!.owner).toEqual(chain.owner);
+    expect(runner.captureExecutionSnapshot()).toEqual(pausing);
     expect(sourceCalls).toBe(1);
     gate.resolve();
     await running;
-    expect(runner.inspect()).toMatchObject({
-      status: TraversalRunnerStatus.HALTED,
-      stopReason: 'paused',
-      inFlightCallbackCount: 0,
-      pendingRequests: [],
+    expect(runner.captureExecutionSnapshot()).toMatchObject({
+      traversalLifecycleStatus: TraversalRunnerStatus.SUSPENDED,
+      traversalStopReason: 'paused',
+      inFlightInvocationCount: 0,
+      pendingCallbackRequests: [],
     });
-    await runner.run();
-    expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
-    expect(graph.get(ref)).toMatchObject({ visitStage: 'COMPLETE' });
+    await runner.runUntilSuspendedOrTerminal();
+    expect(runner.getTraversalLifecycleStatus()).toBe(
+      TraversalRunnerStatus.FINISHED,
+    );
+    expect(graph.getVertexSnapshotOrNull(ref)).toMatchObject({
+      schedulingVisitStage: 'COMPLETION_VISIT_COMMITTED',
+    });
   });
 }
 
 test('deferred work keeps the initial visit started after callbacks drain', () => {
-  const runner = new DagTraversal<G>({
-    workCompletion: 'externalSettlement',
-    traversableGraph: {
-      resolveRoot: () => root,
-      resolveChild: () => ({
-        identity: null,
-        kind: 'omitted',
-        satisfiesDependencies: true,
+  const runner = new DagTraversalBuilder<G>({
+    workCompletionPolicy: 'requireExternalWorkSettlement',
+    dagDiscoverySource: {
+      resolveRootVertex: () => root,
+      resolveChildHint: () => ({
+        omittedVertexIdentity: null,
+        kind: 'vertexIntentionallyOmitted',
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true,
       }),
     },
-  }).createRunner();
-  runner.run();
-  const graph = runner.getResolvedGraphView();
-  const ref = graph.getVertexRefById(undefined)!;
-  expect(graph.get(ref)).toMatchObject({
+  }).createIndependentRunnerFromCurrentOptions();
+  runner.runUntilSuspendedOrTerminal();
+  const graph = runner.getLiveResolvedGraphView();
+  const ref = graph.getVertexHandleByIdOrNull(undefined)!;
+  expect(graph.getVertexSnapshotOrNull(ref)).toMatchObject({
     vertexId: undefined,
-    visitStage: 'INITIAL_VISIT_STARTED',
+    schedulingVisitStage: 'INITIAL_VISIT_STARTED',
   });
-  expect(runner.inspect()).toMatchObject({
-    status: TraversalRunnerStatus.HALTED,
-    stopReason: 'awaitingSettlement',
-    inFlightCallbackCount: 0,
-    pendingRequests: [],
-    chains: [],
+  expect(runner.captureExecutionSnapshot()).toMatchObject({
+    traversalLifecycleStatus: TraversalRunnerStatus.SUSPENDED,
+    traversalStopReason: 'awaitingSettlement',
+    inFlightInvocationCount: 0,
+    pendingCallbackRequests: [],
+    vertexPhaseVisitorChains: [],
   });
-  const frontier = runner.summary().awaitingSettlement[0]!;
+  const frontier = runner.captureProgressSnapshot().workAwaitingSettlement[0]!;
   expect(frontier.vertexId).toBeUndefined();
   expect(
-    runner.settle(undefined, { kind: 'workCompleted' }, frontier.generation),
+    runner.settleDeferredWork(
+      undefined,
+      { kind: 'workCompleted' },
+      frontier.settlementToken,
+    ),
   ).toBe(true);
-  runner.run();
-  expect(graph.get(ref)).toMatchObject({ visitStage: 'COMPLETE' });
+  runner.runUntilSuspendedOrTerminal();
+  expect(graph.getVertexSnapshotOrNull(ref)).toMatchObject({
+    schedulingVisitStage: 'COMPLETION_VISIT_COMMITTED',
+  });
 });
 
 test('completion diagnostics describe eligibility at callback admission, independently of W/C progress', () => {
   const stages: unknown[] = [];
-  const runner = new DagTraversal<G>({
-    traversableGraph: {
-      resolveRoot: () => root,
-      resolveChild: () => ({
-        identity: null,
-        kind: 'omitted',
-        satisfiesDependencies: true,
+  const runner = new DagTraversalBuilder<G>({
+    dagDiscoverySource: {
+      resolveRootVertex: () => root,
+      resolveChildHint: () => ({
+        omittedVertexIdentity: null,
+        kind: 'vertexIntentionallyOmitted',
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true,
       }),
     },
     visitors: {
       [DagVisitorPhase.ON_WORK_READY]: (_vertex, context) => {
-        stages.push(context.resolvedGraphView.get(context.vertexRef));
+        stages.push(
+          context.liveResolvedGraphView.getVertexSnapshotOrNull(
+            context.vertexHandle,
+          ),
+        );
       },
-      [DagVisitorPhase.ON_SUBGRAPH_READY]: (_vertex, context) => {
-        stages.push(context.resolvedGraphView.get(context.vertexRef));
+      [DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY]: (_vertex, context) => {
+        stages.push(
+          context.liveResolvedGraphView.getVertexSnapshotOrNull(
+            context.vertexHandle,
+          ),
+        );
       },
     },
-  }).createRunner();
-  runner.run();
+  }).createIndependentRunnerFromCurrentOptions();
+  runner.runUntilSuspendedOrTerminal();
   expect(stages).toEqual([
-    expect.objectContaining({ visitStage: 'INITIAL_VISIT_STARTED' }),
-    expect.objectContaining({ visitStage: 'COMPLETION_VISIT_ELIGIBLE' }),
+    expect.objectContaining({ schedulingVisitStage: 'INITIAL_VISIT_STARTED' }),
+    expect.objectContaining({
+      schedulingVisitStage: 'COMPLETION_VISIT_ELIGIBLE',
+    }),
   ]);
-  expect(runner.summary().counts).toMatchObject({
-    workCompleted: 1,
-    subgraphCompleted: 1,
+  expect(runner.captureProgressSnapshot().counts).toMatchObject({
+    workCompletionCommittedVertices: 1,
+    subgraphCompletionCommittedVertices: 1,
   });
 });
 
 type SorterInput = {
-  traversableTree: import('../src').TreeSource<G>;
-  transformChildHints: (hints: string[]) => string[];
+  treeDiscoverySource: import('../src').TreeDiscoverySource<G>;
+  transformChildHintsBeforeResolution: (hints: string[]) => string[];
 };
 for (const [name, create] of [
   [
     'depth-first',
-    (input: SorterInput) => new DepthFirstTreeTraversal<G>(input),
+    (input: SorterInput) => new DepthFirstTreeTraversalBuilder<G>(input),
   ],
   [
     'breadth-first',
-    (input: SorterInput) => new BreadthFirstTreeTraversal<G>(input),
+    (input: SorterInput) => new BreadthFirstTreeTraversalBuilder<G>(input),
   ],
-  ['dag', (input: SorterInput) => new DagTraversal<G>(input)],
+  ['dag', (input: SorterInput) => new DagTraversalBuilder<G>(input)],
   [
     'async depth-first',
-    (input: SorterInput) => new AsyncDepthFirstTreeTraversal<G>(input),
+    (input: SorterInput) => new AsyncDepthFirstTreeTraversalBuilder<G>(input),
   ],
   [
     'async breadth-first',
-    (input: SorterInput) => new AsyncBreadthFirstTreeTraversal<G>(input),
+    (input: SorterInput) => new AsyncBreadthFirstTreeTraversalBuilder<G>(input),
   ],
-  ['async dag', (input: SorterInput) => new AsyncDagTraversal<G>(input)],
+  ['async dag', (input: SorterInput) => new AsyncDagTraversalBuilder<G>(input)],
 ] as const) {
-  test(`${name} reports transformChildHints while the sorter runs`, async () => {
+  test(`${name} reports transformChildHintsBeforeResolution while the sorter runs`, async () => {
     const observed: string[] = [];
     const runner = create({
-      traversableTree: {
-        resolveRoot: () => ({
-          kind: 'found',
-          vertex: { vertexContent: { $data: 'root', $childHints: [] } },
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'root',
+              $childDiscoveryHints: [],
+            },
+          },
         }),
-        resolveChild: () => ({ kind: 'omitted' }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted',
+        }),
       },
-      transformChildHints: (hints) => {
+      transformChildHintsBeforeResolution: (hints) => {
         observed.push(
           ...runner
-            .inspect()
-            .pendingRequests.map((request) => request.operation),
+            .captureExecutionSnapshot()
+            .pendingCallbackRequests.map((request) => request.operation),
         );
         return hints;
       },
-    }).createRunner();
-    await runner.run();
-    expect(observed).toEqual(['transformChildHints']);
+    }).createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
+    expect(observed).toEqual(['transformChildHintsBeforeResolution']);
   });
 }

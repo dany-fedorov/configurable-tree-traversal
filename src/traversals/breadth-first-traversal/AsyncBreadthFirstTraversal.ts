@@ -3,16 +3,16 @@ import {
   assertPublicOptions,
   TREE_OPTION_KEYS,
 } from '@core/assertPublicOptions';
-import type { AsyncTreeVisitor } from '@core/AsyncTraversalVisitor';
+import type { AsyncTreeVertexPhaseVisitorCallback } from '@core/AsyncTraversalVisitor';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { VisitorRecord } from '@core/graph/types';
 import type {
-  NoInferPhase,
-  TraversalVisitorFunctionOptions,
+  PreventVisitorReturnFromWideningPhase,
+  VisitorRegistrationOptions,
   VisitorGroupDefinition,
-  VisitorPhaseInput,
+  VisitorDefinitionsForPhase,
 } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
@@ -22,38 +22,60 @@ import {
 import {
   ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeAsyncBreadthFirstTraversalInstanceConfigs,
-  type AsyncBreadthFirstTraversalVisitors,
-  type AsyncBreadthFirstTreeOptions,
-  type AsyncBreadthFirstTreeOptionsPatch,
+  type AsyncBreadthFirstTreeVisitorRegistrationsByPhase,
+  type AsyncBreadthFirstTreeTraversalBuilderOptions,
+  type AsyncBreadthFirstTreeTraversalBuilderOptionsPatch,
   type AsyncBreadthFirstTreeResolvedOptions,
 } from './lib/AsyncBreadthFirstTraversalInstanceConfig';
 import {
   InternalAsyncBreadthFirstTreeRunner,
   type AsyncBreadthFirstTreeRunner,
 } from './lib/AsyncBreadthFirstTraversalRunner';
-import type { BreadthFirstPhase } from './lib/BreadthFirstTraversalOrder';
+import type { BreadthFirstTreeVisitPhase } from './lib/BreadthFirstTraversalOrder';
 
-export class AsyncBreadthFirstTreeTraversal<
-  TTP extends VertexTypes = VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
+export class AsyncBreadthFirstTreeTraversalBuilder<
+  InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > {
-  private icfg: AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP>;
-  private visitors: AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>;
+  private icfg: AsyncBreadthFirstTreeResolvedOptions<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
+  private visitors: AsyncBreadthFirstTreeVisitorRegistrationsByPhase<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
 
-  constructor(icfgInput: AsyncBreadthFirstTreeOptions<TTP, RW_TTP>) {
-    assertPublicOptions(icfgInput, [...TREE_OPTION_KEYS, 'concurrency']);
+  constructor(
+    icfgInput: AsyncBreadthFirstTreeTraversalBuilderOptions<
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >,
+  ) {
+    assertPublicOptions(icfgInput, [
+      ...TREE_OPTION_KEYS,
+      'maxConcurrentCallbackInvocations',
+    ]);
     this.icfg = mergeAsyncBreadthFirstTraversalInstanceConfigs(
       ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as AsyncBreadthFirstTreeResolvedOptions<
-        TTP,
-        RW_TTP
+        InputVertexTypes,
+        RewrittenVertexTypes
       >,
       icfgInput,
     );
     this.visitors = this.initVisitors(this.icfg.visitors);
   }
 
-  configure(icfgInput: AsyncBreadthFirstTreeOptionsPatch<TTP, RW_TTP>): this {
-    assertPublicOptions(icfgInput, [...TREE_OPTION_KEYS, 'concurrency']);
+  patchOptionsForFutureRunners(
+    icfgInput: AsyncBreadthFirstTreeTraversalBuilderOptionsPatch<
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >,
+  ): this {
+    assertPublicOptions(icfgInput, [
+      ...TREE_OPTION_KEYS,
+      'maxConcurrentCallbackInvocations',
+    ]);
     this.icfg = mergeAsyncBreadthFirstTraversalInstanceConfigs(
       { ...this.icfg, visitors: this.visitors },
       icfgInput,
@@ -62,69 +84,136 @@ export class AsyncBreadthFirstTreeTraversal<
     return this;
   }
 
-  addVisitorFor<Phase extends BreadthFirstPhase>(
+  registerVisitorCallbackForPhase<Phase extends BreadthFirstTreeVisitPhase>(
     phase: Phase,
-    visitor: AsyncTreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>,
-    options: Partial<TraversalVisitorFunctionOptions> = {},
+    visitor: AsyncTreeVertexPhaseVisitorCallback<
+      InputVertexTypes,
+      RewrittenVertexTypes,
+      PreventVisitorReturnFromWideningPhase<Phase>
+    >,
+    options: Partial<VisitorRegistrationOptions> = {},
   ): this {
-    assertOwnKeys(options, ['priority', 'commandCommitMode']);
+    assertOwnKeys(options, [
+      'descendingExecutionPriorityWithinGroup',
+      'visitorCommandCommitTiming',
+    ]);
     (
       this.visitors as Record<
         Phase,
-        VisitorRecord<AsyncTreeVisitor<Phase, TTP, RW_TTP>>[]
+        VisitorRecord<
+          AsyncTreeVertexPhaseVisitorCallback<
+            InputVertexTypes,
+            RewrittenVertexTypes,
+            Phase
+          >
+        >[]
       >
-    )[phase] = appendVisitorDefinition<AsyncTreeVisitor<Phase, TTP, RW_TTP>>(
+    )[phase] = appendVisitorDefinition<
+      AsyncTreeVertexPhaseVisitorCallback<
+        InputVertexTypes,
+        RewrittenVertexTypes,
+        Phase
+      >
+    >(
       this.visitors[phase] as VisitorRecord<
-        AsyncTreeVisitor<Phase, TTP, RW_TTP>
+        AsyncTreeVertexPhaseVisitorCallback<
+          InputVertexTypes,
+          RewrittenVertexTypes,
+          Phase
+        >
       >[],
       { visitor, ...definedOptions(options) },
     );
     return this;
   }
 
-  addVisitorGroupFor<Phase extends BreadthFirstPhase>(
+  appendVisitorGroupForPhase<Phase extends BreadthFirstTreeVisitPhase>(
     phase: Phase,
     group: VisitorGroupDefinition<
-      AsyncTreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>
+      AsyncTreeVertexPhaseVisitorCallback<
+        InputVertexTypes,
+        RewrittenVertexTypes,
+        PreventVisitorReturnFromWideningPhase<Phase>
+      >
     >,
   ): this {
     (
       this.visitors as Record<
         Phase,
-        VisitorRecord<AsyncTreeVisitor<Phase, TTP, RW_TTP>>[]
+        VisitorRecord<
+          AsyncTreeVertexPhaseVisitorCallback<
+            InputVertexTypes,
+            RewrittenVertexTypes,
+            Phase
+          >
+        >[]
       >
-    )[phase] = appendVisitorGroup<AsyncTreeVisitor<Phase, TTP, RW_TTP>>(
+    )[phase] = appendVisitorGroup<
+      AsyncTreeVertexPhaseVisitorCallback<
+        InputVertexTypes,
+        RewrittenVertexTypes,
+        Phase
+      >
+    >(
       this.visitors[phase] as VisitorRecord<
-        AsyncTreeVisitor<Phase, TTP, RW_TTP>
+        AsyncTreeVertexPhaseVisitorCallback<
+          InputVertexTypes,
+          RewrittenVertexTypes,
+          Phase
+        >
       >[],
       group,
     );
     return this;
   }
 
-  listVisitorsFor<Phase extends BreadthFirstPhase>(
+  getDetachedVisitorRegistrationRecordsForPhase<
+    Phase extends BreadthFirstTreeVisitPhase,
+  >(
     phase: Phase,
-  ): AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>[Phase] {
+  ): AsyncBreadthFirstTreeVisitorRegistrationsByPhase<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >[Phase] {
     return copyVisitorRecords(this.visitors[phase]);
   }
 
-  setVisitorsFor<Phase extends BreadthFirstPhase>(
+  replaceVisitorDefinitionsForPhase<Phase extends BreadthFirstTreeVisitPhase>(
     phase: Phase,
-    input: VisitorPhaseInput<
-      AsyncTreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>
+    input: VisitorDefinitionsForPhase<
+      AsyncTreeVertexPhaseVisitorCallback<
+        InputVertexTypes,
+        RewrittenVertexTypes,
+        PreventVisitorReturnFromWideningPhase<Phase>
+      >
     >,
   ): this {
     (
       this.visitors as Record<
         Phase,
-        VisitorRecord<AsyncTreeVisitor<Phase, TTP, RW_TTP>>[]
+        VisitorRecord<
+          AsyncTreeVertexPhaseVisitorCallback<
+            InputVertexTypes,
+            RewrittenVertexTypes,
+            Phase
+          >
+        >[]
       >
     )[phase] =
-      normalizeVisitorDefinitions<AsyncTreeVisitor<Phase, TTP, RW_TTP>>(input);
+      normalizeVisitorDefinitions<
+        AsyncTreeVertexPhaseVisitorCallback<
+          InputVertexTypes,
+          RewrittenVertexTypes,
+          Phase
+        >
+      >(input);
     return this;
   }
 
-  createRunner(): AsyncBreadthFirstTreeRunner<TTP, RW_TTP> {
+  createIndependentRunnerFromCurrentOptions(): AsyncBreadthFirstTreeRunner<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  > {
     return new InternalAsyncBreadthFirstTreeRunner({
       ...this.icfg,
       visitors: this.visitors,
@@ -132,13 +221,22 @@ export class AsyncBreadthFirstTreeTraversal<
   }
 
   private initVisitors(
-    visitors: AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>,
-  ): AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP> {
+    visitors: AsyncBreadthFirstTreeVisitorRegistrationsByPhase<
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >,
+  ): AsyncBreadthFirstTreeVisitorRegistrationsByPhase<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  > {
     return Object.fromEntries(
       Object.entries(visitors).map(([phase, records]) => [
         phase,
         sortVisitorRecords(records),
       ]),
-    ) as AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>;
+    ) as AsyncBreadthFirstTreeVisitorRegistrationsByPhase<
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >;
   }
 }

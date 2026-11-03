@@ -44,22 +44,28 @@ for (const [shape, edges, empty, prefix] of cases) {
         fixture,
         new Set(completed),
       );
-      inspection.runner.run();
-      const before = inspection.runner.summary();
-      assert.deepEqual(before.readyOrDeferredIds, expected);
-      assert.deepEqual(before.completedWorkIds, completed);
+      inspection.runner.runUntilSuspendedOrTerminal();
+      const before = inspection.runner.captureProgressSnapshot();
+      assert.deepEqual(
+        before.workVisitorReadyOrWorkCompletionDeferredVertexIds,
+        expected,
+      );
+      assert.deepEqual(before.workCompletionCommittedVertexIds, completed);
       assert.equal(before.discovery.complete, true);
-      assert.equal(before.counts.discovered, 7);
-      assert.equal(before.counts.deferredWork, expected.length);
+      assert.equal(before.counts.retainedLiveVertices, 7);
+      assert.equal(
+        before.counts.workCompletionDeferredVertices,
+        expected.length,
+      );
       assert.equal(inspection.counters.root, 1);
       assert.equal(inspection.counters.vertex, 7);
       assert.equal(inspection.counters.ready, expected.length);
       const calls = { ...inspection.counters };
-      const status = inspection.runner.getStatus();
+      const status = inspection.runner.getTraversalLifecycleStatus();
       for (let i = 0; i < 4; i++)
-        assert.deepEqual(inspection.runner.summary(), before);
+        assert.deepEqual(inspection.runner.captureProgressSnapshot(), before);
       assert.deepEqual(inspection.counters, calls);
-      assert.equal(inspection.runner.getStatus(), status);
+      assert.equal(inspection.runner.getTraversalLifecycleStatus(), status);
     }
   });
 }

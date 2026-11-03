@@ -183,20 +183,21 @@ function stubSources({ examples = {}, snippets = [], anchors = [] } = {}) {
 const evidence = stubSources({
   examples: {
     'examples/event-delivery-selection-example.ts':
-      'runner.run({ emitEvents });',
+      'runner.runUntilSuspendedOrTerminal({ deliveredEventKinds });',
     'examples/traversable-object-iterable-example.ts':
       'for (const event of it)',
     'examples/graph-walk-references-example.ts':
-      'const tree: TreeSource<VertexTypes<string, string>> = {};',
-    'examples/async-adapter-example.ts': 'new AsyncDepthFirstTreeTraversal()',
-    'examples/dag-workflow-example.ts': 'new DagTraversal()',
+      'const tree: TreeDiscoverySource<VertexDataAndChildHintTypes<string, string>> = {};',
+    'examples/async-adapter-example.ts':
+      'new AsyncDepthFirstTreeTraversalBuilder()',
+    'examples/dag-workflow-example.ts': 'new DagTraversalBuilder()',
     'examples/dag-prerequisite-resolution-example.ts':
-      'new AsyncDagTraversal()',
+      'new AsyncDagTraversalBuilder()',
   },
   snippets: [
     [
       'reference.md#filtered-visitor-example',
-      'filterDagDataVisitor(visitor)',
+      'createConditionalDagDataVisitor(visitor)',
       ['dag-traversal', 'filtered-dag-visitors'],
     ],
     [
@@ -205,10 +206,10 @@ const evidence = stubSources({
       ['configuration-patches', 'options-and-defaults'],
     ],
     ['reference.md#dag-traversal', 'const source: DagDiscoverySource = {};'],
-    ['reference.md#abstract-trees', 'new DepthFirstTreeTraversal()'],
+    ['reference.md#abstract-trees', 'new DepthFirstTreeTraversalBuilder()'],
     [
       'reference.md#inspection-and-execution',
-      'const filters: InspectionFilters = x;',
+      'const filters: TraversalExecutionSelections = x;',
     ],
     ['reference.md#api-compatibility', 'core.Vertex !== Vertex'],
     ['reference.md#visitors-and-commands', 'TraversalVisitorCommandName.X'],
@@ -219,35 +220,35 @@ const programLink = (file) =>
   `https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/${file}`;
 const semanticCases = [
   [
-    'filterDagDataVisitor',
+    'createConditionalDagDataVisitor',
     'dist/traversals/dag-traversal/filterDagVisitor.d.ts:7',
     'filtered-dag-visitors',
     'Executable snippet',
     'reference.md#filtered-visitor-example',
   ],
   [
-    'filterAsyncDagDataVisitor',
+    'createConditionalAsyncDagDataVisitor',
     'dist/traversals/dag-traversal/filterDagVisitor.d.ts:10',
     'filtered-dag-visitors',
     'Related example',
     'reference.md#filtered-visitor-example',
   ],
   [
-    'ChildHintTransformer',
+    'ChildHintsListTransformer',
     'dist/core/ChildHintTransformer.d.ts:1',
     'options-and-defaults',
     'Related example',
     'reference.md#hint-transformation-example',
   ],
   [
-    'AsyncChildHintTransformer',
+    'AsyncChildHintsListTransformer',
     'dist/core/ChildHintTransformer.d.ts:2',
     'options-and-defaults',
     'Related example',
     'reference.md#hint-transformation-example',
   ],
   [
-    'DagEvent',
+    'DagCommittedMilestoneEvent',
     'dist/traversals/dag-traversal/lib/DagTraversalVisitor.d.ts:27',
     'deferred-dag-progress-and-reconciliation',
     'Related example',
@@ -260,9 +261,9 @@ const semanticCases = [
     'Executable snippet',
     'reference.md#dag-traversal',
   ],
-  // The abstract-tree snippet never names TreeSource; the program that does wins.
+  // The abstract-tree snippet never names TreeDiscoverySource; the program that does wins.
   [
-    'TreeSource',
+    'TreeDiscoverySource',
     'dist/core/TraversableTree.d.ts:65',
     'source-callback-contexts',
     'Runnable example',
@@ -276,7 +277,7 @@ const semanticCases = [
     programLink('traversable-object-iterable-example.ts'),
   ],
   [
-    'InspectionFilters',
+    'TraversalExecutionSelections',
     'dist/core/CoreInspection.d.ts:4',
     'inspection-and-execution',
     'Executable snippet',
@@ -313,35 +314,35 @@ const semanticCases = [
     programLink('dag-prerequisite-resolution-example.ts'),
   ],
   [
-    'AsyncDepthFirstTreeTraversal',
+    'AsyncDepthFirstTreeTraversalBuilder',
     'dist/traversals/depth-first-traversal/AsyncDepthFirstTreeTraversal.d.ts:1',
     'traversal-orders',
     'Runnable example',
     programLink('async-adapter-example.ts'),
   ],
   [
-    'materializeDagInputFromRoots',
+    'materializeDagInputFromRootRecords',
     'dist/traversals/dag-traversal/sources/materializeDagInput.d.ts:3',
     'collection-and-forest-sources',
     'Executable snippet',
     'reference.md#roots-materialization-example',
   ],
   [
-    'bindDagWorkSession',
+    'bindDagExternalWorkSession',
     'dist/traversals/dag-traversal/prepareDag.d.ts:9',
     'ticket-coordination',
     'Executable snippet',
     'reference.md#bind-an-existing-runner-example',
   ],
   [
-    'materializeWalkSourceFromDagDefinition',
+    'materializeGraphWalkSourceFromDagDeclarationRelations',
     'dist/traversals/graph-walk/materializeWalkSource.d.ts:2',
     'walking-adapters-and-inspection',
     'Executable snippet',
     'reference.md#definition-walk-example',
   ],
   [
-    'ResolvedTreeStore',
+    'MutableResolvedTreeStore',
     'dist/core/ResolvedTree.d.ts:4',
     'views-handles-identity-and-paths',
     'Executable snippet',
@@ -393,9 +394,10 @@ test('the header promises an example only where one exists and names the current
   );
   assert.match(
     text,
-    /describe `configurable-tree-traversal` 0\.12\.0; see \[install\]\(\.\.\/README\.md#install\)\./,
+    /describe the unreleased explicit API in this source checkout\./,
   );
-  assert.doesNotMatch(text, /unreleased source checkout/);
+  assert.match(text, /released `0\.12\.0` API differs/);
+  assert.match(text, /migration-explicit-api\.md/);
 });
 
 test('a preferred program that never names the symbol is related, and a program naming it is promoted', () => {
@@ -446,24 +448,28 @@ test('a reference snippet naming the symbol is promoted, preferring the owning c
   const text = render(
     {
       exports: entries,
-      bindings: [binding('DagSummary', '.', [location], false)],
+      bindings: [binding('DagProgressSnapshot', '.', [location], false)],
       declarations: [
         declaration(
-          'DagSummary',
+          'DagProgressSnapshot',
           location,
-          'export type DagSummary = unknown;',
+          'export type DagProgressSnapshot = unknown;',
         ),
       ],
     },
     stubSources({
       examples: {
-        'examples/agent-orchestration-example.ts': 'session.summary()',
+        'examples/agent-orchestration-example.ts':
+          'session.captureProgressSnapshot()',
       },
       snippets: [
-        ['reference.md#api-compatibility', 'const first: DagSummary = x;'],
+        [
+          'reference.md#api-compatibility',
+          'const first: DagProgressSnapshot = x;',
+        ],
         [
           'reference.md#dag-summary-schema',
-          'const owned: DagSummary = y;',
+          'const owned: DagProgressSnapshot = y;',
           ['dag-traversal', 'deferred-dag-progress-and-reconciliation'],
         ],
       ],
@@ -484,12 +490,12 @@ test('a pending guide section keeps the snippet label while an unknown program f
   const location = 'dist/core/ResolvedTree.d.ts:4';
   const census = {
     exports: entries,
-    bindings: [binding('ResolvedTreeStore', '.', [location])],
+    bindings: [binding('MutableResolvedTreeStore', '.', [location])],
     declarations: [
       declaration(
-        'ResolvedTreeStore',
+        'MutableResolvedTreeStore',
         location,
-        'export declare class ResolvedTreeStore {}',
+        'export declare class MutableResolvedTreeStore {}',
       ),
     ],
   };

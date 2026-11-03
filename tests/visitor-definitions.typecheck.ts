@@ -1,162 +1,219 @@
 import {
-  DagTraversal,
-  AsyncDagTraversal,
-  DepthFirstTreeTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  AsyncBreadthFirstTreeTraversal,
+  DagTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  DepthFirstTreeTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  AsyncBreadthFirstTreeTraversalBuilder,
   DagVisitorPhase as D,
-  DepthFirstPhase as F,
-  BreadthFirstPhase as B,
-  type VisitorPhaseInput,
+  DepthFirstTreeVisitPhase as F,
+  BreadthFirstTreeVisitPhase as B,
+  type VisitorDefinitionsForPhase,
   type VisitorGroupMember,
   type DagVisitor,
-  type TreeVisitor,
+  type TreeVertexPhaseVisitorCallback,
   type DagDiscoverySource,
-  type TreeSource,
+  type TreeDiscoverySource,
   traverseDag,
   traverseDagAsync,
-  traverseTreeDepthFirst,
-  traverseTreeDepthFirstAsync,
-  traverseTreeBreadthFirst,
-  traverseTreeBreadthFirstAsync,
+  runTreeDepthFirstUntilSuspendedOrTerminal,
+  runTreeDepthFirstUntilSuspendedOrTerminalAsync,
+  runTreeBreadthFirstUntilSuspendedOrTerminal,
+  runTreeBreadthFirstUntilSuspendedOrTerminalAsync,
 } from '../src';
-type T = { VertexData: string; VertexHint: string };
-declare const traversableGraph: DagDiscoverySource<T>;
-declare const traversableTree: TreeSource<T>;
+type T = {
+  VertexData: string;
+  ChildHint: string;
+};
+declare const dagDiscoverySource: DagDiscoverySource<T>;
+declare const treeDiscoverySource: TreeDiscoverySource<T>;
 const common: DagVisitor<T> = () => undefined;
-const ready: VisitorPhaseInput<DagVisitor<T, T, D.ON_WORK_READY>> = {
+const ready: VisitorDefinitionsForPhase<DagVisitor<T, T, D.ON_WORK_READY>> = {
   groups: [
     {
-      commandCommitMode: 'afterGroup' as const,
-      visitors: [{ visitor: common, priority: 1 }, common],
+      visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
+      visitors: [
+        { visitor: common, descendingExecutionPriorityWithinGroup: 1 },
+        common,
+      ],
     },
   ],
 };
 const visitors = { [D.ON_WORK_READY]: ready };
 {
-  const t = new DagTraversal({ traversableGraph, visitors });
-  t.configure({ visitors });
-  t.setVisitorsFor(D.ON_WORK_READY, common);
-  t.setVisitorsFor(D.ON_WORK_READY, { visitor: common });
-  t.setVisitorsFor(D.ON_WORK_READY, [common]);
-  t.setVisitorsFor(D.ON_WORK_READY, t.listVisitorsFor(D.ON_WORK_READY));
-  t.addVisitorGroupFor(D.ON_WORK_READY, { visitors: [common] });
+  const t = new DagTraversalBuilder({ dagDiscoverySource, visitors });
+  t.patchOptionsForFutureRunners({ visitors });
+  t.replaceVisitorDefinitionsForPhase(D.ON_WORK_READY, common);
+  t.replaceVisitorDefinitionsForPhase(D.ON_WORK_READY, { visitor: common });
+  t.replaceVisitorDefinitionsForPhase(D.ON_WORK_READY, [common]);
+  t.replaceVisitorDefinitionsForPhase(
+    D.ON_WORK_READY,
+    t.getDetachedVisitorRegistrationRecordsForPhase(D.ON_WORK_READY),
+  );
+  t.appendVisitorGroupForPhase(D.ON_WORK_READY, { visitors: [common] });
 }
 {
-  const t = new AsyncDagTraversal({ traversableGraph, visitors });
-  t.configure({ visitors });
-  t.setVisitorsFor(D.ON_WORK_READY, common);
-  t.setVisitorsFor(D.ON_WORK_READY, { visitor: common });
-  t.setVisitorsFor(D.ON_WORK_READY, [common]);
-  t.setVisitorsFor(D.ON_WORK_READY, t.listVisitorsFor(D.ON_WORK_READY));
-  t.addVisitorGroupFor(D.ON_WORK_READY, { visitors: [common] });
+  const t = new AsyncDagTraversalBuilder({ dagDiscoverySource, visitors });
+  t.patchOptionsForFutureRunners({ visitors });
+  t.replaceVisitorDefinitionsForPhase(D.ON_WORK_READY, common);
+  t.replaceVisitorDefinitionsForPhase(D.ON_WORK_READY, { visitor: common });
+  t.replaceVisitorDefinitionsForPhase(D.ON_WORK_READY, [common]);
+  t.replaceVisitorDefinitionsForPhase(
+    D.ON_WORK_READY,
+    t.getDetachedVisitorRegistrationRecordsForPhase(D.ON_WORK_READY),
+  );
+  t.appendVisitorGroupForPhase(D.ON_WORK_READY, { visitors: [common] });
 }
-traverseDag({ traversableGraph, visitors });
-traverseDagAsync({ traversableGraph, visitors });
-const treeCommon: TreeVisitor<string, T, T> = () => undefined;
-const dfs = { [F.PRE_ORDER]: { groups: [{ visitors: [treeCommon] }] } };
+traverseDag({ dagDiscoverySource, visitors });
+traverseDagAsync({ dagDiscoverySource, visitors });
+const treeCommon: TreeVertexPhaseVisitorCallback<T, T, string> = () =>
+  undefined;
+const dfs = {
+  [F.BEFORE_CHILD_EXPANSION]: { groups: [{ visitors: [treeCommon] }] },
+};
 {
-  const t = new DepthFirstTreeTraversal({ traversableTree, visitors: dfs });
-  t.configure({ visitors: dfs });
-  t.setVisitorsFor(F.PRE_ORDER, treeCommon);
-  t.setVisitorsFor(F.PRE_ORDER, t.listVisitorsFor(F.PRE_ORDER));
-  t.addVisitorGroupFor(F.PRE_ORDER, { visitors: [treeCommon] });
-}
-{
-  const t = new AsyncDepthFirstTreeTraversal({
-    traversableTree,
+  const t = new DepthFirstTreeTraversalBuilder({
+    treeDiscoverySource,
     visitors: dfs,
   });
-  t.configure({ visitors: dfs });
-  t.setVisitorsFor(F.PRE_ORDER, treeCommon);
-  t.setVisitorsFor(F.PRE_ORDER, t.listVisitorsFor(F.PRE_ORDER));
-  t.addVisitorGroupFor(F.PRE_ORDER, { visitors: [treeCommon] });
-}
-traverseTreeDepthFirst({ traversableTree, visitors: dfs });
-traverseTreeDepthFirstAsync({ traversableTree, visitors: dfs });
-const bfs = { [B.LEVEL_ORDER]: { visitor: treeCommon } };
-{
-  const t = new BreadthFirstTreeTraversal({ traversableTree, visitors: bfs });
-  t.configure({ visitors: bfs });
-  t.setVisitorsFor(B.LEVEL_ORDER, treeCommon);
-  t.setVisitorsFor(B.LEVEL_ORDER, t.listVisitorsFor(B.LEVEL_ORDER));
-  t.addVisitorGroupFor(B.LEVEL_ORDER, { visitors: [treeCommon] });
+  t.patchOptionsForFutureRunners({ visitors: dfs });
+  t.replaceVisitorDefinitionsForPhase(F.BEFORE_CHILD_EXPANSION, treeCommon);
+  t.replaceVisitorDefinitionsForPhase(
+    F.BEFORE_CHILD_EXPANSION,
+    t.getDetachedVisitorRegistrationRecordsForPhase(F.BEFORE_CHILD_EXPANSION),
+  );
+  t.appendVisitorGroupForPhase(F.BEFORE_CHILD_EXPANSION, {
+    visitors: [treeCommon],
+  });
 }
 {
-  const t = new AsyncBreadthFirstTreeTraversal({
-    traversableTree,
+  const t = new AsyncDepthFirstTreeTraversalBuilder({
+    treeDiscoverySource,
+    visitors: dfs,
+  });
+  t.patchOptionsForFutureRunners({ visitors: dfs });
+  t.replaceVisitorDefinitionsForPhase(F.BEFORE_CHILD_EXPANSION, treeCommon);
+  t.replaceVisitorDefinitionsForPhase(
+    F.BEFORE_CHILD_EXPANSION,
+    t.getDetachedVisitorRegistrationRecordsForPhase(F.BEFORE_CHILD_EXPANSION),
+  );
+  t.appendVisitorGroupForPhase(F.BEFORE_CHILD_EXPANSION, {
+    visitors: [treeCommon],
+  });
+}
+runTreeDepthFirstUntilSuspendedOrTerminal({
+  treeDiscoverySource,
+  visitors: dfs,
+});
+runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+  treeDiscoverySource,
+  visitors: dfs,
+});
+const bfs = { [B.AT_LEVEL_ORDER_VERTEX]: { visitor: treeCommon } };
+{
+  const t = new BreadthFirstTreeTraversalBuilder({
+    treeDiscoverySource,
     visitors: bfs,
   });
-  t.configure({ visitors: bfs });
-  t.setVisitorsFor(B.LEVEL_ORDER, treeCommon);
-  t.setVisitorsFor(B.LEVEL_ORDER, t.listVisitorsFor(B.LEVEL_ORDER));
-  t.addVisitorGroupFor(B.LEVEL_ORDER, { visitors: [treeCommon] });
+  t.patchOptionsForFutureRunners({ visitors: bfs });
+  t.replaceVisitorDefinitionsForPhase(B.AT_LEVEL_ORDER_VERTEX, treeCommon);
+  t.replaceVisitorDefinitionsForPhase(
+    B.AT_LEVEL_ORDER_VERTEX,
+    t.getDetachedVisitorRegistrationRecordsForPhase(B.AT_LEVEL_ORDER_VERTEX),
+  );
+  t.appendVisitorGroupForPhase(B.AT_LEVEL_ORDER_VERTEX, {
+    visitors: [treeCommon],
+  });
 }
-traverseTreeBreadthFirst({ traversableTree, visitors: bfs });
-traverseTreeBreadthFirstAsync({ traversableTree, visitors: bfs });
+{
+  const t = new AsyncBreadthFirstTreeTraversalBuilder({
+    treeDiscoverySource,
+    visitors: bfs,
+  });
+  t.patchOptionsForFutureRunners({ visitors: bfs });
+  t.replaceVisitorDefinitionsForPhase(B.AT_LEVEL_ORDER_VERTEX, treeCommon);
+  t.replaceVisitorDefinitionsForPhase(
+    B.AT_LEVEL_ORDER_VERTEX,
+    t.getDetachedVisitorRegistrationRecordsForPhase(B.AT_LEVEL_ORDER_VERTEX),
+  );
+  t.appendVisitorGroupForPhase(B.AT_LEVEL_ORDER_VERTEX, {
+    visitors: [treeCommon],
+  });
+}
+runTreeBreadthFirstUntilSuspendedOrTerminal({
+  treeDiscoverySource,
+  visitors: bfs,
+});
+runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+  treeDiscoverySource,
+  visitors: bfs,
+});
 const bad: VisitorGroupMember<DagVisitor<T>> = {
   visitor: common,
   // @ts-expect-error Explicit group owns commit policy.
-  commandCommitMode: 'afterGroup' as const,
+  visitorCommandCommitTiming: 'afterGroup' as const,
 };
 void bad;
 declare const narrow: DagVisitor<T, T, D.ON_WORK_READY>;
 declare const phase: D;
-const t = new DagTraversal({ traversableGraph });
+const t = new DagTraversalBuilder({ dagDiscoverySource });
 // @ts-expect-error Union phases cannot accept a ready-only callback.
-t.setVisitorsFor(phase, narrow);
-// @ts-expect-error Group members remain phase safe.
-t.addVisitorGroupFor(D.ON_SUBGRAPH_READY, { visitors: [narrow] });
-// @ts-expect-error List producer at a union phase cannot narrow its callbacks.
-t.setVisitorsFor(phase, t.listVisitorsFor(phase));
-
+t.replaceVisitorDefinitionsForPhase(phase, narrow);
+t.appendVisitorGroupForPhase(D.ON_SUBGRAPH_COMPLETION_READY, {
+  // @ts-expect-error Group members remain phase safe.
+  visitors: [narrow],
+});
+t.replaceVisitorDefinitionsForPhase(
+  phase,
+  // @ts-expect-error List producer at a union phase cannot narrow its callbacks.
+  t.getDetachedVisitorRegistrationRecordsForPhase(phase),
+);
 // Definition and group callbacks infer their literal phase at each concrete public boundary.
 {
-  const traversal = new DepthFirstTreeTraversal<T>({
-    traversableTree,
+  const traversal = new DepthFirstTreeTraversalBuilder<T>({
+    treeDiscoverySource,
     visitors: {
-      [F.PRE_ORDER]: (_v, o) => {
-        const p: F.PRE_ORDER = o.phase;
+      [F.BEFORE_CHILD_EXPANSION]: (_v, o) => {
+        const p: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
         void p;
       },
     },
   });
-  traversal.configure({
+  traversal.patchOptionsForFutureRunners({
     visitors: {
-      [F.PRE_ORDER]: {
+      [F.BEFORE_CHILD_EXPANSION]: {
         visitor: (_v, o) => {
-          const p: F.PRE_ORDER = o.phase;
+          const p: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
           void p;
         },
       },
     },
   });
-  traversal.setVisitorsFor(F.PRE_ORDER, [
+  traversal.replaceVisitorDefinitionsForPhase(F.BEFORE_CHILD_EXPANSION, [
     (_v, o) => {
-      const p: F.PRE_ORDER = o.phase;
+      const p: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
       void p;
     },
   ]);
-  traversal.addVisitorGroupFor(F.PRE_ORDER, {
+  traversal.appendVisitorGroupForPhase(F.BEFORE_CHILD_EXPANSION, {
     visitors: [
       {
         visitor: (_v, o) => {
-          const p: F.PRE_ORDER = o.phase;
+          const p: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
           void p;
         },
       },
     ],
   });
-  traverseTreeDepthFirst({
-    traversableTree,
+  runTreeDepthFirstUntilSuspendedOrTerminal({
+    treeDiscoverySource,
     visitors: {
-      [F.PRE_ORDER]: {
+      [F.BEFORE_CHILD_EXPANSION]: {
         groups: [
           {
             visitors: [
               (_v, o) => {
-                const p: F.PRE_ORDER = o.phase;
+                const p: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
                 void p;
               },
             ],
@@ -167,50 +224,50 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
 }
 {
-  const traversal = new AsyncDepthFirstTreeTraversal<T>({
-    traversableTree,
+  const traversal = new AsyncDepthFirstTreeTraversalBuilder<T>({
+    treeDiscoverySource,
     visitors: {
-      [F.PRE_ORDER]: (_v, o) => {
-        const p: F.PRE_ORDER = o.phase;
+      [F.BEFORE_CHILD_EXPANSION]: (_v, o) => {
+        const p: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
         void p;
       },
     },
   });
-  traversal.configure({
+  traversal.patchOptionsForFutureRunners({
     visitors: {
-      [F.PRE_ORDER]: {
+      [F.BEFORE_CHILD_EXPANSION]: {
         visitor: (_v, o) => {
-          const p: F.PRE_ORDER = o.phase;
+          const p: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
           void p;
         },
       },
     },
   });
-  traversal.setVisitorsFor(F.PRE_ORDER, [
+  traversal.replaceVisitorDefinitionsForPhase(F.BEFORE_CHILD_EXPANSION, [
     (_v, o) => {
-      const p: F.PRE_ORDER = o.phase;
+      const p: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
       void p;
     },
   ]);
-  traversal.addVisitorGroupFor(F.PRE_ORDER, {
+  traversal.appendVisitorGroupForPhase(F.BEFORE_CHILD_EXPANSION, {
     visitors: [
       {
         visitor: (_v, o) => {
-          const p: F.PRE_ORDER = o.phase;
+          const p: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
           void p;
         },
       },
     ],
   });
-  traverseTreeDepthFirstAsync({
-    traversableTree,
+  runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+    treeDiscoverySource,
     visitors: {
-      [F.PRE_ORDER]: {
+      [F.BEFORE_CHILD_EXPANSION]: {
         groups: [
           {
             visitors: [
               (_v, o) => {
-                const p: F.PRE_ORDER = o.phase;
+                const p: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
                 void p;
               },
             ],
@@ -221,50 +278,50 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
 }
 {
-  const traversal = new BreadthFirstTreeTraversal<T>({
-    traversableTree,
+  const traversal = new BreadthFirstTreeTraversalBuilder<T>({
+    treeDiscoverySource,
     visitors: {
-      [B.LEVEL_ORDER]: (_v, o) => {
-        const p: B.LEVEL_ORDER = o.phase;
+      [B.AT_LEVEL_ORDER_VERTEX]: (_v, o) => {
+        const p: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
         void p;
       },
     },
   });
-  traversal.configure({
+  traversal.patchOptionsForFutureRunners({
     visitors: {
-      [B.LEVEL_ORDER]: {
+      [B.AT_LEVEL_ORDER_VERTEX]: {
         visitor: (_v, o) => {
-          const p: B.LEVEL_ORDER = o.phase;
+          const p: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
           void p;
         },
       },
     },
   });
-  traversal.setVisitorsFor(B.LEVEL_ORDER, [
+  traversal.replaceVisitorDefinitionsForPhase(B.AT_LEVEL_ORDER_VERTEX, [
     (_v, o) => {
-      const p: B.LEVEL_ORDER = o.phase;
+      const p: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
       void p;
     },
   ]);
-  traversal.addVisitorGroupFor(B.LEVEL_ORDER, {
+  traversal.appendVisitorGroupForPhase(B.AT_LEVEL_ORDER_VERTEX, {
     visitors: [
       {
         visitor: (_v, o) => {
-          const p: B.LEVEL_ORDER = o.phase;
+          const p: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
           void p;
         },
       },
     ],
   });
-  traverseTreeBreadthFirst({
-    traversableTree,
+  runTreeBreadthFirstUntilSuspendedOrTerminal({
+    treeDiscoverySource,
     visitors: {
-      [B.LEVEL_ORDER]: {
+      [B.AT_LEVEL_ORDER_VERTEX]: {
         groups: [
           {
             visitors: [
               (_v, o) => {
-                const p: B.LEVEL_ORDER = o.phase;
+                const p: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
                 void p;
               },
             ],
@@ -275,50 +332,50 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
 }
 {
-  const traversal = new AsyncBreadthFirstTreeTraversal<T>({
-    traversableTree,
+  const traversal = new AsyncBreadthFirstTreeTraversalBuilder<T>({
+    treeDiscoverySource,
     visitors: {
-      [B.LEVEL_ORDER]: (_v, o) => {
-        const p: B.LEVEL_ORDER = o.phase;
+      [B.AT_LEVEL_ORDER_VERTEX]: (_v, o) => {
+        const p: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
         void p;
       },
     },
   });
-  traversal.configure({
+  traversal.patchOptionsForFutureRunners({
     visitors: {
-      [B.LEVEL_ORDER]: {
+      [B.AT_LEVEL_ORDER_VERTEX]: {
         visitor: (_v, o) => {
-          const p: B.LEVEL_ORDER = o.phase;
+          const p: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
           void p;
         },
       },
     },
   });
-  traversal.setVisitorsFor(B.LEVEL_ORDER, [
+  traversal.replaceVisitorDefinitionsForPhase(B.AT_LEVEL_ORDER_VERTEX, [
     (_v, o) => {
-      const p: B.LEVEL_ORDER = o.phase;
+      const p: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
       void p;
     },
   ]);
-  traversal.addVisitorGroupFor(B.LEVEL_ORDER, {
+  traversal.appendVisitorGroupForPhase(B.AT_LEVEL_ORDER_VERTEX, {
     visitors: [
       {
         visitor: (_v, o) => {
-          const p: B.LEVEL_ORDER = o.phase;
+          const p: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
           void p;
         },
       },
     ],
   });
-  traverseTreeBreadthFirstAsync({
-    traversableTree,
+  runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+    treeDiscoverySource,
     visitors: {
-      [B.LEVEL_ORDER]: {
+      [B.AT_LEVEL_ORDER_VERTEX]: {
         groups: [
           {
             visitors: [
               (_v, o) => {
-                const p: B.LEVEL_ORDER = o.phase;
+                const p: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
                 void p;
               },
             ],
@@ -329,50 +386,50 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
 }
 {
-  const traversal = new DagTraversal<T>({
-    traversableGraph,
+  const traversal = new DagTraversalBuilder<T>({
+    dagDiscoverySource,
     visitors: {
       [D.ON_WORK_READY]: (_v, o) => {
-        const p: D.ON_WORK_READY = o.phase;
+        const p: D.ON_WORK_READY = o.visitorPhase;
         void p;
       },
     },
   });
-  traversal.configure({
+  traversal.patchOptionsForFutureRunners({
     visitors: {
       [D.ON_WORK_READY]: {
         visitor: (_v, o) => {
-          const p: D.ON_WORK_READY = o.phase;
+          const p: D.ON_WORK_READY = o.visitorPhase;
           void p;
         },
       },
     },
   });
-  traversal.setVisitorsFor(D.ON_WORK_READY, [
+  traversal.replaceVisitorDefinitionsForPhase(D.ON_WORK_READY, [
     (_v, o) => {
-      const p: D.ON_WORK_READY = o.phase;
+      const p: D.ON_WORK_READY = o.visitorPhase;
       void p;
     },
   ]);
-  traversal.addVisitorGroupFor(D.ON_WORK_READY, {
+  traversal.appendVisitorGroupForPhase(D.ON_WORK_READY, {
     visitors: [
       {
         visitor: (_v, o) => {
-          const p: D.ON_WORK_READY = o.phase;
+          const p: D.ON_WORK_READY = o.visitorPhase;
           void p;
         },
       },
     ],
   });
   traverseDag({
-    traversableGraph,
+    dagDiscoverySource,
     visitors: {
       [D.ON_WORK_READY]: {
         groups: [
           {
             visitors: [
               (_v, o) => {
-                const p: D.ON_WORK_READY = o.phase;
+                const p: D.ON_WORK_READY = o.visitorPhase;
                 void p;
               },
             ],
@@ -383,50 +440,50 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
 }
 {
-  const traversal = new AsyncDagTraversal<T>({
-    traversableGraph,
+  const traversal = new AsyncDagTraversalBuilder<T>({
+    dagDiscoverySource,
     visitors: {
       [D.ON_WORK_READY]: (_v, o) => {
-        const p: D.ON_WORK_READY = o.phase;
+        const p: D.ON_WORK_READY = o.visitorPhase;
         void p;
       },
     },
   });
-  traversal.configure({
+  traversal.patchOptionsForFutureRunners({
     visitors: {
       [D.ON_WORK_READY]: {
         visitor: (_v, o) => {
-          const p: D.ON_WORK_READY = o.phase;
+          const p: D.ON_WORK_READY = o.visitorPhase;
           void p;
         },
       },
     },
   });
-  traversal.setVisitorsFor(D.ON_WORK_READY, [
+  traversal.replaceVisitorDefinitionsForPhase(D.ON_WORK_READY, [
     (_v, o) => {
-      const p: D.ON_WORK_READY = o.phase;
+      const p: D.ON_WORK_READY = o.visitorPhase;
       void p;
     },
   ]);
-  traversal.addVisitorGroupFor(D.ON_WORK_READY, {
+  traversal.appendVisitorGroupForPhase(D.ON_WORK_READY, {
     visitors: [
       {
         visitor: (_v, o) => {
-          const p: D.ON_WORK_READY = o.phase;
+          const p: D.ON_WORK_READY = o.visitorPhase;
           void p;
         },
       },
     ],
   });
   traverseDagAsync({
-    traversableGraph,
+    dagDiscoverySource,
     visitors: {
       [D.ON_WORK_READY]: {
         groups: [
           {
             visitors: [
               (_v, o) => {
-                const p: D.ON_WORK_READY = o.phase;
+                const p: D.ON_WORK_READY = o.visitorPhase;
                 void p;
               },
             ],
@@ -436,11 +493,10 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
     },
   });
 }
-
 const legacyBatchMember: VisitorGroupMember<DagVisitor<T>> = {
   visitor: common,
   // @ts-expect-error Explicit groups also forbid deprecated member batching.
-  commandCommitMode: 'afterGroup' as const,
+  visitorCommandCommitTiming: 'afterGroup' as const,
 };
 void legacyBatchMember;
 declare const asyncNarrow: import('../src').AsyncDagVisitor<
@@ -448,17 +504,22 @@ declare const asyncNarrow: import('../src').AsyncDagVisitor<
   T,
   D.ON_WORK_READY
 >;
-const at = new AsyncDagTraversal({ traversableGraph });
+const at = new AsyncDagTraversalBuilder({ dagDiscoverySource });
 // @ts-expect-error Async groups reject union-phase ready-only callbacks.
-at.addVisitorGroupFor(phase, { visitors: [asyncNarrow] });
-// @ts-expect-error Async list producer cannot turn a phase union into a safe union callback.
-at.setVisitorsFor(phase, at.listVisitorsFor(phase));
-t.addVisitorGroupFor(D.ON_WORK_READY, {
+at.appendVisitorGroupForPhase(phase, { visitors: [asyncNarrow] });
+at.replaceVisitorDefinitionsForPhase(
+  phase,
+  // @ts-expect-error Async list producer cannot turn a phase union into a safe union callback.
+  at.getDetachedVisitorRegistrationRecordsForPhase(phase),
+);
+t.appendVisitorGroupForPhase(D.ON_WORK_READY, {
   // @ts-expect-error Full normalized records are sequences, not members of a new explicit group.
-  visitors: t.listVisitorsFor(D.ON_WORK_READY),
+  visitors: t.getDetachedVisitorRegistrationRecordsForPhase(D.ON_WORK_READY),
 });
 traverseDag({
-  traversableGraph,
-  // @ts-expect-error Canonical helper groups preserve phase restrictions.
-  visitors: { [D.ON_SUBGRAPH_READY]: { groups: [{ visitors: [narrow] }] } },
+  dagDiscoverySource,
+  visitors: {
+    // @ts-expect-error Canonical helper groups preserve phase restrictions.
+    [D.ON_SUBGRAPH_COMPLETION_READY]: { groups: [{ visitors: [narrow] }] },
+  },
 });

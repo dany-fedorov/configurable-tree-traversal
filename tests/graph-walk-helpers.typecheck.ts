@@ -1,68 +1,84 @@
 import {
-  walkGraph,
-  walkGraphAsync,
+  createAndRunGraphWalkUntilSuspendedOrTerminal,
+  createAndRunGraphWalkUntilSuspendedOrTerminalAsync,
   graphWalk,
-  GraphWalkPhase as Phase,
-  type GraphWalkSource,
+  GraphWalkObservationKind as Phase,
+  type GraphWalkDiscoverySource,
   type GraphWalkRunner,
   type AsyncGraphWalkRunner,
 } from '../src';
 import {
-  walkGraph as familyWalk,
-  walkGraphAsync as familyWalkAsync,
+  createAndRunGraphWalkUntilSuspendedOrTerminal as familyWalk,
+  createAndRunGraphWalkUntilSuspendedOrTerminalAsync as familyWalkAsync,
 } from '../src/traversals/graph-walk';
 
 const id = Symbol('id');
 type Data = { title: string };
 type Edge = { kind: 'cites' };
-const source: GraphWalkSource<Data, Edge, typeof id> = {
-  hydration: 'inlineOrCached' as const,
-  roots: () => [
+const source: GraphWalkDiscoverySource<Data, Edge, typeof id> = {
+  vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+  enumerateRootTargets: () => [
     {
-      kind: 'inline' as const,
+      kind: 'inlineResolution' as const,
       vertexId: id,
-      resolution: { kind: 'found', data: { title: 'root' } },
+      resolutionIfNotPreviouslyAdmitted: {
+        kind: 'found',
+        vertexData: { title: 'root' },
+      },
     },
   ],
-  outgoing: (vertex) => [
+  enumerateOutgoingLinks: (vertex) => [
     {
-      target: { kind: 'cached' as const, vertexId: vertex.vertexId },
-      data: { kind: 'cites' },
+      targetToResolveOnAdmission: {
+        kind: 'previouslyAdmittedVertex' as const,
+        vertexId: vertex.vertexId,
+      },
+      edgeData: { kind: 'cites' },
     },
   ],
 };
-const runner = walkGraph({
-  source,
-  visitors: {
-    [Phase.EDGE]: (event) => {
-      const relation: Edge = event.edge.data;
-      const target: typeof id = event.edge.to;
-      const data: Data = event.fromVertex.data;
+const runner = createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: source,
+  visitorsByObservationKind: {
+    [Phase.ADMITTED_EDGE_OCCURRENCE]: (event) => {
+      const relation: Edge = event.edge.edgeData;
+      const target: typeof id = event.edge.toVertexId;
+      const data: Data = event.fromVertex.vertexData;
       void [relation, target, data];
     },
   },
 });
 const typed: GraphWalkRunner<Data, Edge, typeof id> = runner;
 const promised: Promise<AsyncGraphWalkRunner<Data, Edge, typeof id>> =
-  walkGraphAsync({
-    source,
-    visitors: {
-      [Phase.VERTEX]: async (event) => {
-        const data: Data = event.vertex.data;
+  createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+    graphWalkDiscoverySource: source,
+    visitorsByObservationKind: {
+      [Phase.VERTEX_OCCURRENCE]: async (event) => {
+        const data: Data = event.vertex.vertexData;
         const vertexId: typeof id = event.vertex.vertexId;
         void [data, vertexId];
       },
     },
   });
-const family: typeof walkGraph = familyWalk;
-const asyncFamily: typeof walkGraphAsync = familyWalkAsync;
-const namespace: typeof walkGraph = graphWalk.walkGraph;
+const family: typeof createAndRunGraphWalkUntilSuspendedOrTerminal = familyWalk;
+const asyncFamily: typeof createAndRunGraphWalkUntilSuspendedOrTerminalAsync =
+  familyWalkAsync;
+const namespace: typeof createAndRunGraphWalkUntilSuspendedOrTerminal =
+  graphWalk.createAndRunGraphWalkUntilSuspendedOrTerminal;
 // @ts-expect-error Only canonical options are accepted.
-walkGraph(source, {});
+createAndRunGraphWalkUntilSuspendedOrTerminal(source, {});
 // @ts-expect-error Async helper also accepts only canonical options.
-walkGraphAsync(source, null);
+createAndRunGraphWalkUntilSuspendedOrTerminalAsync(source, null);
 // @ts-expect-error Helper inference retains required route bounds.
-walkGraph({ source, revisit: 'walks' });
-// @ts-expect-error Sync helper does not widen callback return contracts.
-walkGraph({ source, visitors: { [Phase.EDGE]: async () => undefined } });
+createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: source,
+  routeEnumerationPolicy: 'allRoutePrefixesAllowingRepeatedVertices',
+});
+createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: source,
+  visitorsByObservationKind: {
+    // @ts-expect-error Sync helper does not widen callback return contracts.
+    [Phase.ADMITTED_EDGE_OCCURRENCE]: async () => undefined,
+  },
+});
 void [typed, promised, family, asyncFamily, namespace];

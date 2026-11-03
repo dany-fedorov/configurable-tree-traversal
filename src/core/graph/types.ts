@@ -1,97 +1,114 @@
-import type { MutableRef } from '@core/CTTRef';
+import type { MutableValueReference } from '@core/CTTRef';
 import type { InternalResolvedGraphView } from '@core/ResolvedGraphView';
-import type { TreeVertexRecord } from '@core/ResolvedTree';
+import type { MutableTreeVertexTopologyRecord } from '@core/ResolvedTree';
 import type {
-  TraversalVisitorResult,
+  VisitorCommandsResult,
   VisitorGroupMetadata,
 } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
-import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
+import type { VisitorRegistrationOptions } from '@core/TraversalVisitor';
 
 export type VertexId = unknown;
 
 export type MaybePromise<T> = T | PromiseLike<T>;
 
-export type InternalVertexRef<T extends VertexTypes> = MutableRef<Vertex<T>>;
+export type InternalVertexRef<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = MutableValueReference<Vertex<InputVertexTypes>>;
 
-export type VisitResult<
-  R extends VertexTypes,
-  ORDER extends string = never,
+export type VisitorCallbackReturnValue<
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  VisitorPhase extends string = never,
   Family extends 'tree' | 'dag' = 'tree' | 'dag',
-  SourceHint = R['VertexHint'],
-> = TraversalVisitorResult<R, ORDER, Family, SourceHint> | undefined | void;
+  SourceHint = RewrittenVertexTypes['ChildHint'],
+> =
+  | VisitorCommandsResult<
+      RewrittenVertexTypes,
+      VisitorPhase,
+      Family,
+      SourceHint
+    >
+  | undefined
+  | void;
 
-export type HintVertexId<ID = unknown> = { vertexId: ID };
+export type ChildHintVertexIdentity<VertexId = unknown> = {
+  vertexId: VertexId;
+};
 
-export type ResolvedVisitStage =
+export type VertexVisitSchedulingStage =
   | 'DISCOVERED'
   | 'INITIAL_VISIT_ELIGIBLE'
   | 'INITIAL_VISIT_STARTED'
   | 'INITIAL_VISIT_COMMITTED'
   | 'COMPLETION_VISIT_ELIGIBLE'
-  | 'COMPLETE';
+  | 'COMPLETION_VISIT_COMMITTED';
 
-export type InternalStructuralChildEdge<T extends VertexTypes> = Readonly<{
-  parentRef: InternalVertexRef<T>;
-  childRef: InternalVertexRef<T>;
+export type InternalStructuralChildEdge<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = Readonly<{
+  parentRef: InternalVertexRef<InputVertexTypes>;
+  childRef: InternalVertexRef<InputVertexTypes>;
   hintIndex: number;
-  hint: T['VertexHint'];
+  hint: InputVertexTypes['ChildHint'];
 }>;
 
-export type InternalChildSlot<T extends VertexTypes, ID = unknown> =
-  | Readonly<{ kind: 'pending'; hint: T['VertexHint'] }>
+export type InternalChildSlot<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
+> =
+  | Readonly<{ kind: 'pending'; hint: InputVertexTypes['ChildHint'] }>
   | Readonly<{
       kind: 'linked';
-      hint: T['VertexHint'];
-      childRef: InternalVertexRef<T>;
+      hint: InputVertexTypes['ChildHint'];
+      childRef: InternalVertexRef<InputVertexTypes>;
     }>
   | Readonly<{
       kind: 'omitted';
-      hint: T['VertexHint'];
+      hint: InputVertexTypes['ChildHint'];
       /** Null denotes anonymous omission; wrappers retain every ID, including undefined. */
-      identity: Readonly<{ vertexId: ID }> | null;
+      identity: Readonly<{ vertexId: VertexId }> | null;
     }>
   | Readonly<{
       kind: 'deleted' | 'disabled';
-      hint: T['VertexHint'];
+      hint: InputVertexTypes['ChildHint'];
     }>;
 
 export type InternalResolvedGraphVertex<
-  T extends VertexTypes,
-  ID = unknown,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
 > = Readonly<{
-  vertexRef: InternalVertexRef<T>;
-  vertex: Vertex<T>;
-  vertexId: ID;
+  vertexHandle: InternalVertexRef<InputVertexTypes>;
+  vertex: Vertex<InputVertexTypes>;
+  vertexId: VertexId;
   discoveryDepth: number;
-  dependsOnWork: readonly ID[];
-  dependsOnSubgraphCompletion?: readonly ID[];
-  visitStage: ResolvedVisitStage;
-  incoming: readonly InternalStructuralChildEdge<T>[];
-  slots: readonly InternalChildSlot<T, ID>[];
+  workWaitsForWorkOf: readonly VertexId[];
+  workWaitsForSubgraphCompletionOf?: readonly VertexId[];
+  visitStage: VertexVisitSchedulingStage;
+  incoming: readonly InternalStructuralChildEdge<InputVertexTypes>[];
+  slots: readonly InternalChildSlot<InputVertexTypes, VertexId>[];
 }>;
 
-export type VisitorRecord<F> = {
-  addedIndex: number;
-  visitor: F;
+export type VisitorRecord<VisitorCallback> = {
+  phaseRegistrationInsertionIndex: number;
+  visitor: VisitorCallback;
   readonly visitorGroup?: VisitorGroupMetadata | undefined;
-} & TraversalVisitorFunctionOptions;
+} & VisitorRegistrationOptions;
 
-export type IdState<T extends VertexTypes> =
-  | { kind: 'live'; ref: InternalVertexRef<T> }
+export type IdState<InputVertexTypes extends VertexDataAndChildHintTypes> =
+  | { kind: 'live'; ref: InternalVertexRef<InputVertexTypes> }
   | { kind: 'omitted' }
   | { kind: 'deleted' };
 
 /** Detached identity facts for internal observational consumers. */
-export type GraphIdentityState<ID = unknown> = Readonly<{
-  vertexId: ID;
+export type GraphIdentityState<VertexId = unknown> = Readonly<{
+  vertexId: VertexId;
   kind: 'live' | 'omitted' | 'deleted';
 }>;
 
 /** Scheduler facts that cannot be inferred from emitted events or global discovery. */
-export type GraphSchedulingState<ID = unknown> = Readonly<{
-  vertexId: ID;
+export type GraphSchedulingState<VertexId = unknown> = Readonly<{
+  vertexId: VertexId;
   expansion: 'unprepared' | 'open' | 'closed';
   initialCommitted: boolean;
   completionCommitted: boolean;
@@ -99,96 +116,120 @@ export type GraphSchedulingState<ID = unknown> = Readonly<{
 }>;
 
 /** Internal DAG observation; arrays and wrappers are owned by the snapshot. */
-export type DagInspectionState<ID = unknown> = Readonly<{
-  identityStates: readonly GraphIdentityState<ID>[];
-  schedulingStates: readonly GraphSchedulingState<ID>[];
+export type DagInspectionState<VertexId = unknown> = Readonly<{
+  identityStates: readonly GraphIdentityState<VertexId>[];
+  schedulingStates: readonly GraphSchedulingState<VertexId>[];
   discoveryComplete: boolean;
 }>;
 
-export interface GraphStoreContract<T extends VertexTypes, ID = unknown> {
+export interface GraphStoreContract<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
+> {
   readonly mode: 'tree' | 'dag';
-  readonly graph: InternalResolvedGraphView<T, ID>;
-  getIdState(id: ID): IdState<T> | undefined;
-  inspectIdentityStates(): readonly GraphIdentityState<ID>[];
+  readonly graph: InternalResolvedGraphView<InputVertexTypes, VertexId>;
+  getIdState(id: VertexId): IdState<InputVertexTypes> | undefined;
+  inspectIdentityStates(): readonly GraphIdentityState<VertexId>[];
   getTraversalSlots(
-    ref: InternalVertexRef<T>,
-  ): readonly InternalChildSlot<T, ID>[] | null;
+    ref: InternalVertexRef<InputVertexTypes>,
+  ): readonly InternalChildSlot<InputVertexTypes, VertexId>[] | null;
   getTraversalSlot(
-    ref: InternalVertexRef<T>,
+    ref: InternalVertexRef<InputVertexTypes>,
     index: number,
-  ): InternalChildSlot<T, ID> | undefined;
-  getDiscoveryDepth(ref: InternalVertexRef<T>): number;
-  getDeclaredDependencies(ref: InternalVertexRef<T>): ID[];
-  getDeclaredCompleteDependencies(ref: InternalVertexRef<T>): ID[];
+  ): InternalChildSlot<InputVertexTypes, VertexId> | undefined;
+  getDiscoveryDepth(ref: InternalVertexRef<InputVertexTypes>): number;
+  getDeclaredDependencies(ref: InternalVertexRef<InputVertexTypes>): VertexId[];
+  getDeclaredCompleteDependencies(
+    ref: InternalVertexRef<InputVertexTypes>,
+  ): VertexId[];
   getTopologyVersion(): number;
   insertVertex(input: {
-    ref: InternalVertexRef<T>;
-    id: ID;
-    dependsOnWork: readonly ID[];
-    dependsOnSubgraphCompletion?: readonly ID[];
+    ref: InternalVertexRef<InputVertexTypes>;
+    id: VertexId;
+    workWaitsForWorkOf: readonly VertexId[];
+    workWaitsForSubgraphCompletionOf?: readonly VertexId[];
     depth: number;
   }): void;
-  setRoot(ref: InternalVertexRef<T> | null): void;
+  setRoot(ref: InternalVertexRef<InputVertexTypes> | null): void;
   setVisitStage(
-    ref: InternalVertexRef<T>,
-    visitStage: ResolvedVisitStage,
+    ref: InternalVertexRef<InputVertexTypes>,
+    visitStage: VertexVisitSchedulingStage,
   ): void;
-  resetTraversal(ref: InternalVertexRef<T>): void;
+  resetTraversal(ref: InternalVertexRef<InputVertexTypes>): void;
   prepareSlots(
-    ref: InternalVertexRef<T>,
-    hints: readonly T['VertexHint'][],
+    ref: InternalVertexRef<InputVertexTypes>,
+    hints: readonly InputVertexTypes['ChildHint'][],
   ): void;
   linkSlot(
-    parent: InternalVertexRef<T>,
+    parent: InternalVertexRef<InputVertexTypes>,
     index: number,
-    child: InternalVertexRef<T>,
+    child: InternalVertexRef<InputVertexTypes>,
     legacyTopologyAlreadyLinked?: boolean,
   ): void;
   closeSlot(
-    parent: InternalVertexRef<T>,
+    parent: InternalVertexRef<InputVertexTypes>,
     index: number,
     reason: 'omitted' | 'deleted' | 'disabled',
-    omittedIdentity?: HintVertexId<ID>,
+    omittedIdentity?: ChildHintVertexIdentity<VertexId>,
   ): void;
-  markOmitted(id: ID): void;
-  markDeleted(id: ID): void;
-  removeVertices(refs: ReadonlySet<InternalVertexRef<T>>): void;
-  getTreeRecord(ref: InternalVertexRef<T>): TreeVertexRecord<T> | null;
-  setTreeRecord(ref: InternalVertexRef<T>, record: TreeVertexRecord<T>): void;
+  markOmitted(id: VertexId): void;
+  markDeleted(id: VertexId): void;
+  removeVertices(refs: ReadonlySet<InternalVertexRef<InputVertexTypes>>): void;
+  getTreeRecord(
+    ref: InternalVertexRef<InputVertexTypes>,
+  ): MutableTreeVertexTopologyRecord<InputVertexTypes> | null;
+  setTreeRecord(
+    ref: InternalVertexRef<InputVertexTypes>,
+    record: MutableTreeVertexTopologyRecord<InputVertexTypes>,
+  ): void;
 }
 
-export type StructuralChildEdge<T extends VertexTypes> = Readonly<{
-  parentRef: import('../CTTRef').VertexHandle<T>;
-  childRef: import('../CTTRef').VertexHandle<T>;
-  hintIndex: number;
-  hint: T['VertexHint'];
+export type StructuralChildEdge<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = Readonly<{
+  parentVertexHandle: import('../CTTRef').VertexHandle<InputVertexTypes>;
+  childVertexHandle: import('../CTTRef').VertexHandle<InputVertexTypes>;
+  parentChildHintIndex: number;
+  childDiscoveryHint: InputVertexTypes['ChildHint'];
 }>;
-export type ChildSlot<T extends VertexTypes, ID = unknown> =
-  | Readonly<{ kind: 'pending'; hint: T['VertexHint'] }>
+export type ChildDiscoverySlot<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
+> =
   | Readonly<{
-      kind: 'linked';
-      hint: T['VertexHint'];
-      childRef: import('../CTTRef').VertexHandle<T>;
+      kind: 'awaitingResolution';
+      childDiscoveryHint: InputVertexTypes['ChildHint'];
+    }>
+  | Readonly<{
+      kind: 'linkedToVertex';
+      childDiscoveryHint: InputVertexTypes['ChildHint'];
+      childVertexHandle: import('../CTTRef').VertexHandle<InputVertexTypes>;
     }>
   | Readonly<{
       kind: 'omitted';
-      hint: T['VertexHint'];
-      identity: Readonly<{ vertexId: ID }> | null;
+      childDiscoveryHint: InputVertexTypes['ChildHint'];
+      omittedVertexIdentity: Readonly<{ vertexId: VertexId }> | null;
     }>
-  | Readonly<{ kind: 'deleted' | 'disabled'; hint: T['VertexHint'] }>;
+  | Readonly<{
+      kind: 'targetDeleted' | 'discoverySkipped';
+      childDiscoveryHint: InputVertexTypes['ChildHint'];
+    }>;
 
 /** Public graph facts expose safe facets directly, without mutable intermediate types. */
-export type ResolvedGraphVertex<
-  T extends VertexTypes,
-  ID = unknown,
+export type ResolvedGraphVertexSnapshot<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
 > = Readonly<{
-  vertexRef: import('../CTTRef').VertexHandle<T>;
-  vertex: import('../Vertex').VertexView<T>;
-  vertexId: ID;
-  discoveryDepth: number;
-  dependsOnWork: readonly ID[];
-  dependsOnSubgraphCompletion?: readonly ID[];
-  visitStage: ResolvedVisitStage;
-  incoming: readonly StructuralChildEdge<T>[];
-  slots: readonly ChildSlot<T, ID>[];
+  vertexHandle: import('../CTTRef').VertexHandle<InputVertexTypes>;
+  vertex: import('../Vertex').VertexView<InputVertexTypes>;
+  vertexId: VertexId;
+  firstDiscoveryDepthInEdges: number;
+  workWaitsForWorkOf: readonly VertexId[];
+  workWaitsForSubgraphCompletionOf?: readonly VertexId[];
+  schedulingVisitStage: VertexVisitSchedulingStage;
+  incomingStructuralChildEdges: readonly StructuralChildEdge<InputVertexTypes>[];
+  orderedChildDiscoverySlots: readonly ChildDiscoverySlot<
+    InputVertexTypes,
+    VertexId
+  >[];
 }>;

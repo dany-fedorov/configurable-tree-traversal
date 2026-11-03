@@ -5,12 +5,12 @@ import {
 } from '@core/assertPublicOptions';
 import type { VisitorRecord } from '@core/graph/types';
 import type {
-  NoInferPhase,
-  TraversalVisitorFunctionOptions,
+  PreventVisitorReturnFromWideningPhase,
+  VisitorRegistrationOptions,
   VisitorGroupDefinition,
-  VisitorPhaseInput,
+  VisitorDefinitionsForPhase,
 } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
@@ -25,8 +25,8 @@ import {
 import {
   DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeDagTraversalInstanceConfigs,
-  type DagOptions,
-  type DagOptionsPatch,
+  type DagTraversalBuilderOptions,
+  type DagTraversalBuilderOptionsPatch,
   type DagResolvedOptions,
   type DagTraversalVisitors,
 } from './lib/DagTraversalInstanceConfig';
@@ -37,16 +37,30 @@ import {
 } from './lib/DagTraversalRunner';
 import type { DagVisitor } from './lib/DagTraversalVisitor';
 
-export class DagTraversal<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+export class DagTraversalBuilder<
+  SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
 > {
-  private icfg: DagResolvedOptions<T, R, ID>;
-  private visitors: DagTraversalVisitors<T, R, ID>;
+  private icfg: DagResolvedOptions<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >;
+  private visitors: DagTraversalVisitors<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >;
   private readonly sourceMode: 'tree' | 'graph';
 
-  constructor(input: DagOptions<T, R, ID>) {
+  constructor(
+    input: DagTraversalBuilderOptions<
+      SourceVertexTypes,
+      RewrittenVertexTypes,
+      VertexId
+    >,
+  ) {
     assertNoConcurrency(input);
     assertPublicOptions(input, [...DAG_OPTION_KEYS]);
     const sources = captureDagSourcePatch(input);
@@ -54,12 +68,16 @@ export class DagTraversal<
     this.icfg = mergeDagTraversalInstanceConfigs(
       {
         ...(DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as DagResolvedOptions<
-          T,
-          R,
-          ID
+          SourceVertexTypes,
+          RewrittenVertexTypes,
+          VertexId
         >),
         ...sources,
-      } as DagResolvedOptions<T, R, ID>,
+      } as DagResolvedOptions<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        VertexId
+      >,
       input,
       sources,
     );
@@ -70,13 +88,20 @@ export class DagTraversal<
    * Configure future runners. Own defined same-family sources replace; inherited
    * and own undefined sources retain the active source. Mode changes reject atomically.
    */
-  configure(input: DagOptionsPatch<T, R, ID>): this {
+  patchOptionsForFutureRunners(
+    input: DagTraversalBuilderOptionsPatch<
+      SourceVertexTypes,
+      RewrittenVertexTypes,
+      VertexId
+    >,
+  ): this {
     assertNoConcurrency(input);
     assertPublicOptions(input, [...DAG_OPTION_KEYS]);
     const sources = captureDagSourcePatch(input);
     if (
-      (this.sourceMode === 'graph' && sources.traversableTree !== undefined) ||
-      (this.sourceMode === 'tree' && sources.traversableGraph !== undefined)
+      (this.sourceMode === 'graph' &&
+        sources.treeDiscoverySource !== undefined) ||
+      (this.sourceMode === 'tree' && sources.dagDiscoverySource !== undefined)
     ) {
       throw new TypeError('DAG source mode cannot change after construction');
     }
@@ -89,60 +114,104 @@ export class DagTraversal<
     return this;
   }
 
-  addVisitorFor<ORDER extends DagVisitorPhase>(
-    order: ORDER,
-    visitor: DagVisitor<T, R, NoInferPhase<ORDER>, ID>,
-    options: Partial<TraversalVisitorFunctionOptions> = {},
+  registerVisitorCallbackForPhase<Phase extends DagVisitorPhase>(
+    order: Phase,
+    visitor: DagVisitor<
+      SourceVertexTypes,
+      RewrittenVertexTypes,
+      PreventVisitorReturnFromWideningPhase<Phase>,
+      VertexId
+    >,
+    options: Partial<VisitorRegistrationOptions> = {},
   ): this {
-    assertOwnKeys(options, ['priority', 'commandCommitMode']);
+    assertOwnKeys(options, ['descendingExecutionPriorityWithinGroup', 'visitorCommandCommitTiming']);
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<DagVisitor<T, R, ORDER, ID>>[]
+        Phase,
+        VisitorRecord<
+          DagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>
+        >[]
       >
-    )[order] = appendVisitorDefinition<DagVisitor<T, R, ORDER, ID>>(
-      this.visitors[order] as VisitorRecord<DagVisitor<T, R, ORDER, ID>>[],
+    )[order] = appendVisitorDefinition<
+      DagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>
+    >(
+      this.visitors[order] as VisitorRecord<
+        DagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>
+      >[],
       { visitor, ...definedOptions(options) },
     );
     return this;
   }
 
-  addVisitorGroupFor<ORDER extends DagVisitorPhase>(
-    order: ORDER,
-    group: VisitorGroupDefinition<DagVisitor<T, R, NoInferPhase<ORDER>, ID>>,
+  appendVisitorGroupForPhase<Phase extends DagVisitorPhase>(
+    order: Phase,
+    group: VisitorGroupDefinition<
+      DagVisitor<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        PreventVisitorReturnFromWideningPhase<Phase>,
+        VertexId
+      >
+    >,
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<DagVisitor<T, R, ORDER, ID>>[]
+        Phase,
+        VisitorRecord<
+          DagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>
+        >[]
       >
-    )[order] = appendVisitorGroup<DagVisitor<T, R, ORDER, ID>>(
-      this.visitors[order] as VisitorRecord<DagVisitor<T, R, ORDER, ID>>[],
+    )[order] = appendVisitorGroup<
+      DagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>
+    >(
+      this.visitors[order] as VisitorRecord<
+        DagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>
+      >[],
       group,
     );
     return this;
   }
 
-  listVisitorsFor<ORDER extends DagVisitorPhase>(
-    order: ORDER,
-  ): DagTraversalVisitors<T, R, ID>[ORDER] {
+  getDetachedVisitorRegistrationRecordsForPhase<Phase extends DagVisitorPhase>(
+    order: Phase,
+  ): DagTraversalVisitors<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >[Phase] {
     return copyVisitorRecords(this.visitors[order]);
   }
 
-  setVisitorsFor<ORDER extends DagVisitorPhase>(
-    order: ORDER,
-    input: VisitorPhaseInput<DagVisitor<T, R, NoInferPhase<ORDER>, ID>>,
+  replaceVisitorDefinitionsForPhase<Phase extends DagVisitorPhase>(
+    order: Phase,
+    input: VisitorDefinitionsForPhase<
+      DagVisitor<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        PreventVisitorReturnFromWideningPhase<Phase>,
+        VertexId
+      >
+    >,
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<DagVisitor<T, R, ORDER, ID>>[]
+        Phase,
+        VisitorRecord<
+          DagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>
+        >[]
       >
-    )[order] = normalizeVisitorDefinitions<DagVisitor<T, R, ORDER, ID>>(input);
+    )[order] =
+      normalizeVisitorDefinitions<
+        DagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>
+      >(input);
     return this;
   }
 
-  createRunner(): DagTraversalRunner<T, R, ID> {
+  createIndependentRunnerFromCurrentOptions(): DagTraversalRunner<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  > {
     return new InternalDagTraversalRunner({
       ...this.icfg,
       visitors: this.visitors,
@@ -151,7 +220,12 @@ export class DagTraversal<
 }
 
 function assertNoConcurrency(input: object): void {
-  if (Object.prototype.hasOwnProperty.call(input, 'concurrency')) {
+  if (
+    Object.prototype.hasOwnProperty.call(
+      input,
+      'maxConcurrentCallbackInvocations',
+    )
+  ) {
     throw new TypeError(
       'Synchronous DAG traversal does not accept concurrency',
     );

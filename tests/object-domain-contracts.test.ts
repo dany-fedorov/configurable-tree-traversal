@@ -1,12 +1,12 @@
 import { outputValue } from './helpers/rewriteOutput';
-import { ObjectTreeSource, rewriteObject } from '../src';
+import { ObjectPropertyTreeSource, rewriteObject } from '../src';
 
 describe('object discovery and rewrite domains', () => {
   test('preserves retained input while assembling mixed replacement arrays', () => {
     const result = rewriteObject([1, 2], {
-      rewrite: (prop) =>
-        prop.key === 1
-          ? { kind: 'rewrite', patch: { value: 'two' } }
+      rewritePropertyAfterChildTraversal: (prop) =>
+        prop.propertyKey === 1
+          ? { kind: "patchPropertyKeyOrValue", propertyPatch: { propertyValue: 'two' } }
           : undefined,
     });
     expect(outputValue(result)).toEqual([1, 'two']);
@@ -14,32 +14,32 @@ describe('object discovery and rewrite domains', () => {
   });
 
   test('uses both precise property adapters for root and descendant discovery', () => {
-    const source = ObjectTreeSource.fromProperties(1, {
-      getRootPropertyFromInputObject: (value) => ({
-        key: 'root' as const,
-        value,
+    const source = ObjectPropertyTreeSource.fromPropertyAdapters(1, {
+      mapInputToRootProperty: (value) => ({
+        propertyKey: 'root' as const,
+        propertyValue: value,
       }),
-      getChildrenOfProperty: (prop) =>
-        prop.value === 1 ? [{ key: 'root', value: 2 }] : [],
+      enumerateChildPropertyHints: (prop) =>
+        prop.propertyValue === 1 ? [{ propertyKey: 'root', propertyValue: 2 }] : [],
     });
-    expect(source.resolveRoot().vertex.vertexContent.$childHints).toEqual([
-      { key: 'root', value: 2 },
+    expect(source.resolveRootVertex().resolvedVertexInput.vertexContentInput.$childDiscoveryHints).toEqual([
+      { propertyKey: 'root', propertyValue: 2 },
     ]);
-    expect(source.resolveRoot().vertex.vertexContent.$data).toEqual({
-      key: 'root',
-      value: 1,
+    expect(source.resolveRootVertex().resolvedVertexInput.vertexContentInput.$vertexData).toEqual({
+      propertyKey: 'root',
+      propertyValue: 1,
     });
   });
 
   test('converts unknown reconstructed output with completion context', () => {
     const contexts: boolean[] = [];
     const result = rewriteObject([1, 2], {
-      rewrite: (prop) =>
-        prop.key === 1
-          ? { kind: 'rewrite', patch: { value: 'two' } }
+      rewritePropertyAfterChildTraversal: (prop) =>
+        prop.propertyKey === 1
+          ? { kind: "patchPropertyKeyOrValue", propertyPatch: { propertyValue: 'two' } }
           : undefined,
-      convertRootValue(value, context) {
-        contexts.push(context.complete);
+      convertPresentRootOutputValue(value, context) {
+        contexts.push(context.isTraversalFinished);
         if (!Array.isArray(value)) throw new Error('expected array');
         return value.join(',');
       },
@@ -50,9 +50,9 @@ describe('object discovery and rewrite domains', () => {
   });
   test.each([
     {},
-    { getChildrenOfProperty: () => [] },
+    { enumerateChildPropertyHints: () => [] },
     {
-      getRootPropertyFromInputObject: (value: unknown) => ({
+      mapInputToRootProperty: (value: unknown) => ({
         key: 'root',
         value,
       }),
@@ -61,7 +61,7 @@ describe('object discovery and rewrite domains', () => {
     'rejects incomplete precise adapter bags before using input',
     (options) => {
       expect(() =>
-        ObjectTreeSource.fromProperties(1, options as never),
+        ObjectPropertyTreeSource.fromPropertyAdapters(1, options as never),
       ).toThrow(TypeError);
     },
   );

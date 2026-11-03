@@ -1,57 +1,73 @@
-import type { MutableRef } from '@core/CTTRef';
-import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
+import type { MutableValueReference } from '@core/CTTRef';
+import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { DepthFirstTreeResolvedOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
-import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstTreeVisitPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { DepthFirstTraversalVisitorsState } from '@depth-first-traversal/lib/DepthFirstTraversalVisitorsState';
 import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
 export function initDepthFirstVisitorsState<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
->(): DepthFirstTraversalVisitorsState<TTP, RW_TTP> {
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+>(): DepthFirstTraversalVisitorsState<InputVertexTypes, RewrittenVertexTypes> {
   const empty = {
-    phaseVisitIndex: 0,
-    visitorIndex: 0,
-    previousPhaseVertexRef: null,
+    phaseVisitorChainIndex: 0,
+    visitorCallbackIndexInPhaseChain: 0,
+    previousCommittedVisitVertexHandleForSamePhase: null,
   };
   return {
-    [DepthFirstPhase.PRE_ORDER]: { ...empty },
-    [DepthFirstPhase.IN_ORDER]: { ...empty },
-    [DepthFirstPhase.POST_ORDER]: { ...empty },
+    [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION]: { ...empty },
+    [DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES]: {
+      ...empty,
+    },
+    [DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES]: { ...empty },
   };
 }
 
-type PopStackResult<TTP extends VertexTypes, RW_TTP extends VertexTypes> =
+type PopStackResult<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+> =
   | { stackIsEmpty: true; vertexContext: null }
   | {
       stackIsEmpty: false;
-      vertexContext: InternalVertexResolutionContext<TTP | RW_TTP>;
+      vertexContext: InternalChildDiscoveryContext<
+        InputVertexTypes | RewrittenVertexTypes
+      >;
     };
 
 export class DepthFirstTraversalRunnerState<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 > {
-  STACK: Array<InternalVertexResolutionContext<TTP | RW_TTP>>;
+  STACK: Array<
+    InternalChildDiscoveryContext<InputVertexTypes | RewrittenVertexTypes>
+  >;
   postOrderNotVisitedChildrenCountMap: Map<
-    MutableRef<Vertex<TTP | RW_TTP>>,
+    MutableValueReference<Vertex<InputVertexTypes | RewrittenVertexTypes>>,
     number
   >;
-  visitorsState: DepthFirstTraversalVisitorsState<TTP, RW_TTP>;
-  traversalRootVertexRef: MutableRef<Vertex<TTP | RW_TTP>> | null;
+  visitorsState: DepthFirstTraversalVisitorsState<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
+  traversalRootVertexRef: MutableValueReference<
+    Vertex<InputVertexTypes | RewrittenVertexTypes>
+  > | null;
   status: TraversalRunnerStatus;
-  subtreeTraversalDisabledRefs: Set<MutableRef<Vertex<TTP | RW_TTP>>>;
+  subtreeTraversalDisabledRefs: Set<
+    MutableValueReference<Vertex<InputVertexTypes | RewrittenVertexTypes>>
+  >;
   vertexRefStackChildrenHintsRanges: Map<
-    MutableRef<Vertex<TTP | RW_TTP>>,
+    MutableValueReference<Vertex<InputVertexTypes | RewrittenVertexTypes>>,
     [number, number]
   >;
 
   constructor(
     cfg: Pick<
-      DepthFirstTreeResolvedOptions<TTP, RW_TTP>,
+      DepthFirstTreeResolvedOptions<InputVertexTypes, RewrittenVertexTypes>,
       'traversalRunnerInternalObjects'
     >,
   ) {
@@ -60,7 +76,12 @@ export class DepthFirstTraversalRunnerState<
     this.postOrderNotVisitedChildrenCountMap =
       from?.postOrderNotVisitedChildrenCountMap != null
         ? from?.postOrderNotVisitedChildrenCountMap
-        : new Map<MutableRef<Vertex<TTP | RW_TTP>>, number>();
+        : new Map<
+            MutableValueReference<
+              Vertex<InputVertexTypes | RewrittenVertexTypes>
+            >,
+            number
+          >();
     this.visitorsState =
       from?.visitorsState != null
         ? from?.visitorsState
@@ -70,7 +91,7 @@ export class DepthFirstTraversalRunnerState<
         ? from?.traversalRootVertexRef
         : null;
     this.status =
-      from?.status != null ? from?.status : TraversalRunnerStatus.INITIAL;
+      from?.status != null ? from?.status : TraversalRunnerStatus.NOT_STARTED;
     this.subtreeTraversalDisabledRefs =
       from?.subtreeTraversalDisabledRefs ?? new Set();
     this.vertexRefStackChildrenHintsRanges =
@@ -78,7 +99,9 @@ export class DepthFirstTraversalRunnerState<
   }
 
   countVisitedOnPostOrderAChildOf(
-    parentVertexRef: MutableRef<Vertex<TTP | RW_TTP>>,
+    parentVertexRef: MutableValueReference<
+      Vertex<InputVertexTypes | RewrittenVertexTypes>
+    >,
   ): number {
     const postOrderNotVisitedChildrenCount =
       this.postOrderNotVisitedChildrenCountMap.get(parentVertexRef);
@@ -107,8 +130,12 @@ export class DepthFirstTraversalRunnerState<
   }
 
   pushToStack(
-    parentVertexRef: MutableRef<Vertex<TTP | RW_TTP>>,
-    newEntries: InternalVertexResolutionContext<TTP | RW_TTP>[],
+    parentVertexRef: MutableValueReference<
+      Vertex<InputVertexTypes | RewrittenVertexTypes>
+    >,
+    newEntries: InternalChildDiscoveryContext<
+      InputVertexTypes | RewrittenVertexTypes
+    >[],
   ): void {
     const i0 = this.STACK.length;
     this.STACK.push(...newEntries);
@@ -116,24 +143,24 @@ export class DepthFirstTraversalRunnerState<
     this.vertexRefStackChildrenHintsRanges.set(parentVertexRef, [i0, i1]);
   }
 
-  popStack(): PopStackResult<TTP, RW_TTP> {
+  popStack(): PopStackResult<InputVertexTypes, RewrittenVertexTypes> {
     while (this.STACK.length > 0) {
-      const vertexContext = this.STACK.pop() as InternalVertexResolutionContext<
-        TTP | RW_TTP
+      const vertexContext = this.STACK.pop() as InternalChildDiscoveryContext<
+        InputVertexTypes | RewrittenVertexTypes
       >;
       /**
        * Update ranges
        */
       const [i0] = this.vertexRefStackChildrenHintsRanges.get(
-        vertexContext.parentVertexRef,
+        vertexContext.parentVertexHandle,
       ) as [number, number];
       if (this.STACK.length <= i0) {
         this.vertexRefStackChildrenHintsRanges.delete(
-          vertexContext.parentVertexRef,
+          vertexContext.parentVertexHandle,
         );
       } else {
         this.vertexRefStackChildrenHintsRanges.set(
-          vertexContext.parentVertexRef,
+          vertexContext.parentVertexHandle,
           [i0, this.STACK.length],
         );
       }
@@ -141,7 +168,7 @@ export class DepthFirstTraversalRunnerState<
        * Check if it was disabled by a command
        */
       if (
-        this.subtreeTraversalDisabledRefs.has(vertexContext.parentVertexRef)
+        this.subtreeTraversalDisabledRefs.has(vertexContext.parentVertexHandle)
       ) {
         continue;
       }

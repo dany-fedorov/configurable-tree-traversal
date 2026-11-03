@@ -1,24 +1,30 @@
-import type { DagDefinition, DagDefinitionSlot } from './lib/DagDefinition';
+import type {
+  DagDefinition,
+  DagStructuralDiscoverySlot,
+} from './lib/DagDefinition';
 import type {
   DagDefinitionChangeAspect,
   DagDefinitionDiff,
   DagDefinitionVertexChange,
 } from './lib/DagRevision';
 
-function sameId<ID>(before: ID, after: ID): boolean {
+function sameId<VertexId>(before: VertexId, after: VertexId): boolean {
   return before === after || Object.is(before, after);
 }
 
-function sameIds<ID>(before: readonly ID[], after: readonly ID[]): boolean {
+function sameIds<VertexId>(
+  before: readonly VertexId[],
+  after: readonly VertexId[],
+): boolean {
   return (
     before.length === after.length &&
     before.every((id, index) => sameId(id, after[index]!))
   );
 }
 
-function sameSlots<ID>(
-  before: readonly DagDefinitionSlot<ID>[],
-  after: readonly DagDefinitionSlot<ID>[],
+function sameSlots<VertexId>(
+  before: readonly DagStructuralDiscoverySlot<VertexId>[],
+  after: readonly DagStructuralDiscoverySlot<VertexId>[],
 ): boolean {
   return (
     before.length === after.length &&
@@ -27,17 +33,20 @@ function sameSlots<ID>(
       if (slot.kind === 'vertex')
         return next.kind === 'vertex' && sameId(slot.vertexId, next.vertexId);
       if (next.kind !== 'omitted') return false;
-      return slot.identity === null
-        ? next.identity === null
-        : next.identity !== null &&
-            sameId(slot.identity.vertexId, next.identity.vertexId);
+      return slot.omittedVertexIdentity === null
+        ? next.omittedVertexIdentity === null
+        : next.omittedVertexIdentity !== null &&
+            sameId(
+              slot.omittedVertexIdentity.vertexId,
+              next.omittedVertexIdentity.vertexId,
+            );
     })
   );
 }
 
-function sameEntry<ID>(
-  before: DagDefinition<unknown, ID>['entry'],
-  after: DagDefinition<unknown, ID>['entry'],
+function sameEntry<VertexId>(
+  before: DagDefinition<unknown, VertexId>['entry'],
+  after: DagDefinition<unknown, VertexId>['entry'],
 ): boolean {
   switch (before.kind) {
     case 'empty':
@@ -45,7 +54,10 @@ function sameEntry<ID>(
     case 'root':
       return after.kind === 'root' && sameId(before.vertexId, after.vertexId);
     case 'roots':
-      return after.kind === 'roots' && sameSlots(before.slots, after.slots);
+      return (
+        after.kind === 'roots' &&
+        sameSlots(before.entryDiscoverySlots, after.entryDiscoverySlots)
+      );
   }
 }
 
@@ -58,51 +70,60 @@ function sameEntry<ID>(
  * Shared data is opaque: same-reference deep mutation cannot be detected.
  * The host decides whether artifacts and accepted completion facts remain valid.
  */
-export function diffDagDefinitions<BeforeData, AfterData, ID = unknown>(
-  before: DagDefinition<BeforeData, ID>,
-  after: DagDefinition<AfterData, ID>,
-): DagDefinitionDiff<ID> {
-  const oldIds = before.vertices.map((vertex) => vertex.vertexId);
-  const newIds = after.vertices.map((vertex) => vertex.vertexId);
+export function diffDagDefinitionDeclarationsShallowly<
+  BeforeData,
+  AfterData,
+  VertexId = unknown,
+>(
+  before: DagDefinition<BeforeData, VertexId>,
+  after: DagDefinition<AfterData, VertexId>,
+): DagDefinitionDiff<VertexId> {
+  const oldIds = before.vertexDeclarations.map((vertex) => vertex.vertexId);
+  const newIds = after.vertexDeclarations.map((vertex) => vertex.vertexId);
   const oldIdSet = new Set(oldIds);
   const newVertices = new Map(
-    after.vertices.map((vertex) => [vertex.vertexId, vertex]),
+    after.vertexDeclarations.map((vertex) => [vertex.vertexId, vertex]),
   );
-  const addedIds = newIds.filter((id) => !oldIdSet.has(id));
-  const removedIds: ID[] = [];
-  const changedVertices: DagDefinitionVertexChange<ID>[] = [];
-  for (const vertex of before.vertices) {
+  const addedVertexDeclarationIds = newIds.filter((id) => !oldIdSet.has(id));
+  const removedVertexDeclarationIds: VertexId[] = [];
+  const changedVertexDeclarations: DagDefinitionVertexChange<VertexId>[] = [];
+  for (const vertex of before.vertexDeclarations) {
     const next = newVertices.get(vertex.vertexId);
     if (next === undefined) {
-      removedIds.push(vertex.vertexId);
+      removedVertexDeclarationIds.push(vertex.vertexId);
       continue;
     }
-    const aspects: DagDefinitionChangeAspect[] = [];
-    if (!Object.is(vertex.data, next.data)) aspects.push('data');
-    if (!sameSlots(vertex.slots, next.slots)) aspects.push('slots');
-    if (!sameIds(vertex.dependsOnWork, next.dependsOnWork))
-      aspects.push('workDependencies');
+    const changedDeclarationFields: DagDefinitionChangeAspect[] = [];
+    if (!Object.is(vertex.data, next.data))
+      changedDeclarationFields.push('data');
+    if (!sameSlots(vertex.childDiscoverySlots, next.childDiscoverySlots))
+      changedDeclarationFields.push('childDiscoverySlots');
+    if (!sameIds(vertex.workWaitsForWorkOf, next.workWaitsForWorkOf))
+      changedDeclarationFields.push('workWaitsForWorkOf');
     if (
       !sameIds(
-        vertex.dependsOnSubgraphCompletion,
-        next.dependsOnSubgraphCompletion,
+        vertex.workWaitsForSubgraphCompletionOf,
+        next.workWaitsForSubgraphCompletionOf,
       )
     )
-      aspects.push('subgraphCompletionDependencies');
-    if (aspects.length > 0)
-      changedVertices.push(
+      changedDeclarationFields.push('workWaitsForSubgraphCompletionOf');
+    if (changedDeclarationFields.length > 0)
+      changedVertexDeclarations.push(
         Object.freeze({
           vertexId: vertex.vertexId,
-          aspects: Object.freeze(aspects),
+          changedDeclarationFields: Object.freeze(changedDeclarationFields),
         }),
       );
   }
   return Object.freeze({
-    addedIds: Object.freeze(addedIds),
-    removedIds: Object.freeze(removedIds),
-    changedVertices: Object.freeze(changedVertices),
-    vertexOrderChanged: !sameIds(oldIds, newIds),
+    addedVertexDeclarationIds: Object.freeze(addedVertexDeclarationIds),
+    removedVertexDeclarationIds: Object.freeze(removedVertexDeclarationIds),
+    changedVertexDeclarations: Object.freeze(changedVertexDeclarations),
+    vertexDeclarationSequenceChanged: !sameIds(oldIds, newIds),
     entryChanged: !sameEntry(before.entry, after.entry),
-    omissionsChanged: !sameIds(before.omittedIds, after.omittedIds),
+    omittedVertexIdSequenceChanged: !sameIds(
+      before.omittedVertexIds,
+      after.omittedVertexIds,
+    ),
   });
 }

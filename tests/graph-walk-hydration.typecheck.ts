@@ -1,55 +1,69 @@
 import type {
-  GraphWalkSource,
-  AsyncGraphWalkSource,
-  GraphWalkRecordSelectors,
-  AsyncGraphWalkRecordSelectors,
-  GraphWalkCatalogLink,
-  GraphWalkLink,
+  GraphWalkDiscoverySource,
+  AsyncGraphWalkDiscoverySource,
+  GraphWalkRecordMaterializationOptions,
+  AsyncGraphWalkRecordMaterializationOptions,
+  GraphWalkCatalogOutgoingLinkToVertexId,
+  GraphWalkOutgoingLink,
 } from '../src';
 import type {
-  GraphWalkRecordSelectors as FamilySelectors,
-  AsyncGraphWalkRecordSelectors as FamilyAsyncSelectors,
-  GraphWalkCatalogLink as FamilyCatalogLink,
+  GraphWalkRecordMaterializationOptions as FamilySelectors,
+  AsyncGraphWalkRecordMaterializationOptions as FamilyAsyncSelectors,
+  GraphWalkCatalogOutgoingLinkToVertexId as FamilyCatalogLink,
 } from '../src/traversals/graph-walk';
 import {
-  materializeWalkSourceFromRecords,
-  materializeWalkSourceFromRecordsAsync,
-  GraphWalk,
+  materializeGraphWalkSourceFromVertexRecords,
+  materializeSynchronousGraphWalkSourceFromAsyncRecords,
+  GraphWalkBuilder,
 } from '../src';
 
-type Source = GraphWalkSource<string, number, symbol>;
+type Source = GraphWalkDiscoverySource<string, number, symbol>;
 const id = Symbol('id');
 const inline: Source = {
-  hydration: 'inlineOrCached',
-  roots: () => [
+  vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+  enumerateRootTargets: () => [
     {
-      kind: 'inline',
+      kind: 'inlineResolution',
       vertexId: id,
-      resolution: { kind: 'found', data: 'root' },
+      resolutionIfNotPreviouslyAdmitted: { kind: 'found', vertexData: 'root' },
     },
   ],
-  outgoing: () => [{ target: { kind: 'cached', vertexId: id }, data: 1 }],
+  enumerateOutgoingLinks: () => [
+    {
+      targetToResolveOnAdmission: {
+        kind: 'previouslyAdmittedVertex',
+        vertexId: id,
+      },
+      edgeData: 1,
+    },
+  ],
 };
 const resolver: Source = {
-  hydration: 'resolver',
-  roots: () => [
+  vertexResolutionMode: 'resolverWithOptionalInlineResolution',
+  enumerateRootTargets: () => [
     { vertexId: id },
-    { vertexId: id, resolution: { kind: 'omitted' } },
+    { vertexId: id, resolutionIfNotPreviouslyAdmitted: { kind: 'omitted' } },
   ],
-  resolveVertex: () => ({ kind: 'found', data: 'root' }),
-  outgoing: () => [],
+  resolveVertexDataById: () => ({ kind: 'found', vertexData: 'root' }),
+  enumerateOutgoingLinks: () => [],
 };
 // Explicit undefined and getters yielding undefined both mean no resolver.
-const undefinedResolver: Source = { ...inline, resolveVertex: undefined };
+const undefinedResolver: Source = {
+  ...inline,
+  resolveVertexDataById: undefined,
+};
 const undefinedGetterResolver: Source = {
   ...inline,
-  get resolveVertex(): undefined {
+  get resolveVertexDataById(): undefined {
     return undefined;
   },
 };
-const asyncUndefinedResolver: AsyncGraphWalkSource<string, number, symbol> =
-  undefinedResolver;
-const asyncUndefinedGetterResolver: AsyncGraphWalkSource<
+const asyncUndefinedResolver: AsyncGraphWalkDiscoverySource<
+  string,
+  number,
+  symbol
+> = undefinedResolver;
+const asyncUndefinedGetterResolver: AsyncGraphWalkDiscoverySource<
   string,
   number,
   symbol
@@ -57,98 +71,136 @@ const asyncUndefinedGetterResolver: AsyncGraphWalkSource<
 void [asyncUndefinedResolver, asyncUndefinedGetterResolver];
 // @ts-expect-error Resolver mode requires a resolver.
 const missingResolver: Source = {
-  hydration: 'resolver',
-  roots: () => [],
-  outgoing: () => [],
+  vertexResolutionMode: 'resolverWithOptionalInlineResolution',
+  enumerateRootTargets: () => [],
+  enumerateOutgoingLinks: () => [],
 };
 // @ts-expect-error A no-resolver source forbids a resolver.
 const forbiddenResolver: Source = {
   ...inline,
-  resolveVertex: () => ({ kind: 'omitted' }),
+  resolveVertexDataById: () => ({ kind: 'omitted' }),
 };
 // @ts-expect-error Hydration is required even with fully inline roots.
-const missingMode: Source = { roots: inline.roots, outgoing: inline.outgoing };
+const missingMode: Source = {
+  enumerateRootTargets: inline.enumerateRootTargets,
+  enumerateOutgoingLinks: inline.enumerateOutgoingLinks,
+};
 // @ts-expect-error Inline-or-cached sources require explicit target tags.
 const untagged: Source = {
-  hydration: 'inlineOrCached',
-  roots: () => [{ vertexId: id }],
-  outgoing: () => [],
+  vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+  enumerateRootTargets: () => [{ vertexId: id }],
+  enumerateOutgoingLinks: () => [],
 };
 // @ts-expect-error Inline targets require a resolution.
 const unresolvedInline: Source = {
-  hydration: 'inlineOrCached',
-  roots: () => [{ kind: 'inline', vertexId: id }],
-  outgoing: () => [],
+  vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+  enumerateRootTargets: () => [{ kind: 'inlineResolution', vertexId: id }],
+  enumerateOutgoingLinks: () => [],
 };
 const resolvingCached: Source = {
-  hydration: 'inlineOrCached',
+  vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
   // @ts-expect-error Cached targets cannot carry hydration.
-  roots: () => [
-    { kind: 'cached', vertexId: id, resolution: { kind: 'omitted' } },
+  enumerateRootTargets: () => [
+    {
+      kind: 'previouslyAdmittedVertex',
+      vertexId: id,
+      resolutionIfNotPreviouslyAdmitted: { kind: 'omitted' },
+    },
   ],
-  outgoing: () => [],
+  enumerateOutgoingLinks: () => [],
 };
-const asyncInline: AsyncGraphWalkSource<string, number, symbol> = {
-  hydration: 'inlineOrCached',
-  roots: async () =>
+const asyncInline: AsyncGraphWalkDiscoverySource<string, number, symbol> = {
+  vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+  enumerateRootTargets: async () =>
     (async function* () {
       yield {
-        kind: 'inline' as const,
+        kind: 'inlineResolution' as const,
         vertexId: id,
-        resolution: { kind: 'found' as const, data: 'root' },
+        resolutionIfNotPreviouslyAdmitted: {
+          kind: 'found' as const,
+          vertexData: 'root',
+        },
       };
     })(),
-  outgoing: async function* () {
-    yield { target: { kind: 'cached' as const, vertexId: id }, data: 1 };
+  enumerateOutgoingLinks: async function* () {
+    yield {
+      targetToResolveOnAdmission: {
+        kind: 'previouslyAdmittedVertex' as const,
+        vertexId: id,
+      },
+      edgeData: 1,
+    };
   },
 };
 // @ts-expect-error Async resolver mode also requires resolveVertex.
-const asyncMissingResolver: AsyncGraphWalkSource<string, number, symbol> = {
-  hydration: 'resolver',
-  roots: async () => [],
-  outgoing: async () => [],
+const asyncMissingResolver: AsyncGraphWalkDiscoverySource<
+  string,
+  number,
+  symbol
+> = {
+  vertexResolutionMode: 'resolverWithOptionalInlineResolution',
+  enumerateRootTargets: async () => [],
+  enumerateOutgoingLinks: async () => [],
 };
 // @ts-expect-error Async no-resolver mode also forbids resolveVertex.
-const asyncForbiddenResolver: AsyncGraphWalkSource<string, number, symbol> = {
+const asyncForbiddenResolver: AsyncGraphWalkDiscoverySource<
+  string,
+  number,
+  symbol
+> = {
   ...asyncInline,
-  resolveVertex: async () => ({ kind: 'omitted' }),
+  resolveVertexDataById: async () => ({ kind: 'omitted' }),
 };
 
-const link: GraphWalkCatalogLink<number, symbol> = { to: id, data: 1 };
-// @ts-expect-error Catalog endpoints are readonly.
-link.to = id;
-// @ts-expect-error Catalog data fields are readonly.
-link.data = 2;
-// @ts-expect-error Catalog links are distinct from lazy walking links with target wrappers.
-const lazy: GraphWalkLink<string, number, symbol> = link;
-const selectors: GraphWalkRecordSelectors<string, number, symbol> = {
-  id: () => id,
-  outgoing: () => [link],
-  roots: [id],
+const link: GraphWalkCatalogOutgoingLinkToVertexId<number, symbol> = {
+  toVertexId: id,
+  edgeData: 1,
 };
+// @ts-expect-error Catalog endpoints are readonly.
+link.toVertexId = id;
+// @ts-expect-error Catalog data fields are readonly.
+link.edgeData = 2;
+// @ts-expect-error Catalog links are distinct from lazy walking links with target wrappers.
+const lazy: GraphWalkOutgoingLink<string, number, symbol> = link;
+const selectors: GraphWalkRecordMaterializationOptions<string, number, symbol> =
+  {
+    getVertexId: () => id,
+    enumerateOutgoingLinks: () => [link],
+    rootVertexIds: [id],
+  };
 const family: FamilySelectors<string, number, symbol> = selectors;
-const asyncSelectors: AsyncGraphWalkRecordSelectors<string, number, symbol> = {
-  id: async () => id,
-  outgoing: async function* () {
+const asyncSelectors: AsyncGraphWalkRecordMaterializationOptions<
+  string,
+  number,
+  symbol
+> = {
+  getVertexId: async () => id,
+  enumerateOutgoingLinks: async function* () {
     yield link;
   },
-  roots: [id],
+  rootVertexIds: [id],
 };
 const familyAsync: FamilyAsyncSelectors<string, number, symbol> =
   asyncSelectors;
 const familyLink: FamilyCatalogLink<number, symbol> = link;
-const materialized = materializeWalkSourceFromRecords(['root'], selectors);
-const mode: 'resolver' = materialized.hydration;
-materialized.resolveVertex(id);
-materializeWalkSourceFromRecordsAsync(['root'], asyncSelectors).then(
-  (source) => {
-    const hydration: 'resolver' = source.hydration;
-    const result: import('../src').GraphWalkVertexResult<string> =
-      source.resolveVertex(id);
-    new GraphWalk({ source });
-    void [hydration, result];
-  },
+const materialized = materializeGraphWalkSourceFromVertexRecords(
+  ['root'],
+  selectors,
 );
+const mode: 'resolverWithOptionalInlineResolution' =
+  materialized.vertexResolutionMode;
+materialized.resolveVertexDataById(id);
+materializeSynchronousGraphWalkSourceFromAsyncRecords(
+  ['root'],
+  asyncSelectors,
+).then((source) => {
+  const vertexResolutionMode: 'resolverWithOptionalInlineResolution' =
+    source.vertexResolutionMode;
+  const result: import('../src').GraphWalkVertexResolutionResult<string> =
+    source.resolveVertexDataById(id);
+  new GraphWalkBuilder({ graphWalkDiscoverySource: source });
+  void [vertexResolutionMode, result];
+});
 void [
   resolver,
   missingResolver,

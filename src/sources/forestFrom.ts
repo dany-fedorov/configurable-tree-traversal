@@ -5,24 +5,27 @@ import {
 } from './materialize';
 import type { MaterializedRecord } from './materialize';
 import type {
-  AsyncCollection,
-  AsyncDagRootSelectors,
-  MaterializedDagInput,
-  DagRootSelectors,
+  SyncOrAsyncIterable,
+  AsyncDagRootRecordSelectors,
+  MaterializedDagTraversalInput,
+  DagRootRecordSelectors,
 } from './types';
 
 /** Expand finite forests iteratively; repeated references share one vertex. */
-export function materializeDagInputFromRoots<Item, ID>(
+export function materializeDagInputFromRootRecords<Item, VertexId>(
   roots: Iterable<Item>,
-  selectors: DagRootSelectors<Item, ID>,
-): MaterializedDagInput<Item, ID> {
-  const captured = captureCollectionSelectors(selectors);
-  const identities = new Map<Item, ID>();
-  const owners = new Map<ID, Item>();
+  selectors: DagRootRecordSelectors<Item, VertexId>,
+): MaterializedDagTraversalInput<Item, VertexId> {
+  const captured = captureCollectionSelectors(
+    selectors,
+    'selectStructuralChildRecords',
+  );
+  const identities = new Map<Item, VertexId>();
+  const owners = new Map<VertexId, Item>();
   const queue: Item[] = [];
-  const discover = (item: Item): ID => {
+  const discover = (item: Item): VertexId => {
     if (identities.has(item)) return identities.get(item)!;
-    const id = captured.id.call(selectors, item);
+    const id = captured.selectVertexId.call(selectors, item);
     if (owners.has(id))
       throw new TypeError('Different forest records share a vertex ID');
     identities.set(item, id);
@@ -31,7 +34,7 @@ export function materializeDagInputFromRoots<Item, ID>(
     return id;
   };
   const rootIds = Array.from(roots, discover);
-  const records = new Map<ID, MaterializedRecord<Item, ID>>();
+  const records = new Map<VertexId, MaterializedRecord<Item, VertexId>>();
   for (let index = 0; index < queue.length; index++) {
     const item = queue[index]!;
     const id = identities.get(item)!;
@@ -39,12 +42,18 @@ export function materializeDagInputFromRoots<Item, ID>(
       item,
       id,
       children: Array.from(
-        captured.children?.call(selectors, item) ?? [],
+        captured.selectStructuralChildRecords?.call(selectors, item) ?? [],
         discover,
       ),
-      dependsOnWork: [...(captured.dependsOnWork?.call(selectors, item) ?? [])],
-      dependsOnSubgraphCompletion: [
-        ...(captured.dependsOnSubgraphCompletion?.call(selectors, item) ?? []),
+      workWaitsForWorkOf: [
+        ...(captured.selectWorkPrerequisiteVertexIds?.call(selectors, item) ??
+          []),
+      ],
+      workWaitsForSubgraphCompletionOf: [
+        ...(captured.selectSubgraphCompletionPrerequisiteVertexIds?.call(
+          selectors,
+          item,
+        ) ?? []),
       ],
     });
   }
@@ -52,17 +61,20 @@ export function materializeDagInputFromRoots<Item, ID>(
 }
 
 /** Async forest discovery retains the same sharing and topology-copying rules. */
-export async function materializeDagInputFromRootsAsync<Item, ID>(
-  roots: AsyncCollection<Item>,
-  selectors: AsyncDagRootSelectors<Item, ID>,
-): Promise<MaterializedDagInput<Item, ID>> {
-  const captured = captureCollectionSelectors(selectors);
-  const identities = new Map<Item, ID>();
-  const owners = new Map<ID, Item>();
+export async function materializeDagInputFromRootRecordsAsync<Item, VertexId>(
+  roots: SyncOrAsyncIterable<Item>,
+  selectors: AsyncDagRootRecordSelectors<Item, VertexId>,
+): Promise<MaterializedDagTraversalInput<Item, VertexId>> {
+  const captured = captureCollectionSelectors(
+    selectors,
+    'selectStructuralChildRecords',
+  );
+  const identities = new Map<Item, VertexId>();
+  const owners = new Map<VertexId, Item>();
   const queue: Item[] = [];
-  const discover = async (item: Item): Promise<ID> => {
+  const discover = async (item: Item): Promise<VertexId> => {
     if (identities.has(item)) return identities.get(item)!;
-    const id = await captured.id.call(selectors, item);
+    const id = await captured.selectVertexId.call(selectors, item);
     if (owners.has(id))
       throw new TypeError('Different forest records share a vertex ID');
     identities.set(item, id);
@@ -70,26 +82,29 @@ export async function materializeDagInputFromRootsAsync<Item, ID>(
     queue.push(item);
     return id;
   };
-  const rootIds: ID[] = [];
+  const rootIds: VertexId[] = [];
   for await (const item of roots) rootIds.push(await discover(item));
-  const records = new Map<ID, MaterializedRecord<Item, ID>>();
+  const records = new Map<VertexId, MaterializedRecord<Item, VertexId>>();
   for (let index = 0; index < queue.length; index++) {
     const item = queue[index]!;
     const id = identities.get(item)!;
-    const children: ID[] = [];
+    const children: VertexId[] = [];
     for (const child of await collect(
-      captured.children?.call(selectors, item) ?? [],
+      captured.selectStructuralChildRecords?.call(selectors, item) ?? [],
     ))
       children.push(await discover(child));
     records.set(id, {
       item,
       id,
       children,
-      dependsOnWork: await collect(
-        captured.dependsOnWork?.call(selectors, item) ?? [],
+      workWaitsForWorkOf: await collect(
+        captured.selectWorkPrerequisiteVertexIds?.call(selectors, item) ?? [],
       ),
-      dependsOnSubgraphCompletion: await collect(
-        captured.dependsOnSubgraphCompletion?.call(selectors, item) ?? [],
+      workWaitsForSubgraphCompletionOf: await collect(
+        captured.selectSubgraphCompletionPrerequisiteVertexIds?.call(
+          selectors,
+          item,
+        ) ?? [],
       ),
     });
   }

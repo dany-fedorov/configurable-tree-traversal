@@ -1,99 +1,146 @@
 import type { AsyncTraversalExecution } from '@core/TraversalExecution';
-import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
-import type { GraphWalkEvent, GraphWalkEventFor } from './GraphWalkEvent';
-import type { GraphWalkPhase } from './GraphWalkPhase';
+import type { TraversalExecutionSelectionPatch } from '@core/TraversalRunnerIterableConfig';
+import type {
+  GraphWalkEvent,
+  GraphWalkEventForObservationKind,
+} from './GraphWalkEvent';
+import type { GraphWalkObservationKind } from './GraphWalkPhase';
 import { AsyncWalkSession } from './lib/AsyncWalkSession';
 import type { GraphWalkInspection } from './lib/GraphWalkInspection';
-import type { GraphWalkSummary } from './lib/GraphWalkSummary';
+import type { GraphWalkProgressSnapshot } from './lib/GraphWalkSummary';
 import type { GraphWalkResolvedOptions } from './lib/normalizeWalkOptions';
 import { WalkKernel } from './lib/WalkKernel';
 
-export interface AsyncGraphWalkRunner<Data, Edge, ID>
+export interface AsyncGraphWalkRunner<VertexData, EdgeData, VertexId>
   extends AsyncTraversalExecution<
-    GraphWalkPhase,
-    GraphWalkEvent<Data, Edge, ID>,
+    GraphWalkObservationKind,
+    GraphWalkEvent<VertexData, EdgeData, VertexId>,
     GraphWalkInspection,
-    `${GraphWalkPhase}`
+    `${GraphWalkObservationKind}`
   > {
-  iterateEvents: {
-    (): AsyncGenerator<GraphWalkEvent<Data, Edge, ID>, void, unknown>;
-    <Phase extends `${GraphWalkPhase}`>(
-      config: TraversalExecutionOptions<GraphWalkPhase, Phase> & {
-        emitEvents: readonly Phase[];
+  runAndIterateObservationEventsUntilSuspendedOrTerminal: {
+    (): AsyncGenerator<
+      GraphWalkEvent<VertexData, EdgeData, VertexId>,
+      void,
+      unknown
+    >;
+    <ObservationKind extends `${GraphWalkObservationKind}`>(
+      executionOptionsPatch: TraversalExecutionSelectionPatch<
+        GraphWalkObservationKind,
+        ObservationKind
+      > & {
+        deliveredEventKinds: readonly ObservationKind[];
       },
-    ): AsyncGenerator<GraphWalkEventFor<Data, Edge, Phase, ID>, void, unknown>;
-    (config?: TraversalExecutionOptions<GraphWalkPhase>): AsyncGenerator<
-      GraphWalkEvent<Data, Edge, ID>,
+    ): AsyncGenerator<
+      GraphWalkEventForObservationKind<
+        VertexData,
+        EdgeData,
+        ObservationKind,
+        VertexId
+      >,
+      void,
+      unknown
+    >;
+    (
+      executionOptionsPatch?: TraversalExecutionSelectionPatch<GraphWalkObservationKind>,
+    ): AsyncGenerator<
+      GraphWalkEvent<VertexData, EdgeData, VertexId>,
       void,
       unknown
     >;
   };
-  close(): Promise<void>;
-  summary(): GraphWalkSummary;
+  runUntilSuspendedOrTerminal: (
+    executionOptionsPatch?: TraversalExecutionSelectionPatch<GraphWalkObservationKind>,
+  ) => Promise<this>;
+  closePermanentlyAndDisposeSourceIterators(): Promise<void>;
+  captureProgressSnapshot(): GraphWalkProgressSnapshot;
 }
 
-export class InternalAsyncGraphWalkRunner<Data, Edge, ID>
-  implements
-    AsyncTraversalExecution<
-      GraphWalkPhase,
-      GraphWalkEvent<Data, Edge, ID>,
-      GraphWalkInspection,
-      `${GraphWalkPhase}`
-    >
+export class InternalAsyncGraphWalkRunner<VertexData, EdgeData, VertexId>
+  implements AsyncGraphWalkRunner<VertexData, EdgeData, VertexId>
 {
-  private readonly kernel: WalkKernel<Data, Edge, ID>;
-  private readonly session: AsyncWalkSession<Data, Edge, ID>;
-  constructor(options: GraphWalkResolvedOptions<Data, Edge, ID>) {
+  private readonly kernel: WalkKernel<VertexData, EdgeData, VertexId>;
+  private readonly session: AsyncWalkSession<VertexData, EdgeData, VertexId>;
+  constructor(
+    options: GraphWalkResolvedOptions<VertexData, EdgeData, VertexId>,
+  ) {
     this.kernel = new WalkKernel(options, 'async');
     this.session = new AsyncWalkSession(this.kernel);
   }
-  iterateEvents: {
-    (): AsyncGenerator<GraphWalkEvent<Data, Edge, ID>, void, unknown>;
-    <Phase extends `${GraphWalkPhase}`>(
-      config: TraversalExecutionOptions<GraphWalkPhase, Phase> & {
-        emitEvents: readonly Phase[];
+  runAndIterateObservationEventsUntilSuspendedOrTerminal: {
+    (): AsyncGenerator<
+      GraphWalkEvent<VertexData, EdgeData, VertexId>,
+      void,
+      unknown
+    >;
+    <ObservationKind extends `${GraphWalkObservationKind}`>(
+      executionOptionsPatch: TraversalExecutionSelectionPatch<
+        GraphWalkObservationKind,
+        ObservationKind
+      > & {
+        deliveredEventKinds: readonly ObservationKind[];
       },
-    ): AsyncGenerator<GraphWalkEventFor<Data, Edge, Phase, ID>, void, unknown>;
-    (config?: TraversalExecutionOptions<GraphWalkPhase>): AsyncGenerator<
-      GraphWalkEvent<Data, Edge, ID>,
+    ): AsyncGenerator<
+      GraphWalkEventForObservationKind<
+        VertexData,
+        EdgeData,
+        ObservationKind,
+        VertexId
+      >,
       void,
       unknown
     >;
-  } = <Phase extends `${GraphWalkPhase}`>(
-    config?: TraversalExecutionOptions<GraphWalkPhase>,
+    (
+      executionOptionsPatch?: TraversalExecutionSelectionPatch<GraphWalkObservationKind>,
+    ): AsyncGenerator<
+      GraphWalkEvent<VertexData, EdgeData, VertexId>,
+      void,
+      unknown
+    >;
+  } = <ObservationKind extends `${GraphWalkObservationKind}`>(
+    executionOptionsPatch?: TraversalExecutionSelectionPatch<GraphWalkObservationKind>,
   ) =>
-    this.session.iterateEvents(config) as AsyncGenerator<
-      GraphWalkEventFor<Data, Edge, Phase, ID>,
+    this.session.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+      executionOptionsPatch,
+    ) as AsyncGenerator<
+      GraphWalkEventForObservationKind<
+        VertexData,
+        EdgeData,
+        ObservationKind,
+        VertexId
+      >,
       void,
       unknown
     >;
-  run = async (
-    config?: TraversalExecutionOptions<GraphWalkPhase>,
+  runUntilSuspendedOrTerminal = async (
+    executionOptionsPatch?: TraversalExecutionSelectionPatch<GraphWalkObservationKind>,
   ): Promise<this> => {
-    for await (const _event of this.iterateEvents(config)) {
+    for await (const _event of this.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+      executionOptionsPatch,
+    )) {
       /* Drive observations to exhaustion. */
     }
     return this;
   };
-  close() {
+  closePermanentlyAndDisposeSourceIterators() {
     return this.session.closeTerminal();
   }
-  getStatus() {
-    return this.kernel.getStatus();
+  getTraversalLifecycleStatus() {
+    return this.kernel.getTraversalLifecycleStatus();
   }
-  getStopReason() {
-    return this.kernel.getStopReason();
+  getTraversalStopReason() {
+    return this.kernel.getTraversalStopReason();
   }
-  isHalted() {
-    return this.kernel.isHalted();
+  isSuspended() {
+    return this.kernel.isSuspended();
   }
-  requestPause() {
-    return this.session.requestPause();
+  requestPauseAfterAdmittedCallbacksDrain() {
+    return this.session.requestPauseAfterAdmittedCallbacksDrain();
   }
-  summary() {
-    return this.kernel.summary();
+  captureProgressSnapshot() {
+    return this.kernel.captureProgressSnapshot();
   }
-  inspect() {
-    return this.kernel.inspect();
+  captureExecutionSnapshot() {
+    return this.kernel.captureExecutionSnapshot();
   }
 }

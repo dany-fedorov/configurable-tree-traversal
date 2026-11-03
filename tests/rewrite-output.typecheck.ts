@@ -1,12 +1,12 @@
 import { capturedOutputValue, outputValue } from './helpers/rewriteOutput';
 import {
-  ObjectTreeSource,
+  ObjectPropertyTreeSource,
   objectRewrite as rewriteApi,
-  rewriteObjectAs,
+  rewriteObjectWithAssertedOutputType,
 } from '../src';
 import {
   rewriteObject,
-  rewriteObjectAs as subpathRewriteObjectAs,
+  rewriteObjectWithAssertedOutputType as subpathRewriteObjectAs,
 } from '../src/tools/rewrite-object';
 
 // @ts-expect-error Reconstruction alone does not preserve arbitrary input shape.
@@ -14,9 +14,12 @@ capturedOutputValue(rewriteObject({ count: 1 }))!.count;
 const changed = rewriteObject(
   { count: 1 },
   {
-    rewrite: ({ key }) =>
+    rewritePropertyAfterChildTraversal: ({ propertyKey: key }) =>
       key === 'count'
-        ? { kind: 'rewrite', patch: { key: 'renamed' } }
+        ? {
+            kind: 'patchPropertyKeyOrValue',
+            propertyPatch: { propertyKey: 'renamed' },
+          }
         : undefined,
   },
 );
@@ -24,22 +27,25 @@ const changed = rewriteObject(
 capturedOutputValue(changed)!.count;
 // @ts-expect-error The final output default is conservative too.
 outputValue(changed)!.count;
-const typed = rewriteObjectAs<{ renamed: number }>(
+const typed = rewriteObjectWithAssertedOutputType<{ renamed: number }>(
   { count: 1 },
   {
-    rewrite: ({ key }) =>
+    rewritePropertyAfterChildTraversal: ({ propertyKey: key }) =>
       key === 'count'
-        ? { kind: 'rewrite', patch: { key: 'renamed' } }
+        ? {
+            kind: 'patchPropertyKeyOrValue',
+            propertyPatch: { propertyKey: 'renamed' },
+          }
         : undefined,
   },
 );
 const value: number = outputValue(typed)!.renamed;
 const namespaceValue: number = outputValue(
-  rewriteApi.rewriteObjectAs<number>(1),
+  rewriteApi.rewriteObjectWithAssertedOutputType<number>(1),
 )!;
 const subpathValue: number = outputValue(subpathRewriteObjectAs<number>(1))!;
 const inferred = rewriteObject(1, {
-  convertRootValue: () => ({ converted: true }),
+  convertPresentRootOutputValue: () => ({ converted: true }),
 });
 const converted: boolean = outputValue(inferred)!.converted;
 const snapshotConverted: boolean = capturedOutputValue(inferred)!.converted;
@@ -53,27 +59,36 @@ const explicit = rewriteObject<
   unknown
 >({});
 const explicitValue: number = outputValue(explicit)!.renamed;
-const source = new ObjectTreeSource({ count: 1 });
+const source = new ObjectPropertyTreeSource({ count: 1 });
 // @ts-expect-error The rewrite helper owns its source.
-rewriteObject({}, { traversableTree: source });
+rewriteObject({}, { treeDiscoverySource: source });
 // @ts-expect-error Presence is invalid even with undefined.
-rewriteObject({}, { traversableTree: undefined });
+rewriteObject({}, { treeDiscoverySource: undefined });
 const optionsWithSource = {
-  traversableTree: source,
-  assembleCompositesBeforeRewrite: true,
+  treeDiscoverySource: source,
+  includeAssembledValueInRewriteInput: true,
 };
 // @ts-expect-error Pretyped options cannot provide an ignored source.
 rewriteObject({}, optionsWithSource);
-// @ts-expect-error The explicit helper also owns its source.
-rewriteObjectAs<number>({}, { traversableTree: source });
+rewriteObjectWithAssertedOutputType<number>(
+  {},
+  // @ts-expect-error The explicit helper also owns its source.
+  { treeDiscoverySource: source },
+);
 // @ts-expect-error The explicit helper rejects pretyped source options.
-rewriteObjectAs<number>({}, optionsWithSource);
-// @ts-expect-error The explicit helper rejects a present undefined source.
-rewriteObjectAs<number>({}, { traversableTree: undefined });
-rewriteObjectAs<unknown>(
+rewriteObjectWithAssertedOutputType<number>({}, optionsWithSource);
+rewriteObjectWithAssertedOutputType<number>(
+  {},
+  // @ts-expect-error The explicit helper rejects a present undefined source.
+  { treeDiscoverySource: undefined },
+);
+rewriteObjectWithAssertedOutputType<unknown>(
   {},
   {
-    rewrite: ({ value, key }) => {
+    rewritePropertyAfterChildTraversal: ({
+      propertyValue: value,
+      propertyKey: key,
+    }) => {
       const propertyKey: PropertyKey = key;
       // @ts-expect-error Property values remain unknown despite the explicit output selection.
       const numeric: number = value;

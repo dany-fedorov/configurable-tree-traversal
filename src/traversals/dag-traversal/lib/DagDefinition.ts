@@ -1,55 +1,67 @@
 import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
-import type { PreparedDag } from './PreparedDag';
+import type { ValidatedReusableDagTopology } from './PreparedDag';
 
 /** Ordered source facts; anonymous omissions carry no public identity. */
-export type DagDefinitionSlot<ID> =
-  | { readonly kind: 'vertex'; readonly vertexId: ID }
+export type DagStructuralDiscoverySlot<VertexId> =
+  | { readonly kind: 'vertex'; readonly vertexId: VertexId }
   | {
       readonly kind: 'omitted';
-      readonly identity: { readonly vertexId: ID } | null;
+      readonly omittedVertexIdentity: { readonly vertexId: VertexId } | null;
     };
 
-export type DagDefinitionVertex<Data, ID> = {
-  readonly vertexId: ID;
+export type DagDefinitionVertex<Data, VertexId> = {
+  readonly vertexId: VertexId;
   readonly data: Data;
-  readonly slots: readonly DagDefinitionSlot<ID>[];
-  readonly dependsOnWork: readonly ID[];
-  readonly dependsOnSubgraphCompletion: readonly ID[];
+  readonly childDiscoverySlots: readonly DagStructuralDiscoverySlot<VertexId>[];
+  readonly workWaitsForWorkOf: readonly VertexId[];
+  readonly workWaitsForSubgraphCompletionOf: readonly VertexId[];
 };
 
 /** Immutable in-memory topology; opaque caller data and IDs remain shallow. */
-export type DagDefinition<Data, ID = unknown> = {
-  readonly vertices: readonly DagDefinitionVertex<Data, ID>[];
-  readonly omittedIds: readonly ID[];
+export type DagDefinition<Data, VertexId = unknown> = {
+  readonly vertexDeclarations: readonly DagDefinitionVertex<Data, VertexId>[];
+  readonly omittedVertexIds: readonly VertexId[];
   readonly entry:
-    | { readonly kind: 'root'; readonly vertexId: ID }
+    | { readonly kind: 'root'; readonly vertexId: VertexId }
     | {
         readonly kind: 'roots';
-        readonly slots: readonly DagDefinitionSlot<ID>[];
+        readonly entryDiscoverySlots: readonly DagStructuralDiscoverySlot<VertexId>[];
       }
     | { readonly kind: 'empty' };
 };
 
-export type DagDefinitionIssue<ID = unknown> =
+export type DagDefinitionIssue<VertexId = unknown> =
   | {
       kind: 'missingStructuralEndpoint';
-      parent: { vertexId: ID } | null;
-      vertexId: ID;
+      parent: { vertexId: VertexId } | null;
+      vertexId: VertexId;
     }
   | {
       kind: 'invalidEntry';
-      reason: 'unknownRoot' | 'anonymousCatalogEntry' | 'emptyWithVertices';
-      vertexIds: readonly ID[];
+      reason:
+        | 'unknownRoot'
+        | 'entryOmissionMissingIdentity'
+        | 'emptyWithVertices';
+      vertexIds: readonly VertexId[];
     }
-  | { kind: 'invalidOmission'; vertexIds: readonly ID[] }
-  | { kind: 'unreachable'; vertexIds: readonly ID[] }
-  | { kind: 'structuralCycle'; componentVertexIds: readonly ID[] }
-  | { kind: 'discoveryCycle'; cycleWitnessVertexIds: readonly ID[] }
+  | { kind: 'omissionIdentityNotDeclared'; vertexIds: readonly VertexId[] }
+  | { kind: 'outsideEntryDiscoveryClosure'; vertexIds: readonly VertexId[] }
   | {
-      kind: 'milestone';
-      diagnostics: DagTraversalStallDiagnostics<ID>;
+      kind: 'structuralChildCycleComponent';
+      componentVertexIds: readonly VertexId[];
+    }
+  | {
+      kind: 'discoveredStructuralChildCycleWitness';
+      cycleWitnessVertexIds: readonly VertexId[];
+    }
+  | {
+      kind: 'milestoneDependencyStall';
+      diagnostics: DagTraversalStallDiagnostics<VertexId>;
     };
 
-export type PrepareDagResult<Data, ID = unknown> =
-  | { kind: 'valid'; dag: PreparedDag<Data, ID> }
-  | { kind: 'invalid'; issues: readonly DagDefinitionIssue<ID>[] };
+export type DagTopologyValidationResult<Data, VertexId = unknown> =
+  | {
+      kind: 'valid';
+      validatedTopology: ValidatedReusableDagTopology<Data, VertexId>;
+    }
+  | { kind: 'invalid'; issues: readonly DagDefinitionIssue<VertexId>[] };

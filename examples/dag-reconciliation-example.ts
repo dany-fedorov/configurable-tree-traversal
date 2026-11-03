@@ -1,7 +1,11 @@
-import { DagTraversal, TraversalRunnerStatus, type VertexTypes } from '../src';
+import {
+  DagTraversalBuilder,
+  TraversalRunnerStatus,
+  type VertexDataAndChildHintTypes,
+} from '../src';
 import assert from 'node:assert/strict';
 
-type Workflow = VertexTypes<string, string>;
+type Workflow = VertexDataAndChildHintTypes<string, string>;
 const dependencies: Record<string, string[]> = {
   design: [],
   backend: ['design'],
@@ -12,58 +16,71 @@ const dependencies: Record<string, string[]> = {
 // A stand-in for accepted durable host facts loaded on each reconciliation tick.
 const acceptedCompletedWork = new Set(['design']);
 function reconstruct() {
-  const traversal = new DagTraversal<Workflow>({
-    completedWork: acceptedCompletedWork,
-    discovery: 'eager',
-    workCompletion: 'externalSettlement',
-    syntheticRoot: true,
-    traversableGraph: {
+  const traversal = new DagTraversalBuilder<Workflow>({
+    acceptedCompletedWorkVertexIds: acceptedCompletedWork,
+    discoveryTiming: 'completeBeforeAnyVisitor',
+    workCompletionPolicy: 'requireExternalWorkSettlement',
+    sourceRootIsHiddenEntryHolder: true,
+    dagDiscoverySource: {
       // Supply the complete catalog, including disconnected components.
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
-          vertexContent: { $data: '', $childHints: Object.keys(dependencies) },
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: {
+            $vertexData: '',
+            $childDiscoveryHints: Object.keys(dependencies),
+          },
         },
       }),
-      resolveChild: (id) => ({
-        kind: 'found' as const,
-        vertex: {
+      resolveChildHint: (id) => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: id,
-          dependsOnWork: dependencies[id]!,
-          vertexContent: { $data: id, $childHints: [] },
+          workWaitsForWorkOf: dependencies[id]!,
+          vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] },
         },
       }),
     },
   });
-  return traversal.createRunner().run();
+  return traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
 }
 
 const retained = reconstruct();
-assert.equal(retained.getStatus(), TraversalRunnerStatus.HALTED);
-assert.equal(retained.getStopReason(), 'awaitingSettlement');
-assert.deepEqual(retained.summary().readyOrDeferredIds, [
-  'backend',
-  'frontend',
-]);
+assert.equal(
+  retained.getTraversalLifecycleStatus(),
+  TraversalRunnerStatus.SUSPENDED,
+);
+assert.equal(retained.getTraversalStopReason(), 'awaitingSettlement');
+assert.deepEqual(
+  retained.captureProgressSnapshot()
+    .workVisitorReadyOrWorkCompletionDeferredVertexIds,
+  ['backend', 'frontend'],
+);
 const backend = retained
-  .summary()
-  .awaitingSettlement.find(({ vertexId }) => vertexId === 'backend')!;
+  .captureProgressSnapshot()
+  .workAwaitingSettlement.find(({ vertexId }) => vertexId === 'backend')!;
 
 // The host claims/runs the activity, validates its attempt identity and durably
 // accepts success before reporting it. Readiness alone is not host admission.
 acceptedCompletedWork.add('backend');
-retained.settle(
+retained.settleDeferredWork(
   backend.vertexId,
   { kind: 'workCompleted' },
-  backend.generation,
+  backend.settlementToken,
 );
-retained.run();
-assert.deepEqual(retained.summary().readyOrDeferredIds, ['frontend']);
+retained.runUntilSuspendedOrTerminal();
+assert.deepEqual(
+  retained.captureProgressSnapshot()
+    .workVisitorReadyOrWorkCompletionDeferredVertexIds,
+  ['frontend'],
+);
 assert.equal(
-  retained.settle(
+  retained.settleDeferredWork(
     backend.vertexId,
     { kind: 'workCompleted' },
-    backend.generation,
+    backend.settlementToken,
   ),
   false,
 );
@@ -72,10 +89,16 @@ assert.equal(
 // symbols or send a generation from the discarded runner to its replacement.
 const rebuilt = reconstruct();
 assert.deepEqual(
-  rebuilt.summary().readyOrDeferredIds,
-  retained.summary().readyOrDeferredIds,
+  rebuilt.captureProgressSnapshot()
+    .workVisitorReadyOrWorkCompletionDeferredVertexIds,
+  retained.captureProgressSnapshot()
+    .workVisitorReadyOrWorkCompletionDeferredVertexIds,
 );
 acceptedCompletedWork.add('frontend');
 const nextTick = reconstruct();
-assert.deepEqual(nextTick.summary().readyOrDeferredIds, ['verify']);
+assert.deepEqual(
+  nextTick.captureProgressSnapshot()
+    .workVisitorReadyOrWorkCompletionDeferredVertexIds,
+  ['verify'],
+);
 console.log('Reconciliation frontier: backend + frontend → frontend → verify');

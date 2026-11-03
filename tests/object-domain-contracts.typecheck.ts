@@ -1,37 +1,42 @@
 import { outputValue } from './helpers/rewriteOutput';
 import {
-  ObjectTreeSource,
+  ObjectPropertyTreeSource,
   rewriteObject,
-  createObjectMutationBinder,
-  type ObjectTreeOptions,
-  type RewriteObjectOptions,
-  type ObjectTreeVertexTypes,
+  createObjectPropertyMutationHelperBinder,
+  type ObjectPropertyTreeSourceOptions,
+  type ObjectPropertyRewriteOptions,
+  type ObjectPropertyTreeVertexTypes,
 } from '../src';
 
 // @ts-expect-error Default discovery cannot promise narrow keys or values.
-new ObjectTreeSource<number, 'root', number>(1);
+new ObjectPropertyTreeSource<number, 'root', number>(1);
 const rootOnly = {
-  getRootPropertyFromInputObject: (value: number) => ({
-    key: 'root' as const,
-    value,
+  mapInputToRootProperty: (value: number) => ({
+    propertyKey: 'root' as const,
+    propertyValue: value,
   }),
 };
 // @ts-expect-error A root adapter alone cannot validate descendant domains.
-new ObjectTreeSource<number, 'root', number>(1, rootOnly);
+new ObjectPropertyTreeSource<number, 'root', number>(1, rootOnly);
 // @ts-expect-error Spreading a root-only bag cannot bypass required discovery.
-new ObjectTreeSource<number, 'root', number>(1, { ...rootOnly });
-const childrenOnly = { getChildrenOfProperty: () => [] };
+new ObjectPropertyTreeSource<number, 'root', number>(1, { ...rootOnly });
+const childrenOnly = { enumerateChildPropertyHints: () => [] };
 // @ts-expect-error A child adapter alone cannot validate the root domain.
-new ObjectTreeSource<number, 'root', number>(1, childrenOnly);
+new ObjectPropertyTreeSource<number, 'root', number>(1, childrenOnly);
 // @ts-expect-error Options themselves retain required adapters.
-const unsafeOptions: ObjectTreeOptions<number, 'root', number, 'root', number> =
-  {};
+const unsafeOptions: ObjectPropertyTreeSourceOptions<
+  number,
+  'root',
+  number,
+  'root',
+  number
+> = {};
 // @ts-expect-error Rewrite helpers require the same two adapters.
 rewriteObject<number, 'root', number>(1, rootOnly);
 // @ts-expect-error Output generics alone cannot assert converted output.
 rewriteObject<number, PropertyKey, unknown, string>(1);
 // @ts-expect-error Pretyped options cannot omit the required converter.
-const noConverter: RewriteObjectOptions<
+const noConverter: ObjectPropertyRewriteOptions<
   number,
   PropertyKey,
   unknown,
@@ -39,56 +44,66 @@ const noConverter: RewriteObjectOptions<
   PropertyKey,
   unknown
 > = {};
-const outputOnly = { convertRootValue: (value: string) => value.toUpperCase() };
+const outputOnly = {
+  convertPresentRootOutputValue: (value: string) => value.toUpperCase(),
+};
 // @ts-expect-error A converter must accept arbitrary reconstructed/current values.
 rewriteObject(1, outputOnly);
 // @ts-expect-error Spread converters cannot narrow their input domain.
 rewriteObject(1, { ...outputOnly });
-const precise = ObjectTreeSource.fromProperties(1, {
+const precise = ObjectPropertyTreeSource.fromPropertyAdapters(1, {
   ...rootOnly,
   ...childrenOnly,
 });
 const rootValue: number =
-  precise.resolveRoot().vertex.vertexContent.$data.value;
-const defaultChildren = ObjectTreeSource.getChildrenOfPropertyDefault({
-  key: 'root' as const,
-  value: { child: 'text' },
-});
+  precise.resolveRootVertex().resolvedVertexInput.vertexContentInput.$vertexData
+    .propertyValue;
+const defaultChildren =
+  ObjectPropertyTreeSource.enumerateOwnEnumerableChildProperties({
+    propertyKey: 'root' as const,
+    propertyValue: { child: 'text' },
+  });
 // @ts-expect-error Discovery includes arbitrary descendant values.
-const numeric: number = defaultChildren[0]!.value;
+const numeric: number = defaultChildren[0]!.propertyValue;
 // @ts-expect-error Discovery includes arbitrary descendant keys.
-const rootKey: 'root' = defaultChildren[0]!.key;
-const mapper = ObjectTreeSource.createRootPropertyMapper('root' as const);
-const mappedValue: { count: number } = mapper({ count: 1 }).value;
-const mappedKey: 'root' = mapper(1).key;
+const rootKey: 'root' = defaultChildren[0]!.propertyKey;
+const mapper = ObjectPropertyTreeSource.createInputValueToRootPropertyMapper(
+  'root' as const,
+);
+const mappedValue: { count: number } = mapper({ count: 1 }).propertyValue;
+const mappedKey: 'root' = mapper(1).propertyKey;
 const converted = rewriteObject([1, 2], {
-  convertRootValue(value, context) {
-    const complete: boolean = context.complete;
+  convertPresentRootOutputValue(value, context) {
+    const complete: boolean = context.isTraversalFinished;
     // @ts-expect-error The converter sees mixed reconstruction, never a guaranteed string.
     value.toUpperCase();
     return { value, complete };
   },
 });
 const complete: boolean = outputValue(converted)!.complete;
-const bind = createObjectMutationBinder<
-  ObjectTreeVertexTypes<'root', number>,
-  ObjectTreeVertexTypes<'replacement', string>
+const bind = createObjectPropertyMutationHelperBinder<
+  ObjectPropertyTreeVertexTypes<'root', number>,
+  ObjectPropertyTreeVertexTypes<'replacement', string>
 >();
 declare const args: Parameters<typeof bind>;
 // @ts-expect-error Even narrow replacement payloads do not promise narrow assembled values.
-const assembled: string = bind(...args).assembleComposite();
+const assembled: string = bind(...args).assembleCompositeFromCurrentChildren();
 rewriteObject<number, 'root', number, unknown, 'replacement', string>(1, {
   ...rootOnly,
   ...childrenOnly,
-  rewrite(prop, context) {
+  rewritePropertyAfterChildTraversal(prop, context) {
     // @ts-expect-error Current values may include mixed reconstructed containers.
-    const narrow: number | string = prop.value;
+    const narrow: number | string = prop.propertyValue;
     // @ts-expect-error An assembled container need not be a replacement payload.
-    const assembled: string | undefined = prop.assembledComposite;
+    const assembled: string | undefined =
+      prop.assembledValueFromCurrentChildren;
     // @ts-expect-error Live values retain the unknown assembly domain.
-    const live: number | string = context.vertex.getData().value;
+    const live: number | string = context.vertex.getVertexData().propertyValue;
     void [narrow, assembled, live];
-    return { kind: 'rewrite', patch: { value: 'valid replacement' } };
+    return {
+      kind: 'patchPropertyKeyOrValue',
+      propertyPatch: { propertyValue: 'valid replacement' },
+    };
   },
 });
 void [
@@ -104,39 +119,47 @@ void [
 ];
 
 // A cache written by assembly cannot retain a false string-only read type.
-const narrowCache = new Map<Parameters<typeof bind>[1]['vertexRef'], string>();
-createObjectMutationBinder<
-  ObjectTreeVertexTypes<'root', number>,
-  ObjectTreeVertexTypes<'replacement', string>
+const narrowCache = new Map<
+  Parameters<typeof bind>[1]['vertexHandle'],
+  string
+>();
+createObjectPropertyMutationHelperBinder<
+  ObjectPropertyTreeVertexTypes<'root', number>,
+  ObjectPropertyTreeVertexTypes<'replacement', string>
 >({
   // @ts-expect-error Library assembly writes arbitrary reconstructed values.
-  assembledMap: narrowCache,
+  assemblyCache: narrowCache,
 });
 
 // @ts-expect-error The precise route requires both adapters too.
-ObjectTreeSource.fromProperties(1, rootOnly);
+ObjectPropertyTreeSource.fromPropertyAdapters(1, rootOnly);
 // @ts-expect-error A spread bag cannot assert output without conversion.
 rewriteObject<number, PropertyKey, unknown, string>(1, { ...{} });
 rewriteObject<number, 'root', number, unknown, 'replacement', string>(1, {
   ...rootOnly,
   ...childrenOnly,
   // @ts-expect-error Replacement patches retain their declared output payload type.
-  rewrite: () => ({ kind: 'rewrite', patch: { value: 3 } }),
+  rewritePropertyAfterChildTraversal: () => ({
+    kind: 'patchPropertyKeyOrValue',
+    propertyPatch: { propertyValue: 3 },
+  }),
 });
-const defaultSource = new ObjectTreeSource([1, 'two']);
+const defaultSource = new ObjectPropertyTreeSource([1, 'two']);
 // @ts-expect-error Raw source discovery remains unknown for mixed containers.
 const raw: number | string =
-  defaultSource.resolveRoot().vertex.vertexContent.$data.value;
-const defaultMapped = ObjectTreeSource.createRootPropertyMapper()(1);
-const defaultMappedValue: number = defaultMapped.value;
+  defaultSource.resolveRootVertex().resolvedVertexInput.vertexContentInput
+    .$vertexData.propertyValue;
+const defaultMapped =
+  ObjectPropertyTreeSource.createInputValueToRootPropertyMapper()(1);
+const defaultMappedValue: number = defaultMapped.propertyValue;
 const defaultMappedKey: '__TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__' =
-  defaultMapped.key;
+  defaultMapped.propertyKey;
 void [raw, defaultMappedValue, defaultMappedKey];
 
 // @ts-expect-error A generic root key cannot replace the actual default root key.
-ObjectTreeSource.createRootPropertyMapper<'fake'>();
+ObjectPropertyTreeSource.createInputValueToRootPropertyMapper<'fake'>();
 // @ts-expect-error Default child discovery cannot assert arbitrary generic domains.
-ObjectTreeSource.getChildrenOfPropertyDefault<'root', number>({
-  key: 'root',
-  value: 1,
+ObjectPropertyTreeSource.enumerateOwnEnumerableChildProperties<'root', number>({
+  propertyKey: 'root',
+  propertyValue: 1,
 });

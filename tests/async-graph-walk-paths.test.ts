@@ -1,12 +1,21 @@
-import { AsyncGraphWalk, GraphWalkPhase as Phase } from '../src';
-import type { AsyncGraphWalkSource, GraphWalkPathEvent } from '../src';
+import {
+  AsyncGraphWalkBuilder,
+  GraphWalkObservationKind as Phase,
+} from '../src';
+import type {
+  AsyncGraphWalkDiscoverySource,
+  GraphWalkRoutePrefixEvent,
+} from '../src';
 import { idGraph } from './helpers/graph-walk-fixtures';
 
-const policies = ['simplePaths', 'walks'] as const;
+const policies = [
+  'allVertexSimpleRoutePrefixes',
+  'allRoutePrefixesAllowingRepeatedVertices',
+] as const;
 
 it.each(policies)(
   'enumerates async %s diamond prefixes with one resolution/open per identity',
-  async (revisit) => {
+  async (routeEnumerationPolicy) => {
     const calls: string[] = [];
     const base = idGraph(
       ['A'],
@@ -17,33 +26,41 @@ it.each(policies)(
         ['D', ['A']],
       ],
     );
-    const runner = new AsyncGraphWalk({
-      source: {
-        hydration: 'resolver' as const,
-        async roots() {
-          return base.roots();
+    const runner = new AsyncGraphWalkBuilder({
+      graphWalkDiscoverySource: {
+        vertexResolutionMode: 'resolverWithOptionalInlineResolution' as const,
+        async enumerateRootTargets() {
+          return base.enumerateRootTargets();
         },
-        async resolveVertex(id) {
+        async resolveVertexDataById(id) {
           calls.push('resolve:' + id);
-          return base.resolveVertex!(id);
+          return base.resolveVertexDataById!(id);
         },
-        async *outgoing(vertex) {
+        async *enumerateOutgoingLinks(vertex) {
           calls.push('open:' + vertex.vertexId);
-          yield* base.outgoing(vertex);
+          yield* base.enumerateOutgoingLinks(vertex);
         },
       },
-      revisit,
-      limits: { maxDepth: 3 },
-      shouldFollowEdge: async (_edge, context) =>
-        context.revisit === revisit && context.path.depth < 3,
-      shouldExpandVertex: async (_vertex, context) =>
-        context.revisit === revisit && context.path.depth >= 0,
-    }).createRunner();
+      routeEnumerationPolicy,
+      limits: { maxRouteHopDepth: 3 },
+      shouldAdmitOutgoingLinkTarget: async (_edge, context) =>
+        context.routeEnumerationPolicy === routeEnumerationPolicy &&
+        context.routePrefix.routeHopLength < 3,
+      shouldExpandVertexOccurrence: async (_vertex, context) =>
+        context.routeEnumerationPolicy === routeEnumerationPolicy &&
+        context.routePrefix.routeHopLength >= 0,
+    }).createIndependentRunnerFromCurrentOptions();
     const paths: string[] = [];
-    for await (const path of runner.iterateEvents({ emitEvents: [Phase.PATH] }))
-      paths.push(path.vertices.map((v) => v.vertexId).join(''));
+    for await (const path of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+      {
+        deliveredEventKinds: [Phase.ROUTE_PREFIX],
+      },
+    ))
+      paths.push(
+        path.verticesInRootToTargetOrder.map((v) => v.vertexId).join(''),
+      );
     expect(paths).toEqual(
-      revisit === 'simplePaths'
+      routeEnumerationPolicy === 'allVertexSimpleRoutePrefixes'
         ? ['A', 'AB', 'AC', 'ABD', 'ACD']
         : ['A', 'AB', 'AC', 'ABD', 'ACD', 'ABDA', 'ACDA'],
     );
@@ -57,17 +74,17 @@ it.each(policies)(
       'open:C',
       'open:D',
     ]);
-    expect(runner.summary().counts).toMatchObject({
-      uniqueFoundVertices: 4,
-      discoveredLinks: 5,
-      candidateReadAttempts: 13,
+    expect(runner.captureProgressSnapshot().counts).toMatchObject({
+      resolvedFoundVertexIdCount: 4,
+      freshSourceOutgoingLinkCount: 5,
+      rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 13,
     });
   },
 );
 
 it.each(policies)(
   'retains a partially consumed async adjacency across pause and reuses it for another %s prefix',
-  async (revisit) => {
+  async (routeEnumerationPolicy) => {
     // DFS reaches D twice while its first adjacency frame is suspended. The
     // nested occurrence must replay D->B then physically pull D->E exactly once.
     const adjacency = new Map([
@@ -77,39 +94,50 @@ it.each(policies)(
       ['E', []],
     ]);
     const trace: string[] = [];
-    const source: AsyncGraphWalkSource<string, undefined, string> = {
-      hydration: 'resolver' as const,
-      roots: async function* () {
+    const source: AsyncGraphWalkDiscoverySource<string, undefined, string> = {
+      vertexResolutionMode: 'resolverWithOptionalInlineResolution' as const,
+      enumerateRootTargets: async function* () {
         yield { vertexId: 'A' };
       },
-      async resolveVertex(vertexId) {
+      async resolveVertexDataById(vertexId) {
         trace.push('resolve:' + vertexId);
-        return { kind: 'found', data: vertexId };
+        return { kind: 'found', vertexData: vertexId };
       },
-      async *outgoing(vertex) {
+      async *enumerateOutgoingLinks(vertex) {
         trace.push('open:' + vertex.vertexId);
         try {
           for (const vertexId of adjacency.get(vertex.vertexId)!) {
             trace.push(vertex.vertexId + '>' + vertexId);
-            yield { target: { vertexId }, data: undefined };
+            yield {
+              targetToResolveOnAdmission: { vertexId },
+              edgeData: undefined,
+            };
           }
         } finally {
           trace.push('done:' + vertex.vertexId);
         }
       },
     };
-    const runner = new AsyncGraphWalk({
-      source,
-      strategy: 'depthFirst',
-      revisit,
-      limits: { maxDepth: 5 },
-    }).createRunner();
-    const first = runner.iterateEvents({ emitEvents: [Phase.PATH] });
+    const runner = new AsyncGraphWalkBuilder({
+      graphWalkDiscoverySource: source,
+      expansionOrder: 'depthFirst',
+      routeEnumerationPolicy,
+      limits: { maxRouteHopDepth: 5 },
+    }).createIndependentRunnerFromCurrentOptions();
+    const first = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+      {
+        deliveredEventKinds: [Phase.ROUTE_PREFIX],
+      },
+    );
     const before: string[] = [];
     for (let i = 0; i < 3; i++) {
       const result = await first.next();
       if (result.done) throw new Error('Expected prefix');
-      before.push(result.value.vertices.map((v) => v.vertexId).join(''));
+      before.push(
+        result.value.verticesInRootToTargetOrder
+          .map((v) => v.vertexId)
+          .join(''),
+      );
     }
     expect(before).toEqual(['A', 'AD', 'ADB']);
     await first.return();
@@ -122,12 +150,18 @@ it.each(policies)(
       'D>B',
       'resolve:B',
     ]);
-    expect(runner.inspect().openSourceIteratorCount).toBe(3);
+    expect(runner.captureExecutionSnapshot().openSourceIteratorCount).toBe(3);
     const rest: string[] = [];
-    for await (const path of runner.iterateEvents({ emitEvents: [Phase.PATH] }))
-      rest.push(path.vertices.map((v) => v.vertexId).join(''));
+    for await (const path of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+      {
+        deliveredEventKinds: [Phase.ROUTE_PREFIX],
+      },
+    ))
+      rest.push(
+        path.verticesInRootToTargetOrder.map((v) => v.vertexId).join(''),
+      );
     expect(rest).toEqual(
-      revisit === 'simplePaths'
+      routeEnumerationPolicy === 'allVertexSimpleRoutePrefixes'
         ? ['ADE']
         : ['ADBD', 'ADBDB', 'ADBDBD', 'ADBDE', 'ADE'],
     );
@@ -149,17 +183,17 @@ it.each(policies)(
       'B>D',
       'D>E',
     ]);
-    expect(runner.summary().counts).toMatchObject({
-      uniqueFoundVertices: 4,
-      discoveredLinks: 4,
+    expect(runner.captureProgressSnapshot().counts).toMatchObject({
+      resolvedFoundVertexIdCount: 4,
+      freshSourceOutgoingLinkCount: 4,
     });
-    expect(runner.inspect().openSourceIteratorCount).toBe(0);
+    expect(runner.captureExecutionSnapshot().openSourceIteratorCount).toBe(0);
   },
 );
 
 it.each(policies)(
   'reuses shared async adjacency after pause for every queued %s prefix',
-  async (revisit) => {
+  async (routeEnumerationPolicy) => {
     const trace: string[] = [];
     const adjacency = new Map([
       ['A', ['B', 'C']],
@@ -169,41 +203,56 @@ it.each(policies)(
       ['E', []],
       ['F', []],
     ]);
-    const runner = new AsyncGraphWalk({
-      source: {
-        hydration: 'resolver' as const,
-        roots: () => [{ vertexId: 'A' }],
-        async resolveVertex(id: string) {
+    const runner = new AsyncGraphWalkBuilder({
+      graphWalkDiscoverySource: {
+        vertexResolutionMode: 'resolverWithOptionalInlineResolution' as const,
+        enumerateRootTargets: () => [{ vertexId: 'A' }],
+        async resolveVertexDataById(id: string) {
           trace.push('resolve:' + id);
-          return { kind: 'found' as const, data: id };
+          return { kind: 'found' as const, vertexData: id };
         },
-        async *outgoing(vertex) {
+        async *enumerateOutgoingLinks(vertex) {
           trace.push('open:' + vertex.vertexId);
           for (const id of adjacency.get(vertex.vertexId)!) {
             trace.push(vertex.vertexId + '>' + id);
-            yield { target: { vertexId: id }, data: undefined };
+            yield {
+              targetToResolveOnAdmission: { vertexId: id },
+              edgeData: undefined,
+            };
           }
         },
       },
-      revisit,
-      limits: { maxDepth: 4 },
-    }).createRunner();
-    const first = runner.iterateEvents({ emitEvents: [Phase.PATH] });
-    const paths: GraphWalkPathEvent<string, undefined, string>[] = [];
+      routeEnumerationPolicy,
+      limits: { maxRouteHopDepth: 4 },
+    }).createIndependentRunnerFromCurrentOptions();
+    const first = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+      {
+        deliveredEventKinds: [Phase.ROUTE_PREFIX],
+      },
+    );
+    const paths: GraphWalkRoutePrefixEvent<string, undefined, string>[] = [];
     for (let i = 0; i < 6; i++) {
       const next = await first.next();
       if (next.done) throw new Error('Expected path');
       paths.push(next.value);
     }
     expect(
-      paths.map((path) => path.vertices.map((v) => v.vertexId).join('')),
+      paths.map((path) =>
+        path.verticesInRootToTargetOrder.map((v) => v.vertexId).join(''),
+      ),
     ).toEqual(['A', 'AB', 'AC', 'ABD', 'ACD', 'ABDE']);
     await first.return();
     expect(trace.filter((entry) => entry.startsWith('D>'))).toEqual(['D>E']);
-    expect(runner.inspect().openSourceIteratorCount).toBe(1);
+    expect(runner.captureExecutionSnapshot().openSourceIteratorCount).toBe(1);
     const rest: string[] = [];
-    for await (const path of runner.iterateEvents({ emitEvents: [Phase.PATH] }))
-      rest.push(path.vertices.map((v) => v.vertexId).join(''));
+    for await (const path of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+      {
+        deliveredEventKinds: [Phase.ROUTE_PREFIX],
+      },
+    ))
+      rest.push(
+        path.verticesInRootToTargetOrder.map((v) => v.vertexId).join(''),
+      );
     expect(rest).toEqual(['ABDF', 'ACDE', 'ACDF']);
     expect(trace.filter((entry) => entry.startsWith('D>'))).toEqual([
       'D>E',
@@ -217,40 +266,47 @@ it.each(policies)(
       'open:E',
       'open:F',
     ]);
-    expect(runner.summary()).toMatchObject({
+    expect(runner.captureProgressSnapshot()).toMatchObject({
       counts: {
-        uniqueFoundVertices: 6,
-        discoveredLinks: 6,
-        admittedTargets: 9,
-        candidateReadAttempts: 19,
+        resolvedFoundVertexIdCount: 6,
+        freshSourceOutgoingLinkCount: 6,
+        admittedRootOrLinkTargetOccurrences: 9,
+        rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 19,
       },
-      outcome: { kind: 'exhausted' },
+      terminalOutcome: { kind: 'sourceRoutesExhausted' },
     });
   },
 );
 
 it('closes each physical async iterator once after cached replay hits its step limit', async () => {
   const trace: string[] = [];
-  const runner = new AsyncGraphWalk({
-    source: {
-      hydration: 'inlineOrCached' as const,
-      roots: async function* () {
+  const runner = new AsyncGraphWalkBuilder({
+    graphWalkDiscoverySource: {
+      vertexResolutionMode:
+        'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+      enumerateRootTargets: async function* () {
         try {
           yield {
-            kind: 'inline' as const,
+            kind: 'inlineResolution' as const,
             vertexId: 'A',
-            resolution: { kind: 'found' as const, data: 'A' },
+            resolutionIfNotPreviouslyAdmitted: {
+              kind: 'found' as const,
+              vertexData: 'A',
+            },
           };
         } finally {
           trace.push('close:roots');
         }
       },
-      outgoing: async function* () {
+      enumerateOutgoingLinks: async function* () {
         try {
           trace.push('pull:A');
           yield {
-            target: { kind: 'cached' as const, vertexId: 'A' },
-            data: undefined,
+            targetToResolveOnAdmission: {
+              kind: 'previouslyAdmittedVertex' as const,
+              vertexId: 'A',
+            },
+            edgeData: undefined,
           };
           trace.push('unexpected second pull');
         } finally {
@@ -258,68 +314,101 @@ it('closes each physical async iterator once after cached replay hits its step l
         }
       },
     },
-    strategy: 'depthFirst',
-    revisit: 'walks',
-    limits: { maxCandidateReadAttempts: 3 },
-  }).createRunner();
-  const iterator = runner.iterateEvents({ emitEvents: [Phase.PATH] });
+    expansionOrder: 'depthFirst',
+    routeEnumerationPolicy: 'allRoutePrefixesAllowingRepeatedVertices',
+    limits: { maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 3 },
+  }).createIndependentRunnerFromCurrentOptions();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: [Phase.ROUTE_PREFIX],
+    });
   const paths: string[] = [];
   for (let i = 0; i < 3; i++) {
     const next = await iterator.next();
     if (next.done) throw new Error('Expected path');
-    paths.push(next.value.vertices.map((v) => v.vertexId).join(''));
+    paths.push(
+      next.value.verticesInRootToTargetOrder.map((v) => v.vertexId).join(''),
+    );
   }
   expect(paths).toEqual(['A', 'AA', 'AAA']);
-  expect(runner.inspect().openSourceIteratorCount).toBe(2);
+  expect(runner.captureExecutionSnapshot().openSourceIteratorCount).toBe(2);
   expect(trace).toEqual(['pull:A']);
   expect((await iterator.next()).done).toBe(true);
-  await runner.close();
+  await runner.closePermanentlyAndDisposeSourceIterators();
   expect(trace).toEqual(['pull:A', 'close:A', 'close:roots']);
-  expect(runner.inspect().openSourceIteratorCount).toBe(0);
-  expect(runner.summary()).toMatchObject({
+  expect(runner.captureExecutionSnapshot().openSourceIteratorCount).toBe(0);
+  expect(runner.captureProgressSnapshot()).toMatchObject({
     counts: {
-      candidateReadAttempts: 3,
-      admittedTargets: 3,
-      uniqueFoundVertices: 1,
-      discoveredLinks: 1,
+      rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 3,
+      admittedRootOrLinkTargetOccurrences: 3,
+      resolvedFoundVertexIdCount: 1,
+      freshSourceOutgoingLinkCount: 1,
     },
-    outcome: { kind: 'limited', reasons: ['maxCandidateReadAttempts'] },
+    terminalOutcome: {
+      kind: 'traversalLimitsReached',
+      reachedLimits: ['maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay'],
+    },
   });
 });
 
 it.each(policies)(
   'validates async %s bounds atomically before source I/O',
-  async (revisit) => {
+  async (routeEnumerationPolicy) => {
     const source = idGraph(['A'], [['A', ['A']]]);
-    // @ts-expect-error Runtime callers must also provide a route exploration bound.
-    expect(() => new AsyncGraphWalk({ source, revisit })).toThrow(TypeError);
-    const factory = new AsyncGraphWalk({ source });
-    expect(() => factory.configure({ revisit })).toThrow(TypeError);
-    expect((await factory.createRunner().run()).summary().outcome).toEqual({
-      kind: 'exhausted',
+    expect(
+      () =>
+        // @ts-expect-error Runtime callers must also provide a route exploration bound.
+        new AsyncGraphWalkBuilder({
+          graphWalkDiscoverySource: source,
+          routeEnumerationPolicy,
+        }),
+    ).toThrow(TypeError);
+    const factory = new AsyncGraphWalkBuilder({
+      graphWalkDiscoverySource: source,
+    });
+    expect(() =>
+      factory.patchOptionsForFutureRunners({ routeEnumerationPolicy }),
+    ).toThrow(TypeError);
+    expect(
+      (
+        await factory
+          .createIndependentRunnerFromCurrentOptions()
+          .runUntilSuspendedOrTerminal()
+      ).captureProgressSnapshot().terminalOutcome,
+    ).toEqual({
+      kind: 'sourceRoutesExhausted',
     });
     factory
-      .configure({ replaceLimits: { maxDepth: 1 } })
-      .configure({ revisit });
+      .patchOptionsForFutureRunners({ replaceLimits: { maxRouteHopDepth: 1 } })
+      .patchOptionsForFutureRunners({ routeEnumerationPolicy });
     expect(() =>
-      factory.configure({ replaceLimits: { maxAdmittedTargets: 5 } }),
+      factory.patchOptionsForFutureRunners({
+        replaceLimits: { maxAdmittedRootOrLinkTargetOccurrences: 5 },
+      }),
     ).toThrow(TypeError);
-    const runner = await factory.createRunner().run();
-    expect(runner.summary().counts.admittedTargets).toBe(
-      revisit === 'walks' ? 2 : 1,
+    const runner = await factory
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal();
+    expect(
+      runner.captureProgressSnapshot().counts
+        .admittedRootOrLinkTargetOccurrences,
+    ).toBe(
+      routeEnumerationPolicy === 'allRoutePrefixesAllowingRepeatedVertices'
+        ? 2
+        : 1,
     );
   },
 );
 
 it.each(policies)(
   'keeps async %s admission and I/O independent of selectors at an occurrence limit',
-  async (revisit) => {
+  async (routeEnumerationPolicy) => {
     const results = [];
-    for (const emitEvents of [
+    for (const deliveredEventKinds of [
       [],
-      [Phase.PATH],
-      [Phase.VERTEX, Phase.EDGE],
-      [Phase.EDGE, Phase.PATH],
+      [Phase.ROUTE_PREFIX],
+      [Phase.VERTEX_OCCURRENCE, Phase.ADMITTED_EDGE_OCCURRENCE],
+      [Phase.ADMITTED_EDGE_OCCURRENCE, Phase.ROUTE_PREFIX],
     ]) {
       const calls: string[] = [];
       const source = idGraph(
@@ -329,35 +418,48 @@ it.each(policies)(
           ['B', ['A']],
         ],
       );
-      const runner = new AsyncGraphWalk({
-        source: {
+      const runner = new AsyncGraphWalkBuilder({
+        graphWalkDiscoverySource: {
           ...source,
-          async resolveVertex(id) {
+          async resolveVertexDataById(id) {
             calls.push('resolve:' + id);
-            return source.resolveVertex!(id);
+            return source.resolveVertexDataById!(id);
           },
-          async *outgoing(vertex) {
+          async *enumerateOutgoingLinks(vertex) {
             calls.push('open:' + vertex.vertexId);
-            yield* source.outgoing(vertex);
+            yield* source.enumerateOutgoingLinks(vertex);
           },
         },
-        revisit,
-        limits: { maxDepth: 4, maxAdmittedTargets: 3 },
-      }).createRunner();
-      for await (const event of runner.iterateEvents({ emitEvents }))
-        expect(emitEvents).toContain(event.kind);
-      results.push({ summary: runner.summary(), calls });
+        routeEnumerationPolicy,
+        limits: {
+          maxRouteHopDepth: 4,
+          maxAdmittedRootOrLinkTargetOccurrences: 3,
+        },
+      }).createIndependentRunnerFromCurrentOptions();
+      for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+        {
+          deliveredEventKinds,
+        },
+      ))
+        expect(deliveredEventKinds).toContain(event.eventKind);
+      results.push({
+        captureProgressSnapshot: runner.captureProgressSnapshot(),
+        calls,
+      });
     }
     for (const result of results) expect(result).toEqual(results[0]);
     expect(results[0]).toMatchObject({
-      summary: {
+      captureProgressSnapshot: {
         counts: {
-          candidateReadAttempts: 4,
-          admittedTargets: 3,
-          uniqueFoundVertices: 2,
-          discoveredLinks: 2,
+          rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 4,
+          admittedRootOrLinkTargetOccurrences: 3,
+          resolvedFoundVertexIdCount: 2,
+          freshSourceOutgoingLinkCount: 2,
         },
-        outcome: { kind: 'limited', reasons: ['maxAdmittedTargets'] },
+        terminalOutcome: {
+          kind: 'traversalLimitsReached',
+          reachedLimits: ['maxAdmittedRootOrLinkTargetOccurrences'],
+        },
       },
       calls: ['resolve:A', 'open:A', 'resolve:B'],
     });
@@ -366,30 +468,31 @@ it.each(policies)(
 
 it.each(policies)(
   'performs no async source I/O at zero %s global bounds',
-  async (revisit) => {
+  async (routeEnumerationPolicy) => {
     for (const limits of [
-      { maxCandidateReadAttempts: 0 },
-      { maxDepth: 2, maxAdmittedTargets: 0 },
+      { maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 0 },
+      { maxRouteHopDepth: 2, maxAdmittedRootOrLinkTargetOccurrences: 0 },
     ]) {
       const calls: string[] = [];
-      const runner = await new AsyncGraphWalk({
-        source: {
-          hydration: 'inlineOrCached' as const,
-          async roots() {
+      const runner = await new AsyncGraphWalkBuilder({
+        graphWalkDiscoverySource: {
+          vertexResolutionMode:
+            'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+          async enumerateRootTargets() {
             calls.push('roots');
             return [];
           },
-          outgoing: () => [],
+          enumerateOutgoingLinks: () => [],
         },
-        revisit,
+        routeEnumerationPolicy,
         limits,
       })
-        .createRunner()
-        .run();
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal();
       expect(calls).toEqual([]);
-      expect(runner.summary().counts).toMatchObject({
-        candidateReadAttempts: 0,
-        admittedTargets: 0,
+      expect(runner.captureProgressSnapshot().counts).toMatchObject({
+        rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 0,
+        admittedRootOrLinkTargetOccurrences: 0,
       });
     }
   },
@@ -397,49 +500,59 @@ it.each(policies)(
 
 it.each(policies)(
   'bounds filtered async %s links and awaits partial-stream cleanup',
-  async (revisit) => {
+  async (routeEnumerationPolicy) => {
     const calls: string[] = [];
-    const runner = await new AsyncGraphWalk({
-      source: {
-        hydration: 'inlineOrCached' as const,
-        roots: () => [
+    const runner = await new AsyncGraphWalkBuilder({
+      graphWalkDiscoverySource: {
+        vertexResolutionMode:
+          'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+        enumerateRootTargets: () => [
           {
-            kind: 'inline' as const,
+            kind: 'inlineResolution' as const,
             vertexId: 'A',
-            resolution: { kind: 'found' as const, data: 'A' },
+            resolutionIfNotPreviouslyAdmitted: {
+              kind: 'found' as const,
+              vertexData: 'A',
+            },
           },
         ],
-        async *outgoing() {
+        async *enumerateOutgoingLinks() {
           try {
             for (const vertexId of ['B', 'C', 'D']) {
               calls.push(vertexId);
               yield {
-                target: { kind: 'cached' as const, vertexId },
-                data: undefined,
+                targetToResolveOnAdmission: {
+                  kind: 'previouslyAdmittedVertex' as const,
+                  vertexId,
+                },
+                edgeData: undefined,
               };
             }
           } finally {
             await Promise.resolve();
-            calls.push('closed');
+            calls.push('permanentlyClosedByCaller');
           }
         },
       },
-      revisit,
-      limits: { maxCandidateReadAttempts: 4 },
-      shouldFollowEdge: async () => false,
+      routeEnumerationPolicy,
+      limits: { maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 4 },
+      shouldAdmitOutgoingLinkTarget: async () => false,
     })
-      .createRunner()
-      .run();
-    expect(calls).toEqual(['B', 'C', 'closed']);
-    expect(runner.summary()).toMatchObject({
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal();
+    expect(calls).toEqual(['B', 'C', 'permanentlyClosedByCaller']);
+    expect(runner.captureProgressSnapshot()).toMatchObject({
       counts: {
-        candidateReadAttempts: 4,
-        admittedTargets: 1,
-        uniqueFoundVertices: 1,
-        discoveredLinks: 2,
+        rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 4,
+        admittedRootOrLinkTargetOccurrences: 1,
+        resolvedFoundVertexIdCount: 1,
+        freshSourceOutgoingLinkCount: 2,
       },
-      outcome: { kind: 'limited', reasons: ['maxCandidateReadAttempts'] },
+      terminalOutcome: {
+        kind: 'traversalLimitsReached',
+        reachedLimits: ['maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay'],
+      },
     });
-    expect(runner.inspect().openSourceIteratorCount).toBe(0);
+    expect(runner.captureExecutionSnapshot().openSourceIteratorCount).toBe(0);
   },
 );

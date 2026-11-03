@@ -33,61 +33,69 @@ for (const mode of ['sync', 'async']) {
           completed,
           { mode, discovery, concurrency: 2 },
         );
-        await inspection.runner.run();
+        await inspection.runner.runUntilSuspendedOrTerminal();
         for (let step = 0; step < frontiers.length; step++) {
-          const snapshot = inspection.runner.summary();
+          const snapshot = inspection.runner.captureProgressSnapshot();
           assert.equal(
             snapshot.discovery.complete,
             discovery === 'eager' ||
               shape === 'independent' ||
               step >= frontiers.length - 2,
           );
-          assert.deepEqual(snapshot.readyOrDeferredIds, frontiers[step]);
           assert.deepEqual(
-            [...snapshot.completedWorkIds].sort(),
+            snapshot.workVisitorReadyOrWorkCompletionDeferredVertexIds,
+            frontiers[step],
+          );
+          assert.deepEqual(
+            [...snapshot.workCompletionCommittedVertexIds].sort(),
             [...completed].sort(),
           );
           const old = structuredClone({
-            readyOrDeferredIds: snapshot.readyOrDeferredIds,
+            workVisitorReadyOrWorkCompletionDeferredVertexIds:
+              snapshot.workVisitorReadyOrWorkCompletionDeferredVertexIds,
             counts: snapshot.counts,
           });
           const calls = { ...inspection.counters };
-          const status = inspection.runner.getStatus();
-          assert.deepEqual(inspection.runner.summary(), snapshot);
+          const status = inspection.runner.getTraversalLifecycleStatus();
+          assert.deepEqual(
+            inspection.runner.captureProgressSnapshot(),
+            snapshot,
+          );
           assert.deepEqual(inspection.counters, calls);
-          assert.equal(inspection.runner.getStatus(), status);
+          assert.equal(inspection.runner.getTraversalLifecycleStatus(), status);
           const rebuilt = benchmark.createLifecycleInspection(
             library,
             fixture,
             completed,
             { mode, discovery, concurrency: 2 },
           );
-          await rebuilt.runner.run();
-          const reconstructed = rebuilt.runner.summary();
+          await rebuilt.runner.runUntilSuspendedOrTerminal();
+          const reconstructed = rebuilt.runner.captureProgressSnapshot();
           assert.deepEqual(
-            reconstructed.readyOrDeferredIds,
-            snapshot.readyOrDeferredIds,
+            reconstructed.workVisitorReadyOrWorkCompletionDeferredVertexIds,
+            snapshot.workVisitorReadyOrWorkCompletionDeferredVertexIds,
           );
           assert.deepEqual(reconstructed.counts, snapshot.counts);
           assert.deepEqual(
-            [...reconstructed.completedWorkIds].sort(),
+            [...reconstructed.workCompletionCommittedVertexIds].sort(),
             [...completed].sort(),
           );
           if (frontiers[step].length) {
             const id = frontiers[step][0];
             assert.equal(
-              inspection.runner.settle(
+              inspection.runner.settleDeferredWork(
                 id,
                 { kind: 'workCompleted' },
-                snapshot.vertices.get(id).generation,
+                snapshot.progressByVertexId.get(id).settlementToken,
               ),
               true,
             );
             completed.add(id);
-            await inspection.runner.run();
+            await inspection.runner.runUntilSuspendedOrTerminal();
             assert.deepEqual(
               {
-                readyOrDeferredIds: snapshot.readyOrDeferredIds,
+                workVisitorReadyOrWorkCompletionDeferredVertexIds:
+                  snapshot.workVisitorReadyOrWorkCompletionDeferredVertexIds,
                 counts: snapshot.counts,
               },
               old,
@@ -207,7 +215,10 @@ test('initial lazy inspection is explicitly partial and summaries do not discove
     { mode: 'sync', discovery: 'lazy', concurrency: 2 },
   );
   const before = { ...inspection.counters };
-  assert.equal(inspection.runner.summary().discovery.complete, false);
+  assert.equal(
+    inspection.runner.captureProgressSnapshot().discovery.complete,
+    false,
+  );
   assert.deepEqual(inspection.counters, before);
 });
 

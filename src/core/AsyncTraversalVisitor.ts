@@ -1,23 +1,27 @@
 import type {
   TreeVisitorContext,
-  TraversalVisitorResult,
+  VisitorCommandsResult,
 } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { VertexView } from '@core/Vertex';
 import type { MaybePromise } from '@core/graph/types';
 
-export type AsyncTreeVisitor<
+export type AsyncTreeVertexPhaseVisitorCallback<
+  InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
   Phase extends string = string,
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
-> = TraversalVisitorResult<
-  R,
+> = VisitorCommandsResult<
+  RewrittenVertexTypes,
   Phase,
   'tree',
-  T['VertexHint']
+  InputVertexTypes['ChildHint']
 > extends infer RESULT
   ? (
-      vertex: VertexView<T | R>,
-      options: TreeVisitorContext<Phase, T, R>,
+      vertex: VertexView<InputVertexTypes | RewrittenVertexTypes>,
+      options: TreeVisitorContext<
+        Phase,
+        InputVertexTypes,
+        RewrittenVertexTypes
+      >,
     ) => MaybePromise<RESULT | undefined | void>
   : never;

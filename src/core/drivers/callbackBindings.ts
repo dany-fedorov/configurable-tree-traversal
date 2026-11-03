@@ -4,58 +4,81 @@ import {
   normalizeSourceResult,
 } from './normalizeSourceResult';
 import type {
-  DagVertexResolution,
+  DagSourceVertexResolution,
   TreeVertexResolution,
 } from '@core/TraversableTree';
-import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
-import type { MakeVertexResult, TreeSource } from '@core/TraversableTree';
-import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
+import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
+import type {
+  MakeVertexResult,
+  TreeDiscoverySource,
+} from '@core/TraversableTree';
+import type { AsyncTreeDiscoverySource } from '@core/AsyncTraversableTree';
 import type {
   AsyncDagDiscoverySource,
   DagDiscoverySource,
 } from '@core/TraversableGraph';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
-import type { HintVertexId, MaybePromise, VertexId } from '@core/graph/types';
-import type { VisitResult } from '@core/graph/types';
+import type {
+  ChildHintVertexIdentity,
+  MaybePromise,
+  VertexId,
+} from '@core/graph/types';
+import type { VisitorCallbackReturnValue } from '@core/graph/types';
 import type {
   CallbackBindings,
   CallSpec,
   RawCallbackResult,
-  VisitPhase,
+  TreeOrDagVisitorPhase,
 } from '@core/effects/types';
 
-export interface BoundSource<T extends VertexTypes, R extends VertexTypes = T> {
+export interface BoundSource<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> {
   resolvePrerequisite?(
     id: VertexId,
-  ): MaybePromise<MakeVertexResult<T> | undefined>;
-  resolveRoot(): MaybePromise<MakeVertexResult<T>>;
+  ): MaybePromise<MakeVertexResult<InputVertexTypes> | undefined>;
+  resolveRoot(): MaybePromise<MakeVertexResult<InputVertexTypes>>;
   resolveChild(
-    context: InternalVertexResolutionContext<T | R>,
-  ): MaybePromise<MakeVertexResult<T>>;
+    context: InternalChildDiscoveryContext<
+      InputVertexTypes | RewrittenVertexTypes
+    >,
+  ): MaybePromise<MakeVertexResult<InputVertexTypes>>;
   getVertexIdFromHint?(
-    hint: (T | R)['VertexHint'],
-  ): MaybePromise<HintVertexId | undefined>;
+    hint: (InputVertexTypes | RewrittenVertexTypes)['ChildHint'],
+  ): MaybePromise<ChildHintVertexIdentity | undefined>;
 }
 
-type AnyTreeSource<T extends VertexTypes, R extends VertexTypes> =
-  | TreeSource<T, R>
-  | AsyncTreeSource<T, R>;
+type AnyTreeSource<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+> =
+  | TreeDiscoverySource<InputVertexTypes, RewrittenVertexTypes>
+  | AsyncTreeDiscoverySource<InputVertexTypes, RewrittenVertexTypes>;
 
-type GraphSource<T extends VertexTypes, R extends VertexTypes, ID> =
-  | DagDiscoverySource<T, R, ID>
-  | AsyncDagDiscoverySource<T, R, ID>;
+type GraphSource<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId,
+> =
+  | DagDiscoverySource<InputVertexTypes, RewrittenVertexTypes, VertexId>
+  | AsyncDagDiscoverySource<InputVertexTypes, RewrittenVertexTypes, VertexId>;
 
-function normalizeVertexResult<T extends VertexTypes>(
-  result: DagVertexResolution<T>,
-): MakeVertexResult<T> {
+function normalizeVertexResult<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+>(
+  result: DagSourceVertexResolution<InputVertexTypes>,
+): MakeVertexResult<InputVertexTypes> {
   return normalizeSourceResult(result, false)!;
 }
 
-function validateTreeResult<T extends VertexTypes>(
-  result: MaybePromise<TreeVertexResolution<T>>,
+function validateTreeResult<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+>(
+  result: MaybePromise<TreeVertexResolution<InputVertexTypes>>,
   runnerName?: string,
-): MaybePromise<MakeVertexResult<T>> {
+): MaybePromise<MakeVertexResult<InputVertexTypes>> {
   return mapSourceResult(
     result,
     (value) =>
@@ -67,101 +90,143 @@ function validateTreeResult<T extends VertexTypes>(
   );
 }
 
-function asInputHint<T extends VertexTypes, R extends VertexTypes>(
-  hint: (T | R)['VertexHint'],
-): T['VertexHint'] {
-  return hint as T['VertexHint'];
+function asInputHint<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+>(
+  hint: (InputVertexTypes | RewrittenVertexTypes)['ChildHint'],
+): InputVertexTypes['ChildHint'] {
+  return hint as InputVertexTypes['ChildHint'];
 }
 
 export function bindTreeSource<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 >(
-  adapter: AnyTreeSource<T, R>,
-  container: ResolvedGraphsContainer<T, R>,
+  adapter: AnyTreeSource<InputVertexTypes, RewrittenVertexTypes>,
+  container: ResolvedGraphsContainer<InputVertexTypes, RewrittenVertexTypes>,
   runnerName?: string,
-): BoundSource<T, R> {
+): BoundSource<InputVertexTypes, RewrittenVertexTypes> {
   const treeContainer = container.treeContainer;
   if (treeContainer === null) {
     throw new TypeError('Tree source binding requires a tree graph container');
   }
   return {
-    resolveRoot: () => validateTreeResult(adapter.resolveRoot(), runnerName),
+    resolveRoot: () =>
+      validateTreeResult(adapter.resolveRootVertex(), runnerName),
     resolveChild: (context) =>
       validateTreeResult(
-        adapter.resolveChild(asInputHint<T, R>(context.vertexHint), {
-          resolutionContext: resolutionContextView(context)!,
-          resolvedTreeView: treeContainer.resolvedTree.asReadOnly(),
-          originalTreeView:
-            treeContainer.originalTreeView?.asReadOnly() ?? null,
-        }),
+        adapter.resolveChildVertexFromHint(
+          asInputHint<InputVertexTypes, RewrittenVertexTypes>(
+            context.childDiscoveryHint,
+          ),
+          {
+            childDiscoveryContext: resolutionContextView(context)!,
+            liveResolvedTreeView:
+              treeContainer.resolvedTree.getLiveReadOnlyTreeView(),
+            preCommandDiscoveredTreeView:
+              treeContainer.preCommandDiscoveredTreeView?.getLiveReadOnlyTreeView() ??
+              null,
+          },
+        ),
         runnerName,
       ),
   };
 }
 
 export function bindGraphSource<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+  VertexId = unknown,
 >(
-  adapter: GraphSource<T, R, ID>,
-  container: ResolvedGraphsContainer<T, R, ID>,
-): BoundSource<T, R> {
+  adapter: GraphSource<InputVertexTypes, RewrittenVertexTypes, VertexId>,
+  container: ResolvedGraphsContainer<
+    InputVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >,
+): BoundSource<InputVertexTypes, RewrittenVertexTypes> {
   if (container.sourceMode !== 'graph') {
     throw new TypeError('Graph source binding requires a graph-mode container');
   }
-  const bound: BoundSource<T, R> = {
+  const bound: BoundSource<InputVertexTypes, RewrittenVertexTypes> = {
     resolveRoot: () =>
-      mapSourceResult(adapter.resolveRoot(), normalizeVertexResult),
+      mapSourceResult(adapter.resolveRootVertex(), normalizeVertexResult),
     resolveChild: (context) =>
       mapSourceResult(
-        adapter.resolveChild(asInputHint<T, R>(context.vertexHint), {
-          resolutionContext:
-            context.parentVertexRef === container.syntheticRootRef
-              ? Object.freeze({
-                  ...context,
-                  parentVertex: null,
-                  parentVertexRef: null,
-                })
-              : resolutionContextView(context)!,
-          resolvedGraphView: container.publicResolvedGraph,
-          originalGraphView: container.originalGraphView,
-        }),
+        adapter.resolveChildHint(
+          asInputHint<InputVertexTypes, RewrittenVertexTypes>(
+            context.childDiscoveryHint,
+          ),
+          {
+            structuralChildResolution:
+              context.parentVertexHandle === container.syntheticRootRef
+                ? Object.freeze({
+                    ...context,
+                    parentVertexAtChildResolution: null,
+                    parentVertexHandle: null,
+                  })
+                : resolutionContextView(context)!,
+            liveResolvedGraphView: container.publicResolvedGraph,
+            preCommandDiscoveredGraphView:
+              container.preCommandDiscoveredGraphView,
+          },
+        ),
         normalizeVertexResult,
       ),
   };
-  if (adapter.getVertexIdFromHint !== undefined) {
+  if (adapter.tryGetVertexIdentityFromHint !== undefined) {
     bound.getVertexIdFromHint = (hint) =>
-      adapter.getVertexIdFromHint!(asInputHint<T, R>(hint));
+      adapter.tryGetVertexIdentityFromHint!(
+        asInputHint<InputVertexTypes, RewrittenVertexTypes>(hint),
+      );
   }
-  if (adapter.resolvePrerequisite !== undefined) {
+  if (adapter.resolvePrerequisiteByVertexId !== undefined) {
     bound.resolvePrerequisite = (id) =>
       mapSourceResult(
         // Kernel prerequisite IDs originate from this source's typed dependencies.
-        adapter.resolvePrerequisite!(id as ID),
-        (value) => normalizeSourceResult<T, ID>(value, true),
+        adapter.resolvePrerequisiteByVertexId!(id as VertexId),
+        (value) =>
+          normalizeSourceResult<InputVertexTypes, VertexId>(value, true),
       );
   }
   return bound;
 }
 
-export type BoundVisit<T extends VertexTypes, R extends VertexTypes = T> = (
-  call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>,
-) => MaybePromise<VisitResult<R, never, 'tree' | 'dag', T['VertexHint']>>;
+export type BoundVisit<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> = (
+  call: Extract<
+    CallSpec<InputVertexTypes, RewrittenVertexTypes>,
+    { kind: 'VISIT' }
+  >,
+) => MaybePromise<
+  VisitorCallbackReturnValue<
+    RewrittenVertexTypes,
+    never,
+    'tree' | 'dag',
+    InputVertexTypes['ChildHint']
+  >
+>;
 
 export function createCallbackBindings<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 >(input: {
-  source: BoundSource<T, R>;
+  source: BoundSource<InputVertexTypes, RewrittenVertexTypes>;
   sortHints?: (
-    hints: (T | R)['VertexHint'][],
-  ) => MaybePromise<(T | R)['VertexHint'][]>;
-  visit: Partial<Record<VisitPhase, BoundVisit<T, R>>>;
-}): CallbackBindings<T, R> {
+    hints: (InputVertexTypes | RewrittenVertexTypes)['ChildHint'][],
+  ) => MaybePromise<(InputVertexTypes | RewrittenVertexTypes)['ChildHint'][]>;
+  visit: Partial<
+    Record<
+      TreeOrDagVisitorPhase,
+      BoundVisit<InputVertexTypes, RewrittenVertexTypes>
+    >
+  >;
+}): CallbackBindings<InputVertexTypes, RewrittenVertexTypes> {
   return {
-    invoke(call): RawCallbackResult<T, R> {
+    invoke(call): RawCallbackResult<InputVertexTypes, RewrittenVertexTypes> {
       switch (call.kind) {
         case 'MAKE_ROOT':
           return { kind: call.kind, value: input.source.resolveRoot() };

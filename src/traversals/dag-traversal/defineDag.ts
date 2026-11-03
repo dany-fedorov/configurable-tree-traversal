@@ -1,4 +1,7 @@
-import type { DagDefinition, DagDefinitionSlot } from './lib/DagDefinition';
+import type {
+  DagDefinition,
+  DagStructuralDiscoverySlot,
+} from './lib/DagDefinition';
 
 function record(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value))
@@ -18,25 +21,30 @@ function array(value: unknown): unknown[] {
   return Array.from(value);
 }
 
-function slots<ID>(value: unknown): readonly DagDefinitionSlot<ID>[] {
+function slots<VertexId>(
+  value: unknown,
+): readonly DagStructuralDiscoverySlot<VertexId>[] {
   return Object.freeze(
-    array(value).map((item): DagDefinitionSlot<ID> => {
+    array(value).map((item): DagStructuralDiscoverySlot<VertexId> => {
       const slot = record(item);
       switch (own(slot, 'kind')) {
         case 'vertex':
           return Object.freeze({
             kind: 'vertex',
-            vertexId: own(slot, 'vertexId') as ID,
+            vertexId: own(slot, 'vertexId') as VertexId,
           });
         case 'omitted': {
-          const identity = own(slot, 'identity');
+          const omittedVertexIdentity = own(slot, 'omittedVertexIdentity');
           return Object.freeze({
             kind: 'omitted',
-            identity:
-              identity === null
+            omittedVertexIdentity:
+              omittedVertexIdentity === null
                 ? null
                 : Object.freeze({
-                    vertexId: own(record(identity), 'vertexId') as ID,
+                    vertexId: own(
+                      record(omittedVertexIdentity),
+                      'vertexId',
+                    ) as VertexId,
                   }),
           });
         }
@@ -48,50 +56,58 @@ function slots<ID>(value: unknown): readonly DagDefinitionSlot<ID>[] {
 }
 
 /** Copy owned topology without executing sources or validating graph semantics. */
-export function defineDag<Data, ID = unknown>(
-  input: DagDefinition<Data, ID>,
-): DagDefinition<Data, ID> {
+export function copyAndNormalizeDagDefinition<Data, VertexId = unknown>(
+  input: DagDefinition<Data, VertexId>,
+): DagDefinition<Data, VertexId> {
   const declaration = record(input);
-  const identities = new Set<ID>();
-  const declare = (value: unknown): ID => {
-    const id = value as ID;
+  const identities = new Set<VertexId>();
+  const declare = (value: unknown): VertexId => {
+    const id = value as VertexId;
     if (identities.has(id))
       throw new TypeError('Duplicate DAG identity declaration');
     identities.add(id);
     return id;
   };
-  const vertices = Object.freeze(
-    array(own(declaration, 'vertices')).map((item) => {
+  const vertexDeclarations = Object.freeze(
+    array(own(declaration, 'vertexDeclarations')).map((item) => {
       const vertex = record(item);
       return Object.freeze({
         vertexId: declare(own(vertex, 'vertexId')),
         data: own(vertex, 'data') as Data,
-        slots: slots<ID>(own(vertex, 'slots')),
-        dependsOnWork: Object.freeze([
-          ...new Set(array(own(vertex, 'dependsOnWork')) as ID[]),
+        childDiscoverySlots: slots<VertexId>(
+          own(vertex, 'childDiscoverySlots'),
+        ),
+        workWaitsForWorkOf: Object.freeze([
+          ...new Set(array(own(vertex, 'workWaitsForWorkOf')) as VertexId[]),
         ]),
-        dependsOnSubgraphCompletion: Object.freeze([
-          ...new Set(array(own(vertex, 'dependsOnSubgraphCompletion')) as ID[]),
+        workWaitsForSubgraphCompletionOf: Object.freeze([
+          ...new Set(
+            array(
+              own(vertex, 'workWaitsForSubgraphCompletionOf'),
+            ) as VertexId[],
+          ),
         ]),
       });
     }),
   );
-  const omittedIds = Object.freeze(
-    array(own(declaration, 'omittedIds')).map(declare),
+  const omittedVertexIds = Object.freeze(
+    array(own(declaration, 'omittedVertexIds')).map(declare),
   );
   const entryInput = record(own(declaration, 'entry'));
-  let entry: DagDefinition<Data, ID>['entry'];
+  let entry: DagDefinition<Data, VertexId>['entry'];
   switch (own(entryInput, 'kind')) {
     case 'root':
       entry = Object.freeze({
         kind: 'root',
-        vertexId: own(entryInput, 'vertexId') as ID,
+        vertexId: own(entryInput, 'vertexId') as VertexId,
       });
       break;
     case 'roots':
       entry = Object.freeze({
         kind: 'roots',
-        slots: slots<ID>(own(entryInput, 'slots')),
+        entryDiscoverySlots: slots<VertexId>(
+          own(entryInput, 'entryDiscoverySlots'),
+        ),
       });
       break;
     case 'empty':
@@ -100,5 +116,5 @@ export function defineDag<Data, ID = unknown>(
     default:
       throw new TypeError('Unknown DAG definition entry kind');
   }
-  return Object.freeze({ vertices, omittedIds, entry });
+  return Object.freeze({ vertexDeclarations, omittedVertexIds, entry });
 }

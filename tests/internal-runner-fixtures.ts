@@ -1,9 +1,9 @@
 import { dagRunnerCapabilities } from '../src/traversals/dag-traversal/lib/dagRunnerCapabilities';
-import type { AsyncBreadthFirstTreeOptions } from '../src/traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig';
-import type { BreadthFirstTreeOptions } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig';
-import type { AsyncDepthFirstTreeOptions } from '../src/traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig';
-import type { DepthFirstTreeOptions } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { AsyncBreadthFirstTreeTraversalBuilderOptions } from '../src/traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig';
+import type { BreadthFirstTreeTraversalBuilderOptions } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig';
+import type { AsyncDepthFirstTreeTraversalBuilderOptions } from '../src/traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig';
+import type { DepthFirstTreeTraversalBuilderOptions } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 
 import { InternalDepthFirstTreeRunner } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunner';
 import type { DepthFirstTreeRunner } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunner';
@@ -11,15 +11,15 @@ import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeInstanceConfigs,
   type DepthFirstTreeResolvedOptions,
-  type DepthFirstTreeOptionsPatch,
+  type DepthFirstTreeTraversalBuilderOptionsPatch,
 } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
-import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { DepthFirstTreeTraversalBuilder } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
 
 export function createInternalDepthFirstTreeRunner<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  T extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  R extends VertexDataAndChildHintTypes = T,
 >(
-  input: DepthFirstTreeOptionsPatch<T, R> & {
+  input: DepthFirstTreeTraversalBuilderOptionsPatch<T, R> & {
     traversalRunnerInternalObjects?: Partial<
       DepthFirstTreeResolvedOptions<T, R>['traversalRunnerInternalObjects']
     >;
@@ -47,15 +47,15 @@ import {
   ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeAsyncDepthFirstTraversalInstanceConfigs,
   type AsyncDepthFirstTreeResolvedOptions,
-  type AsyncDepthFirstTreeOptionsPatch,
+  type AsyncDepthFirstTreeTraversalBuilderOptionsPatch,
 } from '../src/traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig';
-import { AsyncDepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/AsyncDepthFirstTraversal';
+import { AsyncDepthFirstTreeTraversalBuilder } from '../src/traversals/depth-first-traversal/AsyncDepthFirstTraversal';
 
 export function createInternalAsyncDepthFirstTreeRunner<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  T extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  R extends VertexDataAndChildHintTypes = T,
 >(
-  input: AsyncDepthFirstTreeOptionsPatch<T, R> & {
+  input: AsyncDepthFirstTreeTraversalBuilderOptionsPatch<T, R> & {
     traversalRunnerInternalObjects?: Partial<
       AsyncDepthFirstTreeResolvedOptions<T, R>['traversalRunnerInternalObjects']
     >;
@@ -83,15 +83,15 @@ import {
   BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeBreadthFirstTraversalInstanceConfigs,
   type BreadthFirstTreeResolvedOptions,
-  type BreadthFirstTreeOptionsPatch,
+  type BreadthFirstTreeTraversalBuilderOptionsPatch,
 } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig';
-import { BreadthFirstTreeTraversal } from '../src/traversals/breadth-first-traversal/BreadthFirstTraversal';
+import { BreadthFirstTreeTraversalBuilder } from '../src/traversals/breadth-first-traversal/BreadthFirstTraversal';
 
 export function createInternalBreadthFirstTreeRunner<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  T extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  R extends VertexDataAndChildHintTypes = T,
 >(
-  input: BreadthFirstTreeOptionsPatch<T, R> & {
+  input: BreadthFirstTreeTraversalBuilderOptionsPatch<T, R> & {
     traversalRunnerInternalObjects?: Partial<
       BreadthFirstTreeResolvedOptions<T, R>['traversalRunnerInternalObjects']
     >;
@@ -119,15 +119,15 @@ import {
   ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeAsyncBreadthFirstTraversalInstanceConfigs,
   type AsyncBreadthFirstTreeResolvedOptions,
-  type AsyncBreadthFirstTreeOptionsPatch,
+  type AsyncBreadthFirstTreeTraversalBuilderOptionsPatch,
 } from '../src/traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig';
-import { AsyncBreadthFirstTreeTraversal } from '../src/traversals/breadth-first-traversal/AsyncBreadthFirstTraversal';
+import { AsyncBreadthFirstTreeTraversalBuilder } from '../src/traversals/breadth-first-traversal/AsyncBreadthFirstTraversal';
 
 export function createInternalAsyncBreadthFirstTreeRunner<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  T extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  R extends VertexDataAndChildHintTypes = T,
 >(
-  input: AsyncBreadthFirstTreeOptionsPatch<T, R> & {
+  input: AsyncBreadthFirstTreeTraversalBuilderOptionsPatch<T, R> & {
     traversalRunnerInternalObjects?: Partial<
       AsyncBreadthFirstTreeResolvedOptions<
         T,
@@ -158,16 +158,16 @@ import {
   DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeDagTraversalInstanceConfigs,
   type DagResolvedOptions,
-  type DagOptions,
+  type DagTraversalBuilderOptions,
 } from '../src/traversals/dag-traversal/lib/DagTraversalInstanceConfig';
-import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import { DagTraversalBuilder } from '../src/traversals/dag-traversal/DagTraversal';
 
 export function createInternalDagTraversalRunner<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  T extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  R extends VertexDataAndChildHintTypes = T,
   ID = unknown,
 >(
-  input: DagOptions<T, R, ID> & {
+  input: DagTraversalBuilderOptions<T, R, ID> & {
     traversalRunnerInternalObjects?: Partial<
       DagResolvedOptions<T, R, ID>['traversalRunnerInternalObjects']
     >;
@@ -196,16 +196,16 @@ import {
   ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeAsyncDagTraversalInstanceConfigs,
   type AsyncDagResolvedOptions,
-  type AsyncDagOptions,
+  type AsyncDagTraversalBuilderOptions,
 } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { AsyncDagTraversalBuilder } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 
 export function createInternalAsyncDagTraversalRunner<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  T extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  R extends VertexDataAndChildHintTypes = T,
   ID = unknown,
 >(
-  input: AsyncDagOptions<T, R, ID> & {
+  input: AsyncDagTraversalBuilderOptions<T, R, ID> & {
     traversalRunnerInternalObjects?: Partial<
       AsyncDagResolvedOptions<T, R, ID>['traversalRunnerInternalObjects']
     >;
@@ -294,38 +294,38 @@ export function runnerInternals<R>(runner: R): RunnerInternals<R> {
   return runner as unknown as RunnerInternals<R>;
 }
 
-export type TraversalInternals<R> = R extends DepthFirstTreeTraversal<
+export type TraversalInternals<R> = R extends DepthFirstTreeTraversalBuilder<
   infer T,
   infer W
 >
   ? {
-      icfg: DepthFirstTreeTraversal<T, W>['icfg'];
-      visitors: DepthFirstTreeTraversal<T, W>['visitors'];
+      icfg: DepthFirstTreeTraversalBuilder<T, W>['icfg'];
+      visitors: DepthFirstTreeTraversalBuilder<T, W>['visitors'];
     }
-  : R extends AsyncDepthFirstTreeTraversal<infer T, infer W>
+  : R extends AsyncDepthFirstTreeTraversalBuilder<infer T, infer W>
   ? {
-      icfg: AsyncDepthFirstTreeTraversal<T, W>['icfg'];
-      visitors: AsyncDepthFirstTreeTraversal<T, W>['visitors'];
+      icfg: AsyncDepthFirstTreeTraversalBuilder<T, W>['icfg'];
+      visitors: AsyncDepthFirstTreeTraversalBuilder<T, W>['visitors'];
     }
-  : R extends BreadthFirstTreeTraversal<infer T, infer W>
+  : R extends BreadthFirstTreeTraversalBuilder<infer T, infer W>
   ? {
-      icfg: BreadthFirstTreeTraversal<T, W>['icfg'];
-      visitors: BreadthFirstTreeTraversal<T, W>['visitors'];
+      icfg: BreadthFirstTreeTraversalBuilder<T, W>['icfg'];
+      visitors: BreadthFirstTreeTraversalBuilder<T, W>['visitors'];
     }
-  : R extends AsyncBreadthFirstTreeTraversal<infer T, infer W>
+  : R extends AsyncBreadthFirstTreeTraversalBuilder<infer T, infer W>
   ? {
-      icfg: AsyncBreadthFirstTreeTraversal<T, W>['icfg'];
-      visitors: AsyncBreadthFirstTreeTraversal<T, W>['visitors'];
+      icfg: AsyncBreadthFirstTreeTraversalBuilder<T, W>['icfg'];
+      visitors: AsyncBreadthFirstTreeTraversalBuilder<T, W>['visitors'];
     }
-  : R extends DagTraversal<infer T, infer W, infer ID>
+  : R extends DagTraversalBuilder<infer T, infer W, infer ID>
   ? {
-      icfg: DagTraversal<T, W, ID>['icfg'];
-      visitors: DagTraversal<T, W, ID>['visitors'];
+      icfg: DagTraversalBuilder<T, W, ID>['icfg'];
+      visitors: DagTraversalBuilder<T, W, ID>['visitors'];
     }
-  : R extends AsyncDagTraversal<infer T, infer W, infer ID>
+  : R extends AsyncDagTraversalBuilder<infer T, infer W, infer ID>
   ? {
-      icfg: AsyncDagTraversal<T, W, ID>['icfg'];
-      visitors: AsyncDagTraversal<T, W, ID>['visitors'];
+      icfg: AsyncDagTraversalBuilder<T, W, ID>['icfg'];
+      visitors: AsyncDagTraversalBuilder<T, W, ID>['visitors'];
     }
   : never;
 
@@ -334,20 +334,20 @@ export function traversalInternals<R>(traversal: R): TraversalInternals<R> {
 }
 
 export function createInternalDepthFirstTreeTraversal<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  T extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  R extends VertexDataAndChildHintTypes = T,
 >(
-  input: DepthFirstTreeOptions<T, R> & {
+  input: DepthFirstTreeTraversalBuilderOptions<T, R> & {
     traversalRunnerInternalObjects?: Partial<
       DepthFirstTreeResolvedOptions<T, R>['traversalRunnerInternalObjects']
     >;
   },
-): DepthFirstTreeTraversal<T, R> {
+): DepthFirstTreeTraversalBuilder<T, R> {
   const { traversalRunnerInternalObjects, ...options } = input;
-  const traversal = new DepthFirstTreeTraversal<T, R>(
-    options as DepthFirstTreeOptions<T, R>,
+  const traversal = new DepthFirstTreeTraversalBuilder<T, R>(
+    options as DepthFirstTreeTraversalBuilderOptions<T, R>,
   );
-  traversal.createRunner = () =>
+  traversal.createIndependentRunnerFromCurrentOptions = () =>
     new InternalDepthFirstTreeRunner({
       ...traversalInternals(traversal).icfg,
       visitors: traversalInternals(traversal).visitors,
@@ -360,20 +360,20 @@ export function createInternalDepthFirstTreeTraversal<
 }
 
 export function createInternalAsyncDepthFirstTreeTraversal<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  T extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  R extends VertexDataAndChildHintTypes = T,
 >(
-  input: AsyncDepthFirstTreeOptions<T, R> & {
+  input: AsyncDepthFirstTreeTraversalBuilderOptions<T, R> & {
     traversalRunnerInternalObjects?: Partial<
       AsyncDepthFirstTreeResolvedOptions<T, R>['traversalRunnerInternalObjects']
     >;
   },
-): AsyncDepthFirstTreeTraversal<T, R> {
+): AsyncDepthFirstTreeTraversalBuilder<T, R> {
   const { traversalRunnerInternalObjects, ...options } = input;
-  const traversal = new AsyncDepthFirstTreeTraversal<T, R>(
-    options as AsyncDepthFirstTreeOptions<T, R>,
+  const traversal = new AsyncDepthFirstTreeTraversalBuilder<T, R>(
+    options as AsyncDepthFirstTreeTraversalBuilderOptions<T, R>,
   );
-  traversal.createRunner = () =>
+  traversal.createIndependentRunnerFromCurrentOptions = () =>
     new InternalAsyncDepthFirstTreeRunner({
       ...traversalInternals(traversal).icfg,
       visitors: traversalInternals(traversal).visitors,
@@ -386,20 +386,20 @@ export function createInternalAsyncDepthFirstTreeTraversal<
 }
 
 export function createInternalBreadthFirstTreeTraversal<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  T extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  R extends VertexDataAndChildHintTypes = T,
 >(
-  input: BreadthFirstTreeOptions<T, R> & {
+  input: BreadthFirstTreeTraversalBuilderOptions<T, R> & {
     traversalRunnerInternalObjects?: Partial<
       BreadthFirstTreeResolvedOptions<T, R>['traversalRunnerInternalObjects']
     >;
   },
-): BreadthFirstTreeTraversal<T, R> {
+): BreadthFirstTreeTraversalBuilder<T, R> {
   const { traversalRunnerInternalObjects, ...options } = input;
-  const traversal = new BreadthFirstTreeTraversal<T, R>(
-    options as BreadthFirstTreeOptions<T, R>,
+  const traversal = new BreadthFirstTreeTraversalBuilder<T, R>(
+    options as BreadthFirstTreeTraversalBuilderOptions<T, R>,
   );
-  traversal.createRunner = () =>
+  traversal.createIndependentRunnerFromCurrentOptions = () =>
     new InternalBreadthFirstTreeRunner({
       ...traversalInternals(traversal).icfg,
       visitors: traversalInternals(traversal).visitors,
@@ -412,10 +412,10 @@ export function createInternalBreadthFirstTreeTraversal<
 }
 
 export function createInternalAsyncBreadthFirstTreeTraversal<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  T extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  R extends VertexDataAndChildHintTypes = T,
 >(
-  input: AsyncBreadthFirstTreeOptions<T, R> & {
+  input: AsyncBreadthFirstTreeTraversalBuilderOptions<T, R> & {
     traversalRunnerInternalObjects?: Partial<
       AsyncBreadthFirstTreeResolvedOptions<
         T,
@@ -423,12 +423,12 @@ export function createInternalAsyncBreadthFirstTreeTraversal<
       >['traversalRunnerInternalObjects']
     >;
   },
-): AsyncBreadthFirstTreeTraversal<T, R> {
+): AsyncBreadthFirstTreeTraversalBuilder<T, R> {
   const { traversalRunnerInternalObjects, ...options } = input;
-  const traversal = new AsyncBreadthFirstTreeTraversal<T, R>(
-    options as AsyncBreadthFirstTreeOptions<T, R>,
+  const traversal = new AsyncBreadthFirstTreeTraversalBuilder<T, R>(
+    options as AsyncBreadthFirstTreeTraversalBuilderOptions<T, R>,
   );
-  traversal.createRunner = () =>
+  traversal.createIndependentRunnerFromCurrentOptions = () =>
     new InternalAsyncBreadthFirstTreeRunner({
       ...traversalInternals(traversal).icfg,
       visitors: traversalInternals(traversal).visitors,
@@ -441,19 +441,19 @@ export function createInternalAsyncBreadthFirstTreeTraversal<
 }
 
 export function createInternalDagTraversal<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  T extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  R extends VertexDataAndChildHintTypes = T,
   ID = unknown,
 >(
-  input: DagOptions<T, R, ID> & {
+  input: DagTraversalBuilderOptions<T, R, ID> & {
     traversalRunnerInternalObjects?: Partial<
       DagResolvedOptions<T, R, ID>['traversalRunnerInternalObjects']
     >;
   },
-): DagTraversal<T, R, ID> {
+): DagTraversalBuilder<T, R, ID> {
   const { traversalRunnerInternalObjects, ...options } = input;
-  const traversal = new DagTraversal<T, R, ID>(options as DagOptions<T, R, ID>);
-  traversal.createRunner = () =>
+  const traversal = new DagTraversalBuilder<T, R, ID>(options as DagTraversalBuilderOptions<T, R, ID>);
+  traversal.createIndependentRunnerFromCurrentOptions = () =>
     new InternalDagTraversalRunner({
       ...traversalInternals(traversal).icfg,
       visitors: traversalInternals(traversal).visitors,
@@ -466,21 +466,21 @@ export function createInternalDagTraversal<
 }
 
 export function createInternalAsyncDagTraversal<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  T extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  R extends VertexDataAndChildHintTypes = T,
   ID = unknown,
 >(
-  input: AsyncDagOptions<T, R, ID> & {
+  input: AsyncDagTraversalBuilderOptions<T, R, ID> & {
     traversalRunnerInternalObjects?: Partial<
       AsyncDagResolvedOptions<T, R, ID>['traversalRunnerInternalObjects']
     >;
   },
-): AsyncDagTraversal<T, R, ID> {
+): AsyncDagTraversalBuilder<T, R, ID> {
   const { traversalRunnerInternalObjects, ...options } = input;
-  const traversal = new AsyncDagTraversal<T, R, ID>(
-    options as AsyncDagOptions<T, R, ID>,
+  const traversal = new AsyncDagTraversalBuilder<T, R, ID>(
+    options as AsyncDagTraversalBuilderOptions<T, R, ID>,
   );
-  traversal.createRunner = () =>
+  traversal.createIndependentRunnerFromCurrentOptions = () =>
     new InternalAsyncDagTraversalRunner({
       ...traversalInternals(traversal).icfg,
       visitors: traversalInternals(traversal).visitors,
@@ -493,19 +493,19 @@ export function createInternalAsyncDagTraversal<
 }
 
 export function createInternalDagTraversalFor<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  T extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  R extends VertexDataAndChildHintTypes = T,
   ID = unknown,
 >(
   Constructor: unknown,
-  input: AsyncDagOptions<T, R, ID> & {
+  input: AsyncDagTraversalBuilderOptions<T, R, ID> & {
     traversalRunnerInternalObjects?: Partial<
       AsyncDagResolvedOptions<T, R, ID>['traversalRunnerInternalObjects']
     >;
   },
-): DagTraversal<T, R, ID> | AsyncDagTraversal<T, R, ID> {
-  return Constructor === DagTraversal
-    ? createInternalDagTraversal(input as DagOptions<T, R, ID>)
+): DagTraversalBuilder<T, R, ID> | AsyncDagTraversalBuilder<T, R, ID> {
+  return Constructor === DagTraversalBuilder
+    ? createInternalDagTraversal(input as DagTraversalBuilderOptions<T, R, ID>)
     : createInternalAsyncDagTraversal(input);
 }
 
@@ -514,15 +514,15 @@ export function inspectInternalDagState(runner: object) {
 }
 
 /** Deliberate engine-fixture access, never an ordinary runner capability. */
-export function internalTreeStore<T extends VertexTypes>(runner: {
-  getResolvedTreeView(): import('../src').ResolvedTreeView<T> | null;
-}): import('../src').ResolvedTreeStore<T> {
+export function internalTreeStore<T extends VertexDataAndChildHintTypes>(runner: {
+  getLiveResolvedTreeView(): import('../src').LiveResolvedTreeView<T> | null;
+}): import('../src').MutableResolvedTreeStore<T> {
   const state = runner as unknown as {
     resolvedTreesContainer?: {
-      resolvedTree: import('../src').ResolvedTreeStore<T>;
+      resolvedTree: import('../src').MutableResolvedTreeStore<T>;
     };
     resolvedGraphsContainer?: {
-      treeContainer: { resolvedTree: import('../src').ResolvedTreeStore<T> };
+      treeContainer: { resolvedTree: import('../src').MutableResolvedTreeStore<T> };
     };
   };
   return (

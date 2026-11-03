@@ -1,4 +1,4 @@
-import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
+import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { InternalVertexRef } from '../src/core/graph/types';
@@ -11,9 +11,9 @@ function result(
   dependsOnWork: readonly unknown[] = [],
 ): MakeVertexResult<TestGraph> {
   return {
-    vertexContent: { $data: id, $childHints: hints },
+    vertexContent: { $vertexData: id, $childDiscoveryHints: hints },
     vertexId: id,
-    dependsOnWork,
+    workWaitsForWorkOf: dependsOnWork,
   };
 }
 
@@ -21,13 +21,15 @@ function context(
   parentRef: InternalVertexRef<TestGraph>,
   hintIndex: number,
   depth = 1,
-): VertexResolutionContext<TestGraph> {
+): ChildDiscoveryContext<TestGraph> {
   return {
-    depth,
-    parentVertex: parentRef.getValue(),
-    parentVertexRef: parentRef,
-    hintIndex,
-    vertexHint: parentRef.getValue().getChildHints()[hintIndex]!,
+    discoveryDepthInEdges: depth,
+    parentVertexAtChildResolution: parentRef.getReferencedValue(),
+    parentVertexHandle: parentRef,
+    parentChildHintIndex: hintIndex,
+    childDiscoveryHint: parentRef
+      .getReferencedValue()
+      .getMutableChildDiscoveryHints()[hintIndex]!,
   };
 }
 
@@ -60,9 +62,13 @@ test('a shared descendant survives while it has another live parent', () => {
   scheduling.acceptVertex(context(bRef, 0), result('S'));
 
   expect(scheduling.deleteVertex(aRef)).toEqual(new Set([aRef]));
-  expect(container.resolvedGraphView.has(sharedRef)).toBe(true);
-  expect(container.resolvedGraphView.getParentsOf(sharedRef)).toEqual([bRef]);
-  expect(container.resolvedGraphView.getChildrenOf(rootRef)).toEqual([bRef]);
+  expect(container.liveResolvedGraphView.has(sharedRef)).toBe(true);
+  expect(container.liveResolvedGraphView.getParentsOf(sharedRef)).toEqual([
+    bRef,
+  ]);
+  expect(container.liveResolvedGraphView.getChildrenOf(rootRef)).toEqual([
+    bRef,
+  ]);
 });
 
 test('declared dependency deletion cascades despite surviving graph parents', () => {
@@ -80,8 +86,8 @@ test('declared dependency deletion cascades despite surviving graph parents', ()
   scheduling.acceptVertex(context(bRef, 0), result('D'));
 
   expect(scheduling.deleteVertex(aRef)).toEqual(new Set([aRef, dependentRef]));
-  expect(container.resolvedGraphView.has(dependentRef)).toBe(false);
-  expect(container.resolvedGraphView.getChildrenOf(bRef)).toEqual([]);
+  expect(container.liveResolvedGraphView.has(dependentRef)).toBe(false);
+  expect(container.liveResolvedGraphView.getChildrenOf(bRef)).toEqual([]);
 });
 
 test('tombstones delete late dependents before admission', () => {
@@ -93,7 +99,7 @@ test('tombstones delete late dependents before admission', () => {
     scheduling.acceptVertex(context(rootRef, 1), result('late', [], ['A'])),
   ).toBeNull();
   expect(container.store.getIdState('late')).toEqual({ kind: 'deleted' });
-  expect(container.resolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
+  expect(container.liveResolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
     'deleted',
   );
 });
@@ -117,10 +123,12 @@ test('late tombstoning cascades to earlier dependents', () => {
   expect(container.store.getIdState('X')).toEqual({ kind: 'deleted' });
   expect(container.store.getIdState('D')).toEqual({ kind: 'deleted' });
   expect(container.store.getIdState('E')).toEqual({ kind: 'deleted' });
-  expect(container.resolvedGraphView.has(dependentRef)).toBe(false);
-  expect(container.resolvedGraphView.has(cascadeRef)).toBe(false);
+  expect(container.liveResolvedGraphView.has(dependentRef)).toBe(false);
+  expect(container.liveResolvedGraphView.has(cascadeRef)).toBe(false);
   expect(
-    container.resolvedGraphView.get(rootRef)?.slots.map((slot) => slot.kind),
+    container.liveResolvedGraphView
+      .get(rootRef)
+      ?.slots.map((slot) => slot.kind),
   ).toEqual(['deleted', 'deleted', 'deleted', 'deleted']);
 });
 
@@ -132,8 +140,8 @@ test('deleting the root returns every affected ref and empties the graph', () =>
   expect(scheduling.deleteVertex(rootRef)).toEqual(
     new Set([rootRef, aRef, bRef]),
   );
-  expect(container.resolvedGraphView.getRoot()).toBeNull();
-  expect(container.resolvedGraphView.getVertexRefs()).toEqual([]);
+  expect(container.liveResolvedGraphView.getRoot()).toBeNull();
+  expect(container.liveResolvedGraphView.getVertexRefs()).toEqual([]);
   expect(scheduling.getStall()).toBeNull();
 });
 
@@ -145,7 +153,9 @@ test('disabling a subtree during its initial visit closes its slots', () => {
 
   scheduling.disableSubtree(rootRef);
   expect(
-    container.resolvedGraphView.get(rootRef)?.slots.map((slot) => slot.kind),
+    container.liveResolvedGraphView
+      .get(rootRef)
+      ?.slots.map((slot) => slot.kind),
   ).toEqual(['disabled', 'disabled']);
   expect(scheduling.takeCompleting()).toBeNull();
 
@@ -182,7 +192,7 @@ test('deep and wide deletion cascades use iterative worklists', () => {
 
   expect(scheduling.deleteVertex(deepRoot).size).toBe(depth);
   expect(scheduling.deleteVertex(wideRoot).size).toBe(width + 1);
-  expect(container.resolvedGraphView.getVertexRefs()).toEqual([rootRef]);
+  expect(container.liveResolvedGraphView.getVertexRefs()).toEqual([rootRef]);
 });
 
 test('detached anchors retain ownership after later discovery', () => {
@@ -200,9 +210,9 @@ test('detached anchors retain ownership after later discovery', () => {
   scheduling.prepareSlots(anchor, ['child']);
   const child = scheduling.acceptVertex(context(anchor, 0), result('child'))!;
   scheduling.deleteVertex(parent);
-  expect(container.resolvedGraphView.has(anchor)).toBe(true);
-  expect(container.resolvedGraphView.getParentsOf(anchor)).toEqual([]);
-  expect(container.resolvedGraphView.has(child)).toBe(true);
+  expect(container.liveResolvedGraphView.has(anchor)).toBe(true);
+  expect(container.liveResolvedGraphView.getParentsOf(anchor)).toEqual([]);
+  expect(container.liveResolvedGraphView.has(child)).toBe(true);
   expect(scheduling.deleteVertex(anchor)).toEqual(new Set([anchor, child]));
   expect(container.isDetachedAnchor(anchor)).toBe(false);
 });
@@ -218,7 +228,7 @@ test('deleting the original root includes detached anchors and their normal chil
   expect(scheduling.deleteVertex(rootRef)).toEqual(
     new Set([rootRef, anchor, child]),
   );
-  expect(container.resolvedGraphView.getVertexRefs()).toEqual([]);
+  expect(container.liveResolvedGraphView.getVertexRefs()).toEqual([]);
   expect(scheduling.acceptPrerequisite('anchor', result('anchor'))).toBeNull();
   expect(container.isDetachedAnchor(anchor)).toBe(false);
 });
@@ -237,7 +247,7 @@ test('lookup acceptance honors live identity, omissions, and deleted prerequisit
   expect(
     scheduling.acceptPrerequisite('lookup', result('lookup', [], ['deleted'])),
   ).toBeNull();
-  expect(container.resolvedGraphView.has(dependent)).toBe(false);
+  expect(container.liveResolvedGraphView.has(dependent)).toBe(false);
   expect(container.store.getIdState('lookup')).toEqual({ kind: 'deleted' });
   expect(
     scheduling.acceptPrerequisite('root', result('root', ['ignored'])),
@@ -268,8 +278,8 @@ test('a quiescent scheduler restored from the container keeps detached anchor ow
   const restored = new GraphScheduling(container);
   restored.restoreDagSeed([{ ref: anchor, order: 'ON_WORK_READY' }]);
   expect(restored.deleteVertex(parent)).toEqual(new Set([parent]));
-  expect(container.resolvedGraphView.has(anchor)).toBe(true);
-  expect(container.resolvedGraphView.getParentsOf(anchor)).toEqual([]);
+  expect(container.liveResolvedGraphView.has(anchor)).toBe(true);
+  expect(container.liveResolvedGraphView.getParentsOf(anchor)).toEqual([]);
   expect(restored.takeRemovedRefs()).toEqual(new Set([parent]));
   expect(restored.takeRemovedRefs()).toEqual(new Set());
 });
@@ -292,5 +302,5 @@ test('a dependency cascade reaching the ordinary root also removes independent a
   expect(scheduling.deleteVertex(prerequisite)).toEqual(
     new Set([prerequisite, root, independent]),
   );
-  expect(container.resolvedGraphView.getVertexRefs()).toEqual([]);
+  expect(container.liveResolvedGraphView.getVertexRefs()).toEqual([]);
 });

@@ -1,8 +1,8 @@
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { VisitResult } from '../src/core/graph/types';
+import type { VisitorCallbackReturnValue } from '../src/core/graph/types';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { AsyncDagTraversalBuilder } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 import type { TestGraph } from './helpers/graph-fixtures';
@@ -24,32 +24,40 @@ function twoBranches() {
 test('halts the requester between visitors without repeating the first visitor', async () => {
   const halt = deferred<void>();
   const calls: string[] = [];
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({
       root: { children: [], dependencies: [] },
     }),
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, async () => {
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, async () => {
     calls.push('first');
     await halt.promise;
-    return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
+    return {
+      commands: [
+        { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+      ],
+    };
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, async () => {
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, async () => {
     calls.push('second');
   });
-  const runner = traversal.createRunner();
-  const first = runner.iterateEvents({ emitEvents: ['workCompleted'] });
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  const first = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: ['workCompletionCommitted'],
+  });
   const halted = first.next();
   await eventLoopTurn();
   expect(calls).toEqual(['first']);
 
   halt.resolve();
   await expect(halted).resolves.toEqual({ done: true, value: undefined });
-  expect(runner.getStatus()).toBe(Status.HALTED);
-  const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
+  const resumed = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    { deliveredEventKinds: ['workCompletionCommitted'] },
+  );
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $data: 'root' } },
+    value: { vertex: { $vertexData: 'root' } },
   });
   expect(calls).toEqual(['first', 'second']);
   await expect(resumed.next()).resolves.toEqual({
@@ -62,27 +70,40 @@ test('delivers another started chain once while the requester halts', async () =
   const haltA = deferred<void>();
   const finishB = deferred<void>();
   const calls: string[] = [];
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: twoBranches(),
-    concurrency: 2,
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: twoBranches(),
+    maxConcurrentCallbackInvocations: 2,
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) => {
-    const data = vertex.getData();
-    calls.push(`${data}:first`);
-    if (data === 'A') {
-      await haltA.promise;
-      return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
-    }
-    if (data === 'B') await finishB.promise;
-    return undefined;
-  });
-  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) => {
-    calls.push(`${vertex.getData()}:second`);
-  });
-  const runner = traversal.createRunner();
-  const iterator = runner.iterateEvents({ emitEvents: ['workCompleted'] });
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    async (vertex) => {
+      const data = vertex.getVertexData();
+      calls.push(`${data}:first`);
+      if (data === 'A') {
+        await haltA.promise;
+        return {
+          commands: [
+            { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+          ],
+        };
+      }
+      if (data === 'B') await finishB.promise;
+      return undefined;
+    },
+  );
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    async (vertex) => {
+      calls.push(`${vertex.getVertexData()}:second`);
+    },
+  );
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: ['workCompletionCommitted'],
+    });
 
-  expect((await iterator.next()).value?.vertex.getData()).toBe('root');
+  expect((await iterator.next()).value?.vertex.getVertexData()).toBe('root');
   const drainingEvent = iterator.next();
   await eventLoopTurn();
   expect(calls).toEqual(['root:first', 'root:second', 'A:first', 'B:first']);
@@ -95,19 +116,21 @@ test('delivers another started chain once while the requester halts', async () =
   finishB.resolve();
   await expect(drainingEvent).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $data: 'B' } },
+    value: { vertex: { $vertexData: 'B' } },
   });
   await expect(iterator.next()).resolves.toEqual({
     done: true,
     value: undefined,
   });
   expect(calls.filter((call) => call === 'B:second')).toHaveLength(1);
-  expect(runner.getStatus()).toBe(Status.HALTED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
 
-  const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
+  const resumed = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    { deliveredEventKinds: ['workCompletionCommitted'] },
+  );
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $data: 'A' } },
+    value: { vertex: { $vertexData: 'A' } },
   });
   expect(calls.filter((call) => call === 'A:first')).toHaveLength(1);
   expect(calls.filter((call) => call === 'A:second')).toHaveLength(1);
@@ -120,21 +143,27 @@ test('delivers another started chain once while the requester halts', async () =
 test('loop close waits for a pending visitor and preserves its buffered event', async () => {
   const childVisit = deferred<void>();
   const started = deferred<void>();
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({
       root: { children: ['child'], dependencies: [] },
       child: { children: [], dependencies: ['root'] },
     }),
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) => {
-    if (vertex.getData() === 'child') {
-      started.resolve();
-      await childVisit.promise;
-    }
-  });
-  const runner = traversal.createRunner();
-  const iterator = runner.iterateEvents({ emitEvents: ['workCompleted'] });
-  expect((await iterator.next()).value?.vertex.getData()).toBe('root');
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    async (vertex) => {
+      if (vertex.getVertexData() === 'child') {
+        started.resolve();
+        await childVisit.promise;
+      }
+    },
+  );
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: ['workCompletionCommitted'],
+    });
+  expect((await iterator.next()).value?.vertex.getVertexData()).toBe('root');
   const pending = iterator.next();
   await started.promise;
 
@@ -145,16 +174,22 @@ test('loop close waits for a pending visitor and preserves its buffered event', 
   });
   await eventLoopTurn();
   expect(closed).toBe(false);
-  const competing = runner.iterateEvents();
+  const competing =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await expect(competing.next()).rejects.toThrow('Another active iterator');
 
   childVisit.resolve();
   await expect(closing).resolves.toEqual({ done: true, value: undefined });
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
-  const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
+  const resumed = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    { deliveredEventKinds: ['workCompletionCommitted'] },
+  );
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $data: 'child' }, kind: 'workCompleted' },
+    value: {
+      vertex: { $vertexData: 'child' },
+      eventKind: 'workCompletionCommitted',
+    },
   });
   await expect(resumed.next()).resolves.toEqual({
     done: true,
@@ -165,20 +200,25 @@ test('loop close waits for a pending visitor and preserves its buffered event', 
 test('a committed buffered event obeys the resumed delivery selector', async () => {
   const childVisit = deferred<void>();
   const started = deferred<void>();
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({
       root: { children: ['child'], dependencies: [] },
       child: { children: [], dependencies: ['root'] },
     }),
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) => {
-    if (vertex.getData() === 'child') {
-      started.resolve();
-      await childVisit.promise;
-    }
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    async (vertex) => {
+      if (vertex.getVertexData() === 'child') {
+        started.resolve();
+        await childVisit.promise;
+      }
+    },
+  );
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  const first = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: ['workCompletionCommitted'],
   });
-  const runner = traversal.createRunner();
-  const first = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   await first.next();
   const pending = first.next();
   await started.promise;
@@ -187,7 +227,10 @@ test('a committed buffered event obeys the resumed delivery selector', async () 
   childVisit.resolve();
   await expect(closing).resolves.toEqual({ done: true, value: undefined });
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
-  const changedFilters = runner.iterateEvents({ emitEvents: [] });
+  const changedFilters =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: [],
+    });
   await expect(changedFilters.next()).resolves.toEqual({
     done: true,
     value: undefined,
@@ -199,42 +242,55 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
   const childHalt = deferred<void>();
   const childStarted = deferred<void>();
   const calls: string[] = [];
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({
       root: { children: ['child'], dependencies: [] },
       child: { children: [], dependencies: ['root'] },
     }),
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) => {
-    const data = vertex.getData();
-    calls.push(`${data}:halt`);
-    if (data === 'root') await rootHalt.promise;
-    else {
-      childStarted.resolve();
-      await childHalt.promise;
-    }
-    return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
-  });
-  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) => {
-    calls.push(`${vertex.getData()}:after`);
-  });
-  const runner = traversal.createRunner();
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    async (vertex) => {
+      const data = vertex.getVertexData();
+      calls.push(`${data}:halt`);
+      if (data === 'root') await rootHalt.promise;
+      else {
+        childStarted.resolve();
+        await childHalt.promise;
+      }
+      return {
+        commands: [
+          { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+        ],
+      };
+    },
+  );
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    async (vertex) => {
+      calls.push(`${vertex.getVertexData()}:after`);
+    },
+  );
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
   const events: string[] = [];
 
-  const first = runner.iterateEvents({ emitEvents: ['workCompleted'] });
+  const first = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: ['workCompletionCommitted'],
+  });
   const firstNext = first.next();
   await eventLoopTurn();
   expect(calls).toEqual(['root:halt']);
   rootHalt.resolve();
   await expect(firstNext).resolves.toEqual({ done: true, value: undefined });
-  expect(runner.getStatus()).toBe(Status.HALTED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
 
-  const closingIterator = runner.iterateEvents({
-    emitEvents: ['workCompleted'],
-  });
+  const closingIterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: ['workCompletionCommitted'],
+    });
   const rootEvent = await closingIterator.next();
   expect(rootEvent.done).toBe(false);
-  events.push(rootEvent.value!.vertex.getData());
+  events.push(rootEvent.value!.vertex.getVertexData());
   const childEvent = closingIterator.next();
   await childStarted.promise;
   let closed = false;
@@ -244,20 +300,23 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
   });
   await eventLoopTurn();
   expect(closed).toBe(false);
-  const competing = runner.iterateEvents({
-    emitEvents: ['workCompleted'],
-  });
+  const competing =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: ['workCompletionCommitted'],
+    });
   await expect(competing.next()).rejects.toThrow('Another active iterator');
 
   childHalt.resolve();
   await expect(closing).resolves.toEqual({ done: true, value: undefined });
   await expect(childEvent).resolves.toEqual({ done: true, value: undefined });
-  expect(runner.getStatus()).toBe(Status.HALTED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
 
-  const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
+  const resumed = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    { deliveredEventKinds: ['workCompletionCommitted'] },
+  );
   const resumedEvent = await resumed.next();
   expect(resumedEvent.done).toBe(false);
-  events.push(resumedEvent.value!.vertex.getData());
+  events.push(resumedEvent.value!.vertex.getVertexData());
   await expect(resumed.next()).resolves.toEqual({
     done: true,
     value: undefined,
@@ -270,7 +329,7 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
     'child:after',
   ]);
   expect(events).toEqual(['root', 'child']);
-  expect(runner.getStatus()).toBe(Status.FINISHED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
 });
 
 test('shared DAG objects retain one runner owner through halt and release at finish', async () => {
@@ -285,67 +344,96 @@ test('shared DAG objects retain one runner owner through halt and release at fin
   });
   const makeTraversal = () =>
     createInternalAsyncDagTraversal<TestGraph>({
-      traversableGraph: source,
+      dagDiscoverySource: source,
       traversalRunnerInternalObjects: {
         state,
         resolvedGraphsContainer: container,
       },
     });
   const ownerTraversal = makeTraversal();
-  ownerTraversal.addVisitorFor(Order.ON_WORK_READY, async () => {
-    await halt.promise;
-    return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
-  });
-  const owner = ownerTraversal.createRunner();
-  const competitor = makeTraversal().createRunner();
-  const ownerIterator = owner.iterateEvents();
+  ownerTraversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    async () => {
+      await halt.promise;
+      return {
+        commands: [
+          { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+        ],
+      };
+    },
+  );
+  const owner = ownerTraversal.createIndependentRunnerFromCurrentOptions();
+  const competitor =
+    makeTraversal().createIndependentRunnerFromCurrentOptions();
+  const ownerIterator =
+    owner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const ownerNext = ownerIterator.next();
   await eventLoopTurn();
 
-  const competitorConfig = competitor.inspect().executionOptions;
+  const competitorConfig =
+    competitor.captureExecutionSnapshot().executionOptions;
   await expect(
-    competitor.iterateEvents({ emitEvents: [] }).next(),
+    competitor
+      .runAndIterateObservationEventsUntilSuspendedOrTerminal({
+        deliveredEventKinds: [],
+      })
+      .next(),
   ).rejects.toThrow(/another active runner/i);
-  expect(competitor.inspect().executionOptions).toEqual(competitorConfig);
-  expect(owner.getStatus()).toBe(Status.RUNNING);
+  expect(competitor.captureExecutionSnapshot().executionOptions).toEqual(
+    competitorConfig,
+  );
+  expect(owner.getTraversalLifecycleStatus()).toBe(Status.RUNNING);
   halt.resolve();
   await expect(ownerNext).resolves.toEqual({ done: true, value: undefined });
-  expect(owner.getStatus()).toBe(Status.HALTED);
-  await expect(competitor.iterateEvents().next()).rejects.toThrow(
-    /another active runner/i,
-  );
+  expect(owner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
+  await expect(
+    competitor.runAndIterateObservationEventsUntilSuspendedOrTerminal().next(),
+  ).rejects.toThrow(/another active runner/i);
 
-  await owner.run();
-  expect(owner.getStatus()).toBe(Status.FINISHED);
-  await expect(makeTraversal().createRunner().run()).resolves.toBeDefined();
+  await owner.runUntilSuspendedOrTerminal();
+  expect(owner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
+  await expect(
+    makeTraversal()
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal(),
+  ).resolves.toBeDefined();
 });
 
 test('close does not await a pending resolver and reuses its result on resume', async () => {
   const child = deferred<{
-    kind: 'found';
-    vertex: {
+    kind: 'vertexResolved';
+    resolvedVertexInput: {
       vertexId: string;
-      dependsOnWork: string[];
-      vertexContent: { $data: string; $childHints: string[] };
+      workWaitsForWorkOf: string[];
+      vertexContentInput: {
+        $vertexData: string;
+        $childDiscoveryHints: string[];
+      };
     };
   }>();
   let resolutions = 0;
-  const runner = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: {
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
+  const runner = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: 'root',
-          vertexContent: { $data: 'root', $childHints: ['child'] },
+          vertexContentInput: {
+            $vertexData: 'root',
+            $childDiscoveryHints: ['child'],
+          },
         },
       }),
-      resolveChild: () => {
+      resolveChildHint: () => {
         resolutions++;
         return child.promise;
       },
     },
-  }).createRunner();
-  const iterator = runner.iterateEvents({ emitEvents: ['workCompleted'] });
+  }).createIndependentRunnerFromCurrentOptions();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: ['workCompletionCommitted'],
+    });
   await iterator.next();
   const pending = iterator.next();
   await eventLoopTurn();
@@ -356,21 +444,23 @@ test('close does not await a pending resolver and reuses its result on resume', 
     value: undefined,
   });
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
-  expect(runner.getStatus()).toBe(Status.HALTED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
   child.resolve({
-    kind: 'found' as const,
-    vertex: {
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId: 'child',
-      dependsOnWork: ['root'],
-      vertexContent: { $data: 'child', $childHints: [] },
+      workWaitsForWorkOf: ['root'],
+      vertexContentInput: { $vertexData: 'child', $childDiscoveryHints: [] },
     },
   });
   await eventLoopTurn();
 
-  const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
+  const resumed = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    { deliveredEventKinds: ['workCompletionCommitted'] },
+  );
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $data: 'child' } },
+    value: { vertex: { $vertexData: 'child' } },
   });
   expect(resolutions).toBe(1);
   await resumed.return(undefined);
@@ -378,35 +468,50 @@ test('close does not await a pending resolver and reuses its result on resume', 
 
 test('cascade deletion invalidates running dependents and all late outcomes', async () => {
   const deleteA = deferred<void>();
-  const bVisit = deferred<VisitResult<TestGraph, 'ON_WORK_READY', 'dag'>>();
-  const cVisit = deferred<VisitResult<TestGraph, 'ON_WORK_READY', 'dag'>>();
+  const bVisit =
+    deferred<VisitorCallbackReturnValue<TestGraph, 'ON_WORK_READY', 'dag'>>();
+  const cVisit =
+    deferred<VisitorCallbackReturnValue<TestGraph, 'ON_WORK_READY', 'dag'>>();
   const started: string[] = [];
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({
       root: { children: ['A', 'B', 'C'], dependencies: [] },
       A: { children: [], dependencies: ['root'] },
       B: { children: [], dependencies: ['A'] },
       C: { children: [], dependencies: ['A'] },
     }),
-    concurrency: 3,
+    maxConcurrentCallbackInvocations: 3,
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) => {
-    const data = vertex.getData();
-    if (data === 'B' || data === 'C') started.push(data);
-    if (data === 'B') return bVisit.promise;
-    if (data === 'C') return cVisit.promise;
-    return undefined;
-  });
-  traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, async (vertex) => {
-    if (vertex.getData() !== 'A') return undefined;
-    await deleteA.promise;
-    return { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] };
-  });
-  const runner = traversal.createRunner();
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    async (vertex) => {
+      const data = vertex.getVertexData();
+      if (data === 'B' || data === 'C') started.push(data);
+      if (data === 'B') return bVisit.promise;
+      if (data === 'C') return cVisit.promise;
+      return undefined;
+    },
+  );
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_SUBGRAPH_COMPLETION_READY,
+    async (vertex) => {
+      if (vertex.getVertexData() !== 'A') return undefined;
+      await deleteA.promise;
+      return {
+        commands: [
+          {
+            commandName:
+              Command.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+          },
+        ],
+      };
+    },
+  );
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
   const events: string[] = [];
   const running = (async () => {
-    for await (const event of runner.iterateEvents()) {
-      events.push(`${event.kind}:${event.vertex.getData()}`);
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal()) {
+      events.push(`${event.eventKind}:${event.vertex.getVertexData()}`);
     }
   })();
   await eventLoopTurn();
@@ -416,77 +521,81 @@ test('cascade deletion invalidates running dependents and all late outcomes', as
   deleteA.resolve();
   await running;
   const beforeLate = runner
-    .getResolvedGraphView()
-    .getVertexRefs()
-    .map((ref) => ref.getValue().getData());
+    .getLiveResolvedGraphView()
+    .getVertexHandles()
+    .map((ref) => ref.getCurrentVertexView().getVertexData());
   expect(beforeLate).toEqual(['root']);
   const eventsBeforeLate = events.slice();
-  expect(eventsBeforeLate).not.toContain('workCompleted:B');
-  expect(eventsBeforeLate).not.toContain('workCompleted:C');
+  expect(eventsBeforeLate).not.toContain('workCompletionCommitted:B');
+  expect(eventsBeforeLate).not.toContain('workCompletionCommitted:C');
 
   bVisit.resolve({
     commands: [
       {
-        commandName: Command.REWRITE_VERTEX_DATA,
-        commandArguments: { newData: 'late mutation' },
+        commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+        commandArguments: { replacementVertexData: 'late mutation' },
       },
     ],
   });
   const lateFailure = new Error('late invalid failure');
   cVisit.reject(lateFailure);
   await eventLoopTurn();
-  expect(runner.getStatus()).toBe(Status.FINISHED);
-  await expect(runner.run()).resolves.toBe(runner);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
+  await expect(runner.runUntilSuspendedOrTerminal()).resolves.toBe(runner);
   expect(events).toEqual(eventsBeforeLate);
   expect(
     runner
-      .getResolvedGraphView()
-      .getVertexRefs()
-      .map((ref) => ref.getValue().getData()),
+      .getLiveResolvedGraphView()
+      .getVertexHandles()
+      .map((ref) => ref.getCurrentVertexView().getVertexData()),
   ).toEqual(beforeLate);
 });
 
 test('retains the first live failure and ignores later sibling settlement', async () => {
   const failure = new Error('first live failure');
-  const aVisit = deferred<VisitResult<TestGraph, 'ON_WORK_READY', 'dag'>>();
-  const bVisit = deferred<VisitResult<TestGraph, 'ON_WORK_READY', 'dag'>>();
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: twoBranches(),
-    concurrency: 2,
+  const aVisit =
+    deferred<VisitorCallbackReturnValue<TestGraph, 'ON_WORK_READY', 'dag'>>();
+  const bVisit =
+    deferred<VisitorCallbackReturnValue<TestGraph, 'ON_WORK_READY', 'dag'>>();
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: twoBranches(),
+    maxConcurrentCallbackInvocations: 2,
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
-    if (vertex.getData() === 'A') return aVisit.promise;
-    if (vertex.getData() === 'B') return bVisit.promise;
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+    if (vertex.getVertexData() === 'A') return aVisit.promise;
+    if (vertex.getVertexData() === 'B') return bVisit.promise;
     return undefined;
   });
-  const runner = traversal.createRunner();
-  const running = runner.run({ emitEvents: [] });
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  const running = runner.runUntilSuspendedOrTerminal({
+    deliveredEventKinds: [],
+  });
   await eventLoopTurn();
   await eventLoopTurn();
 
   aVisit.reject(failure);
   await expect(running).rejects.toBe(failure);
   const beforeLate = runner
-    .getResolvedGraphView()
-    .getVertexRefs()
-    .map((ref) => ref.getValue().getData());
+    .getLiveResolvedGraphView()
+    .getVertexHandles()
+    .map((ref) => ref.getCurrentVertexView().getVertexData());
   bVisit.resolve({
     commands: [
       {
-        commandName: Command.REWRITE_VERTEX_DATA,
-        commandArguments: { newData: 'late mutation' },
+        commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+        commandArguments: { replacementVertexData: 'late mutation' },
       },
     ],
   });
   await eventLoopTurn();
 
-  expect(runner.getStatus()).toBe(Status.FAILED);
-  await expect(runner.run()).rejects.toBe(failure);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FAILED);
+  await expect(runner.runUntilSuspendedOrTerminal()).rejects.toBe(failure);
   expect(
     runner
-      .getResolvedGraphView()
-      .getVertexRefs()
-      .map((ref) => ref.getValue().getData()),
+      .getLiveResolvedGraphView()
+      .getVertexHandles()
+      .map((ref) => ref.getCurrentVertexView().getVertexData()),
   ).toEqual(beforeLate);
 });
 
@@ -496,25 +605,30 @@ test('consumer error escapes while a draining traversal failure is retained', as
   const bStarted = deferred<void>();
   const failure = new Error('draining traversal failure');
   const consumerError = new Error('consumer failure');
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: twoBranches(),
-    concurrency: 2,
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: twoBranches(),
+    maxConcurrentCallbackInvocations: 2,
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) => {
-    if (vertex.getData() === 'A') await finishA.promise;
-    if (vertex.getData() === 'B') {
-      bStarted.resolve();
-      await bVisit.promise;
-    }
-  });
-  const runner = traversal.createRunner();
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    async (vertex) => {
+      if (vertex.getVertexData() === 'A') await finishA.promise;
+      if (vertex.getVertexData() === 'B') {
+        bStarted.resolve();
+        await bVisit.promise;
+      }
+    },
+  );
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
   let caught: unknown;
   const consuming = (async () => {
     try {
-      for await (const event of runner.iterateEvents({
-        emitEvents: ['workCompleted'],
-      })) {
-        if (event.vertex.getData() === 'A') throw consumerError;
+      for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+        {
+          deliveredEventKinds: ['workCompletionCommitted'],
+        },
+      )) {
+        if (event.vertex.getVertexData() === 'A') throw consumerError;
       }
     } catch (error) {
       caught = error;
@@ -528,8 +642,8 @@ test('consumer error escapes while a draining traversal failure is retained', as
   bVisit.reject(failure);
   await consuming;
   expect(caught).toBe(consumerError);
-  expect(runner.getStatus()).toBe(Status.FAILED);
-  await expect(runner.run()).rejects.toBe(failure);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FAILED);
+  await expect(runner.runUntilSuspendedOrTerminal()).rejects.toBe(failure);
 });
 
 test('inspection is detached and inert during pending, halting, and failed work', async () => {
@@ -537,73 +651,77 @@ test('inspection is detached and inert during pending, halting, and failed work'
   const started = deferred<void>();
   const failure = new Error('inspection failure');
   let sourceCalls = 0;
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: {
-      resolveRoot: () => {
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: {
+      resolveRootVertex: () => {
         sourceCalls++;
         return {
-          kind: 'found' as const,
-          vertex: {
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: 'root',
-            vertexContent: { $data: 'root', $childHints: [] },
+            vertexContentInput: {
+              $vertexData: 'root',
+              $childDiscoveryHints: [],
+            },
           },
         };
       },
-      resolveChild: () => ({
-        identity: null,
-        kind: 'omitted' as const,
-        satisfiesDependencies: true as const,
+      resolveChildHint: () => ({
+        omittedVertexIdentity: null,
+        kind: 'vertexIntentionallyOmitted' as const,
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
       }),
     },
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, async () => {
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, async () => {
     started.resolve();
     await pendingVisit.promise;
     throw failure;
   });
-  const runner = traversal.createRunner();
-  const initial = runner.inspect();
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  const initial = runner.captureExecutionSnapshot();
   expect(sourceCalls).toBe(0);
   expect(Object.isFrozen(initial)).toBe(true);
-  const iterator = runner.iterateEvents();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const next = iterator.next();
   await started.promise;
 
-  const pending = runner.inspect();
-  expect(pending.inFlightCallbackCount).toBe(1);
+  const pending = runner.captureExecutionSnapshot();
+  expect(pending.inFlightInvocationCount).toBe(1);
   const closing = iterator.return(undefined);
-  const halting = runner.inspect();
-  expect(halting.inFlightCallbackCount).toBe(1);
+  const halting = runner.captureExecutionSnapshot();
+  expect(halting.inFlightInvocationCount).toBe(1);
   expect(sourceCalls).toBe(1);
   expect(pending).not.toBe(halting);
 
   pendingVisit.resolve();
   await expect(closing).rejects.toBe(failure);
   await expect(next).rejects.toBe(failure);
-  const failed = runner.inspect();
-  expect(failed.status).toBe(Status.FAILED);
-  expect(failed.inFlightCallbackCount).toBe(0);
+  const failed = runner.captureExecutionSnapshot();
+  expect(failed.traversalLifecycleStatus).toBe(Status.FAILED);
+  expect(failed.inFlightInvocationCount).toBe(0);
   expect(sourceCalls).toBe(1);
-  await expect(runner.run()).rejects.toBe(failure);
+  await expect(runner.runUntilSuspendedOrTerminal()).rejects.toBe(failure);
 });
 
 test('retains undefined as the exact traversal failure sentinel', async () => {
   const root = deferred<{
-    kind: 'omitted';
-    identity: null;
-    satisfiesDependencies: true;
+    kind: 'vertexIntentionallyOmitted';
+    omittedVertexIdentity: null;
+    satisfiesWorkAndSubgraphCompletionPrerequisites: true;
   }>();
-  const runner = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: {
-      resolveRoot: () => root.promise,
-      resolveChild: () => ({
-        identity: null,
-        satisfiesDependencies: true as const,
-        kind: 'omitted' as const,
+  const runner = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: {
+      resolveRootVertex: () => root.promise,
+      resolveChildHint: () => ({
+        omittedVertexIdentity: null,
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+        kind: 'vertexIntentionallyOmitted' as const,
       }),
     },
-  }).createRunner();
-  const running = runner.run();
+  }).createIndependentRunnerFromCurrentOptions();
+  const running = runner.runUntilSuspendedOrTerminal();
   await eventLoopTurn();
   root.reject(undefined);
 
@@ -615,5 +733,5 @@ test('retains undefined as the exact traversal failure sentinel', async () => {
     expect(error).toBeUndefined();
   }
   expect(caught).toBe(true);
-  expect(runner.getStatus()).toBe(Status.FAILED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FAILED);
 });

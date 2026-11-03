@@ -1,36 +1,38 @@
-import { vertexHandle } from '../src/core/observationFacets';
-import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
-import { MutableRef } from '../src/core/CTTRef';
+import { createVertexHandleFacet } from '../src/core/observationFacets';
+import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
+import { MutableValueReference } from '../src/core/CTTRef';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 import { Vertex } from '../src/core/Vertex';
-import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { DepthFirstTreeTraversalBuilder } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
 import { runnerInternals } from './internal-runner-fixtures';
 
-type GraphTTP = VertexTypes<
+type GraphTTP = VertexDataAndChildHintTypes<
   { label: string; nested: { count: number } },
   string
 >;
 
 function ref(label: string, hints: string[] = []) {
-  return new MutableRef(
+  return new MutableValueReference(
     new Vertex<GraphTTP>({
-      $data: { label, nested: { count: 1 } },
-      $childHints: hints,
+      $vertexData: { label, nested: { count: 1 } },
+      $childDiscoveryHints: hints,
     }),
   );
 }
 
 function context(
-  parentVertexRef: MutableRef<Vertex<GraphTTP>>,
+  parentVertexRef: MutableValueReference<Vertex<GraphTTP>>,
   hintIndex: number,
-): VertexResolutionContext<GraphTTP> {
+): ChildDiscoveryContext<GraphTTP> {
   return {
-    depth: 1,
-    parentVertex: parentVertexRef.getValue(),
-    parentVertexRef,
-    hintIndex,
-    vertexHint: parentVertexRef.getValue().getChildHints()[hintIndex]!,
+    discoveryDepthInEdges: 1,
+    parentVertexAtChildResolution: parentVertexRef.getReferencedValue(),
+    parentVertexHandle: parentVertexRef,
+    parentChildHintIndex: hintIndex,
+    childDiscoveryHint: parentVertexRef
+      .getReferencedValue()
+      .getMutableChildDiscoveryHints()[hintIndex]!,
   };
 }
 
@@ -43,51 +45,69 @@ test('the original graph retains first-accepted content and shared topology', ()
   const left = ref('left', ['shared']);
   const right = ref('right', ['shared']);
   const shared = ref('shared');
-  const originalSharedData = shared.getValue().getData();
+  const originalSharedData = shared.getReferencedValue().getVertexData();
 
   container.acceptRoot(root, 'root');
   container.acceptVertex(left, 'left', [], context(root, 0));
   container.acceptVertex(right, 'right', [], context(root, 1));
   container.acceptVertex(shared, 'shared', [], context(left, 0));
-  container.store.prepareSlots(root, root.getValue().getChildHints());
-  container.store.prepareSlots(left, left.getValue().getChildHints());
-  container.store.prepareSlots(right, right.getValue().getChildHints());
+  container.store.prepareSlots(
+    root,
+    root.getReferencedValue().getMutableChildDiscoveryHints(),
+  );
+  container.store.prepareSlots(
+    left,
+    left.getReferencedValue().getMutableChildDiscoveryHints(),
+  );
+  container.store.prepareSlots(
+    right,
+    right.getReferencedValue().getMutableChildDiscoveryHints(),
+  );
   container.acceptEdge(root, 0, left);
   container.acceptEdge(root, 1, right);
   container.acceptEdge(left, 0, shared);
   container.acceptEdge(right, 0, shared);
 
-  const snapshot = container.originalGraphView!;
+  const snapshot = container.preCommandDiscoveredGraphView!;
   const refs = new Map(
     [...container.originalGraphRefsMap!].map(([active, saved]) => [
       active,
-      vertexHandle(saved),
+      createVertexHandleFacet(saved),
     ]),
   );
   const savedRoot = refs.get(root)!;
   const savedLeft = refs.get(left)!;
   const savedRight = refs.get(right)!;
   const savedShared = refs.get(shared)!;
-  shared.setValue(
-    shared.getValue().clone({
-      $data: { label: 'rewritten', nested: { count: 2 } },
-      $childHints: ['active-only'],
+  shared.replaceReferencedValue(
+    shared.getReferencedValue().createEditableShallowCloneWithContentOverrides({
+      $vertexData: { label: 'rewritten', nested: { count: 2 } },
+      $childDiscoveryHints: ['active-only'],
     }),
   );
   container.deleteVertices(new Set([shared]));
 
-  expect(container.resolvedGraphView.has(shared)).toBe(false);
+  expect(container.liveResolvedGraphView.has(shared)).toBe(false);
   expect(savedShared).not.toBe(shared);
-  expect(savedShared.getValue()).not.toBe(shared.getValue());
-  expect(savedShared.getValue().getData()).toBe(originalSharedData);
-  expect(savedShared.getValue().getChildHints()).toEqual([]);
-  expect(snapshot.requirePathsTo(savedShared)).toEqual([
+  expect(savedShared.getCurrentVertexView()).not.toBe(
+    shared.getReferencedValue(),
+  );
+  expect(savedShared.getCurrentVertexView().getVertexData()).toBe(
+    originalSharedData,
+  );
+  expect(
+    savedShared.getCurrentVertexView().getDetachedChildDiscoveryHints(),
+  ).toEqual([]);
+  expect(snapshot.requireAllStructuralAncestorPathsTo(savedShared)).toEqual([
     [savedRoot, savedLeft, savedShared],
     [savedRoot, savedRight, savedShared],
   ]);
-  expect(snapshot.getParentsOf(savedShared)).toEqual([savedLeft, savedRight]);
   expect(
-    (snapshot as unknown as { getVisitStageOf?: unknown }).getVisitStageOf,
+    snapshot.getDistinctStructuralParentHandlesOrNull(savedShared),
+  ).toEqual([savedLeft, savedRight]);
+  expect(
+    (snapshot as unknown as { getVertexVisitSchedulingStageOrNull?: unknown })
+      .getVertexVisitSchedulingStageOrNull,
   ).toBeUndefined();
 });
 
@@ -106,27 +126,33 @@ test('a rejected active edge does not mutate the original snapshot', () => {
 
   expect(() => container.acceptEdge(child, 0, root)).toThrow(/cycle/i);
 
-  const snapshot = container.originalGraphView!;
+  const snapshot = container.preCommandDiscoveredGraphView!;
   const refs = new Map(
     [...container.originalGraphRefsMap!].map(([active, saved]) => [
       active,
-      vertexHandle(saved),
+      createVertexHandleFacet(saved),
     ]),
   );
-  expect(snapshot.getChildrenOf(refs.get(child)!)).toEqual([]);
-  expect(snapshot.requirePathsTo(refs.get(child)!)).toEqual([
-    [refs.get(root)!, refs.get(child)!],
-  ]);
+  expect(
+    snapshot.getStructuralChildHandlesInSlotOrderOrNull(refs.get(child)!),
+  ).toEqual([]);
+  expect(
+    snapshot.requireAllStructuralAncestorPathsTo(refs.get(child)!),
+  ).toEqual([[refs.get(root)!, refs.get(child)!]]);
 });
 
 test('tree acceptance uses supplied graph ids and dependencies', () => {
   const treeContainer = runnerInternals(
-    new DepthFirstTreeTraversal<GraphTTP>({
-      traversableTree: {
-        resolveRoot: () => ({ kind: 'omitted' as const }),
-        resolveChild: () => ({ kind: 'omitted' as const }),
+    new DepthFirstTreeTraversalBuilder<GraphTTP>({
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
       },
-    }).createRunner(),
+    }).createIndependentRunnerFromCurrentOptions(),
   ).resolvedTreesContainer;
   const container = new ResolvedGraphsContainer({
     sourceMode: 'tree',
@@ -144,39 +170,47 @@ test('tree acceptance uses supplied graph ids and dependencies', () => {
     context(root, 0),
   );
 
-  const snapshot = container.originalGraphView!;
-  const savedRoot = vertexHandle(container.originalGraphRefsMap!.get(root)!);
-  const savedChild = vertexHandle(container.originalGraphRefsMap!.get(child)!);
-  expect(container.resolvedGraphView.requireVertexId(root)).toBe(
+  const snapshot = container.preCommandDiscoveredGraphView!;
+  const savedRoot = createVertexHandleFacet(
+    container.originalGraphRefsMap!.get(root)!,
+  );
+  const savedChild = createVertexHandleFacet(
+    container.originalGraphRefsMap!.get(child)!,
+  );
+  expect(container.liveResolvedGraphView.requireVertexId(root)).toBe(
     'accepted-root',
   );
-  expect(container.resolvedGraphView.getVertexRefById('accepted-root')).toBe(
-    root,
-  );
-  expect(container.resolvedGraphView.requireVertexId(child)).toBe(
+  expect(
+    container.liveResolvedGraphView.getVertexRefById('accepted-root'),
+  ).toBe(root);
+  expect(container.liveResolvedGraphView.requireVertexId(child)).toBe(
     'accepted-child',
   );
-  expect(container.resolvedGraphView.getVertexRefById('accepted-child')).toBe(
-    child,
-  );
-  expect(container.resolvedGraphView.get(child)?.dependsOnWork).toEqual([
-    'accepted-root',
-  ]);
+  expect(
+    container.liveResolvedGraphView.getVertexRefById('accepted-child'),
+  ).toBe(child);
+  expect(
+    container.liveResolvedGraphView.get(child)?.workWaitsForWorkOf,
+  ).toEqual(['accepted-root']);
   expect(snapshot.requireVertexId(savedRoot)).toBe('accepted-root');
-  expect(snapshot.getVertexRefById('accepted-root')).toBe(savedRoot);
+  expect(snapshot.getVertexHandleByIdOrNull('accepted-root')).toBe(savedRoot);
   expect(snapshot.requireVertexId(savedChild)).toBe('accepted-child');
-  expect(snapshot.getVertexRefById('accepted-child')).toBe(savedChild);
+  expect(snapshot.getVertexHandleByIdOrNull('accepted-child')).toBe(savedChild);
 });
 
 test('tree acceptance validates saved parent mappings before graph insertion', () => {
   const treeContainer = runnerInternals(
-    new DepthFirstTreeTraversal<GraphTTP>({
-      traversableTree: {
-        resolveRoot: () => ({ kind: 'omitted' as const }),
-        resolveChild: () => ({ kind: 'omitted' as const }),
+    new DepthFirstTreeTraversalBuilder<GraphTTP>({
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
       },
-      retainOriginalTreeStructure: true,
-    }).createRunner(),
+      retainDiscoveredTreeBeforeVisitorCommands: true,
+    }).createIndependentRunnerFromCurrentOptions(),
   ).resolvedTreesContainer;
   const container = new ResolvedGraphsContainer({
     sourceMode: 'tree',
@@ -193,29 +227,39 @@ test('tree acceptance validates saved parent mappings before graph insertion', (
   expect(() =>
     container.acceptVertex(child, 'child', ['root'], context(root, 0)),
   ).toThrow(/not mutated parent ref/i);
-  expect(container.resolvedGraphView.has(child)).toBe(false);
-  expect(container.resolvedGraphView.getVertexRefById('child')).toBeNull();
-  expect(treeContainer.resolvedTree.get(child)).toBeNull();
+  expect(container.liveResolvedGraphView.has(child)).toBe(false);
+  expect(container.liveResolvedGraphView.getVertexRefById('child')).toBeNull();
+  expect(
+    treeContainer.resolvedTree.getMutableVertexRecordOrNull(child),
+  ).toBeNull();
   expect(container.originalGraphRefsMap!.has(child)).toBe(false);
-  expect(container.originalGraphView!.getVertexRefById('child')).toBeNull();
+  expect(
+    container.preCommandDiscoveredGraphView!.getVertexHandleByIdOrNull('child'),
+  ).toBeNull();
 
   savedRefs.set(root, savedRoot);
   container.acceptVertex(child, 'child', ['root'], context(root, 0));
 
-  expect(container.resolvedGraphView.getVertexRefById('child')).toBe(child);
-  expect(treeContainer.resolvedTree.get(child)).not.toBeNull();
+  expect(container.liveResolvedGraphView.getVertexRefById('child')).toBe(child);
+  expect(
+    treeContainer.resolvedTree.getMutableVertexRecordOrNull(child),
+  ).not.toBeNull();
   expect(container.originalGraphRefsMap!.has(child)).toBe(true);
 });
 
 function treeEdgeContainer() {
   const treeContainer = runnerInternals(
-    new DepthFirstTreeTraversal<GraphTTP>({
-      traversableTree: {
-        resolveRoot: () => ({ kind: 'omitted' as const }),
-        resolveChild: () => ({ kind: 'omitted' as const }),
+    new DepthFirstTreeTraversalBuilder<GraphTTP>({
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
       },
-      retainOriginalTreeStructure: true,
-    }).createRunner(),
+      retainDiscoveredTreeBeforeVisitorCommands: true,
+    }).createIndependentRunnerFromCurrentOptions(),
   ).resolvedTreesContainer;
   const container = new ResolvedGraphsContainer({
     sourceMode: 'tree',
@@ -247,7 +291,7 @@ test.each([
     'parent record',
     ({ root, treeContainer }: ReturnType<typeof treeEdgeContainer>) => {
       const savedRoot = treeContainer.originalTreeRefsMap!.get(root)!;
-      treeContainer.originalTreeView!.deleteSubtree(savedRoot);
+      treeContainer.preCommandDiscoveredTreeView!.deleteSubtree(savedRoot);
     },
   ],
 ] as const)(
@@ -259,7 +303,7 @@ test.each([
       fixture.container.acceptEdge(fixture.root, 0, fixture.child),
     ).toThrow(/not mutated/i);
     expect(
-      fixture.container.resolvedGraphView.getChildrenOf(fixture.root),
+      fixture.container.liveResolvedGraphView.getChildrenOf(fixture.root),
     ).toEqual([]);
   },
 );
@@ -269,7 +313,9 @@ test('tree edge acknowledgment does not append saved topology twice', () => {
   container.acceptEdge(root, 0, child);
   container.acceptEdge(root, 0, child);
   const savedRoot = treeContainer.originalTreeRefsMap!.get(root)!;
-  expect(treeContainer.originalTreeView!.getChildrenOf(savedRoot)).toHaveLength(
-    1,
-  );
+  expect(
+    treeContainer.preCommandDiscoveredTreeView!.getDetachedChildReferenceListOrNull(
+      savedRoot,
+    ),
+  ).toHaveLength(1);
 });

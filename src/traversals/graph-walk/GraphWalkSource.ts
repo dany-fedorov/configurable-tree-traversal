@@ -1,73 +1,125 @@
 import type { MaybePromise } from '@core/graph/types';
 
-export type GraphWalkVertex<Data, ID> = Readonly<{
-  vertexId: ID;
-  data: Data;
+export type GraphWalkResolvedVertex<VertexData, VertexId> = Readonly<{
+  vertexId: VertexId;
+  vertexData: VertexData;
 }>;
 
-export type GraphWalkVertexResult<Data> =
-  | { kind: 'found'; data: Data }
+export type GraphWalkVertexResolutionResult<VertexData> =
+  | { kind: 'found'; vertexData: VertexData }
   | { kind: 'omitted' };
 
-type ResolverTarget<Data, ID> = Readonly<{
-  vertexId: ID;
-  resolution?: GraphWalkVertexResult<Data>;
+type GraphWalkResolverOrInlineTarget<VertexData, VertexId> = Readonly<{
+  vertexId: VertexId;
+  resolutionIfNotPreviouslyAdmitted?: GraphWalkVertexResolutionResult<VertexData>;
 }>;
-type InlineOrCachedTarget<Data, ID> =
+type GraphWalkInlineOrPreviouslyAdmittedTarget<VertexData, VertexId> =
   | Readonly<{
-      kind: 'inline';
-      vertexId: ID;
-      resolution: GraphWalkVertexResult<Data>;
+      kind: 'inlineResolution';
+      vertexId: VertexId;
+      resolutionIfNotPreviouslyAdmitted: GraphWalkVertexResolutionResult<VertexData>;
     }>
-  | Readonly<{ kind: 'cached'; vertexId: ID; resolution?: never }>;
+  | Readonly<{
+      kind: 'previouslyAdmittedVertex';
+      vertexId: VertexId;
+      resolutionIfNotPreviouslyAdmitted?: never;
+    }>;
 
-export type GraphWalkHydration = 'resolver' | 'inlineOrCached';
+export type GraphWalkVertexResolutionMode =
+  | 'resolverWithOptionalInlineResolution'
+  | 'inlineResolutionOrPreviouslyAdmittedVertex';
 
-/** The hydration parameter preserves the protocol policy in reusable helpers. */
-export type GraphWalkTarget<
-  Data,
-  ID,
-  Hydration extends GraphWalkHydration = GraphWalkHydration,
-> = Hydration extends 'resolver'
-  ? ResolverTarget<Data, ID>
-  : InlineOrCachedTarget<Data, ID>;
+/** The vertex resolution mode parameter preserves the protocol policy in reusable helpers. */
+export type GraphWalkVertexResolutionTarget<
+  VertexData,
+  VertexId,
+  VertexResolutionMode extends GraphWalkVertexResolutionMode = GraphWalkVertexResolutionMode,
+> = VertexResolutionMode extends 'resolverWithOptionalInlineResolution'
+  ? GraphWalkResolverOrInlineTarget<VertexData, VertexId>
+  : GraphWalkInlineOrPreviouslyAdmittedTarget<VertexData, VertexId>;
 
-type LinkTo<Edge, Target> = Readonly<{ target: Target; data: Edge }>;
-export type GraphWalkLink<
-  Data,
-  Edge,
-  ID,
-  Hydration extends GraphWalkHydration = GraphWalkHydration,
-> = LinkTo<Edge, GraphWalkTarget<Data, ID, Hydration>>;
+type GraphWalkOutgoingTargetLink<EdgeData, Target> = Readonly<{
+  targetToResolveOnAdmission: Target;
+  edgeData: EdgeData;
+}>;
+export type GraphWalkOutgoingLink<
+  VertexData,
+  EdgeData,
+  VertexId,
+  VertexResolutionMode extends GraphWalkVertexResolutionMode = GraphWalkVertexResolutionMode,
+> = GraphWalkOutgoingTargetLink<
+  EdgeData,
+  GraphWalkVertexResolutionTarget<VertexData, VertexId, VertexResolutionMode>
+>;
 
-type SourceProtocol<Data, Edge, ID, Target> = {
-  roots(): Iterable<Target>;
-  outgoing(vertex: GraphWalkVertex<Data, ID>): Iterable<LinkTo<Edge, Target>>;
+type GraphWalkTargetEnumerationProtocol<
+  VertexData,
+  EdgeData,
+  VertexId,
+  Target,
+> = {
+  enumerateRootTargets(): Iterable<Target>;
+  enumerateOutgoingLinks(
+    vertex: GraphWalkResolvedVertex<VertexData, VertexId>,
+  ): Iterable<GraphWalkOutgoingTargetLink<EdgeData, Target>>;
 };
 
-export type GraphWalkSource<Data, Edge, ID> =
+export type GraphWalkDiscoverySource<VertexData, EdgeData, VertexId> =
   | ({
-      hydration: 'resolver';
-      resolveVertex(vertexId: ID): GraphWalkVertexResult<Data>;
-    } & SourceProtocol<Data, Edge, ID, ResolverTarget<Data, ID>>)
+      vertexResolutionMode: 'resolverWithOptionalInlineResolution';
+      resolveVertexDataById(
+        vertexId: VertexId,
+      ): GraphWalkVertexResolutionResult<VertexData>;
+    } & GraphWalkTargetEnumerationProtocol<
+      VertexData,
+      EdgeData,
+      VertexId,
+      GraphWalkResolverOrInlineTarget<VertexData, VertexId>
+    >)
   | ({
-      hydration: 'inlineOrCached';
-      resolveVertex?: undefined;
-    } & SourceProtocol<Data, Edge, ID, InlineOrCachedTarget<Data, ID>>);
+      vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex';
+      resolveVertexDataById?: undefined;
+    } & GraphWalkTargetEnumerationProtocol<
+      VertexData,
+      EdgeData,
+      VertexId,
+      GraphWalkInlineOrPreviouslyAdmittedTarget<VertexData, VertexId>
+    >);
 
-type AsyncIterableResult<T> = MaybePromise<Iterable<T> | AsyncIterable<T>>;
-type AsyncSourceProtocol<Data, Edge, ID, Target> = {
-  roots(): AsyncIterableResult<Target>;
-  outgoing(
-    vertex: GraphWalkVertex<Data, ID>,
-  ): AsyncIterableResult<LinkTo<Edge, Target>>;
+type MaybePromiseOfSyncOrAsyncIterable<T> = MaybePromise<
+  Iterable<T> | AsyncIterable<T>
+>;
+type AsyncGraphWalkTargetEnumerationProtocol<
+  VertexData,
+  EdgeData,
+  VertexId,
+  Target,
+> = {
+  enumerateRootTargets(): MaybePromiseOfSyncOrAsyncIterable<Target>;
+  enumerateOutgoingLinks(
+    vertex: GraphWalkResolvedVertex<VertexData, VertexId>,
+  ): MaybePromiseOfSyncOrAsyncIterable<
+    GraphWalkOutgoingTargetLink<EdgeData, Target>
+  >;
 };
-export type AsyncGraphWalkSource<Data, Edge, ID> =
+export type AsyncGraphWalkDiscoverySource<VertexData, EdgeData, VertexId> =
   | ({
-      hydration: 'resolver';
-      resolveVertex(vertexId: ID): MaybePromise<GraphWalkVertexResult<Data>>;
-    } & AsyncSourceProtocol<Data, Edge, ID, ResolverTarget<Data, ID>>)
+      vertexResolutionMode: 'resolverWithOptionalInlineResolution';
+      resolveVertexDataById(
+        vertexId: VertexId,
+      ): MaybePromise<GraphWalkVertexResolutionResult<VertexData>>;
+    } & AsyncGraphWalkTargetEnumerationProtocol<
+      VertexData,
+      EdgeData,
+      VertexId,
+      GraphWalkResolverOrInlineTarget<VertexData, VertexId>
+    >)
   | ({
-      hydration: 'inlineOrCached';
-      resolveVertex?: undefined;
-    } & AsyncSourceProtocol<Data, Edge, ID, InlineOrCachedTarget<Data, ID>>);
+      vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex';
+      resolveVertexDataById?: undefined;
+    } & AsyncGraphWalkTargetEnumerationProtocol<
+      VertexData,
+      EdgeData,
+      VertexId,
+      GraphWalkInlineOrPreviouslyAdmittedTarget<VertexData, VertexId>
+    >);

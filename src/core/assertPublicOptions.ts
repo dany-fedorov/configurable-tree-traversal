@@ -18,37 +18,37 @@ export function assertOwnKeys(
 }
 
 export const TREE_OPTION_KEYS = [
-  'traversableTree',
-  'transformChildHints',
+  'treeDiscoverySource',
+  'transformChildHintsBeforeResolution',
   'visitors',
-  'retainOriginalTreeStructure',
+  'retainDiscoveredTreeBeforeVisitorCommands',
 ] as const;
 export const DAG_OPTION_KEYS = [
-  'traversableTree',
-  'traversableGraph',
-  'transformChildHints',
+  'treeDiscoverySource',
+  'dagDiscoverySource',
+  'transformChildHintsBeforeResolution',
   'visitors',
-  'retainOriginalGraphStructure',
-  'workCompletion',
-  'discovery',
-  'rootWorkDependencies',
-  'dependsOnWorkDefault',
-  'syntheticRoot',
-  'completedWork',
+  'retainDiscoveredGraphBeforeVisitorCommands',
+  'workCompletionPolicy',
+  'discoveryTiming',
+  'rootWorkPrerequisitePolicy',
+  'undeclaredWorkPrerequisitePolicy',
+  'sourceRootIsHiddenEntryHolder',
+  'acceptedCompletedWorkVertexIds',
 ] as const;
 export const OBJECT_SOURCE_OPTION_KEYS = [
-  'getChildrenOfProperty',
-  'getRootPropertyFromInputObject',
-  'resolveChildHook',
+  'enumerateChildPropertyHints',
+  'mapInputToRootProperty',
+  'resolveChildPropertyOrUseDefault',
 ] as const;
 export const OBJECT_MUTATION_OPTION_KEYS = [
-  'arrayIndexPolicy',
-  'propertyCollision',
-  'isArray',
-  'isObject',
-  'assembleArray',
-  'assembleObject',
-  'assembledMap',
+  'arrayAssemblyIndexPolicy',
+  'assembledPropertyKeyCollisionPolicy',
+  'matchesArrayAssemblyPredicate',
+  'matchesObjectAssemblyPredicate',
+  'assembleArrayValueFromChildProperties',
+  'assembleObjectValueFromChildProperties',
+  'assemblyCache',
 ] as const;
 
 /** Undefined patch fields retain prior settings, including non-enumerable own fields. */
@@ -69,7 +69,7 @@ export function captureOptionFields<T extends object, K extends keyof T>(
   input: T,
   keys: readonly K[],
 ): Pick<T, K> {
-  // Every requested key is copied with its original value; Pick describes that
+  // Every requested key is copied with its original replacementData; Pick describes that
   // exact mapped record while preserving the input's required/optional fields.
   return Object.fromEntries(keys.map((key) => [key, input[key]])) as Pick<T, K>;
 }
@@ -91,41 +91,65 @@ export function assertTraversalFields(
   phases: readonly string[],
 ): void {
   for (const key of [
-    'retainOriginalTreeStructure',
-    'retainOriginalGraphStructure',
-    'syntheticRoot',
+    'retainDiscoveredTreeBeforeVisitorCommands',
+    'retainDiscoveredGraphBeforeVisitorCommands',
+    'sourceRootIsHiddenEntryHolder',
   ]) {
     const value: unknown = Reflect.get(options, key);
     if (value !== undefined && typeof value !== 'boolean')
       throw new TypeError(`${key} must be boolean`);
   }
-  const sorter: unknown = Reflect.get(options, 'transformChildHints');
+  const sorter: unknown = Reflect.get(
+    options,
+    'transformChildHintsBeforeResolution',
+  );
   if (sorter !== undefined && sorter !== null && typeof sorter !== 'function')
-    throw new TypeError('transformChildHints must be a function or null');
+    throw new TypeError(
+      'transformChildHintsBeforeResolution must be a function or null',
+    );
   const visitors: unknown = Reflect.get(options, 'visitors');
   if (visitors !== undefined) assertOwnKeys(visitors, phases);
-  const discovery: unknown = Reflect.get(options, 'discovery');
-  if (discovery !== undefined && discovery !== 'lazy' && discovery !== 'eager')
-    throw new TypeError('Invalid discovery policy');
-  const completedWork: unknown = Reflect.get(options, 'completedWork');
+  const discoveryTiming: unknown = Reflect.get(options, 'discoveryTiming');
   if (
-    completedWork !== undefined &&
-    (completedWork === null ||
-      typeof completedWork !== 'object' ||
-      typeof Reflect.get(completedWork, Symbol.iterator) !== 'function' ||
-      typeof Reflect.get(completedWork, 'has') !== 'function')
+    discoveryTiming !== undefined &&
+    discoveryTiming !== 'incrementalDuringTraversal' &&
+    discoveryTiming !== 'completeBeforeAnyVisitor'
   )
-    throw new TypeError('completedWork must be a set');
-  for (const key of ['traversableTree', 'traversableGraph']) {
+    throw new TypeError('Invalid discoveryTiming policy');
+  const acceptedCompletedWorkVertexIds: unknown = Reflect.get(
+    options,
+    'acceptedCompletedWorkVertexIds',
+  );
+  if (
+    acceptedCompletedWorkVertexIds !== undefined &&
+    (acceptedCompletedWorkVertexIds === null ||
+      typeof acceptedCompletedWorkVertexIds !== 'object' ||
+      typeof Reflect.get(acceptedCompletedWorkVertexIds, Symbol.iterator) !==
+        'function' ||
+      typeof Reflect.get(acceptedCompletedWorkVertexIds, 'has') !== 'function')
+  )
+    throw new TypeError('acceptedCompletedWorkVertexIds must be a set');
+  for (const key of ['treeDiscoverySource', 'dagDiscoverySource']) {
     const source: unknown = Reflect.get(options, key);
     if (
       source !== undefined &&
       (source === null ||
         (typeof source !== 'object' && typeof source !== 'function') ||
-        typeof Reflect.get(source, 'resolveRoot') !== 'function' ||
-        typeof Reflect.get(source, 'resolveChild') !== 'function')
+        typeof Reflect.get(source, 'resolveRootVertex') !== 'function' ||
+        typeof Reflect.get(
+          source,
+          key === 'treeDiscoverySource'
+            ? 'resolveChildVertexFromHint'
+            : 'resolveChildHint',
+        ) !== 'function')
     )
-      throw new TypeError(`${key} requires resolveRoot and resolveChild`);
+      throw new TypeError(
+        `${key} requires resolveRootVertex and ${
+          key === 'treeDiscoverySource'
+            ? 'resolveChildVertexFromHint'
+            : 'resolveChildHint'
+        }`,
+      );
   }
 }
 

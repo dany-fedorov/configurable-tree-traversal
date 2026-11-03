@@ -2,14 +2,14 @@ import type { ObjectRewriteOutputResult } from '../../src';
 
 /** Existing value-oriented assertions explicitly choose the lossy projection. */
 export function outputValue<Out>(result: {
-  getOutputResult(): ObjectRewriteOutputResult<Out>;
+  getFinalOutputResult(): ObjectRewriteOutputResult<Out>;
 }): Out | null {
-  const output = result.getOutputResult();
+  const output = result.getFinalOutputResult();
   return output.kind === 'present' ? output.value : null;
 }
 export function capturedOutputValue<Out>(result: {
-  outputResultAtReturn: ObjectRewriteOutputResult<Out>;
+  capturedOutputResultAtReturn: ObjectRewriteOutputResult<Out>;
 }): Out | null {
-  const output = result.outputResultAtReturn;
+  const output = result.capturedOutputResultAtReturn;
   return output.kind === 'present' ? output.value : null;
 }

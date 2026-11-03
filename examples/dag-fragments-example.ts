@@ -1,35 +1,35 @@
 import {
-  defineDag,
-  defineDagFragment,
+  copyAndNormalizeDagDefinition,
+  validateAndCreateDagFragment,
   mapDagFragmentIds,
-  composeDag,
+  composeAndValidateDagFragments,
 } from '../src';
 import assert from 'node:assert/strict';
 
 async function main() {
   type LocalID = 'build' | 'review';
-  const fragment = defineDagFragment(
-    defineDag<{ role: string }, LocalID>({
-      vertices: [
+  const fragment = validateAndCreateDagFragment(
+    copyAndNormalizeDagDefinition<{ role: string }, LocalID>({
+      vertexDeclarations: [
         {
           vertexId: 'build',
           data: { role: 'builder' },
-          slots: [],
-          dependsOnWork: [],
-          dependsOnSubgraphCompletion: [],
+          childDiscoverySlots: [],
+          workWaitsForWorkOf: [],
+          workWaitsForSubgraphCompletionOf: [],
         },
         {
           vertexId: 'review',
           data: { role: 'reviewer' },
-          slots: [],
-          dependsOnWork: ['build'],
-          dependsOnSubgraphCompletion: [],
+          childDiscoverySlots: [],
+          workWaitsForWorkOf: ['build'],
+          workWaitsForSubgraphCompletionOf: [],
         },
       ],
-      omittedIds: [],
+      omittedVertexIds: [],
       entry: {
         kind: 'roots',
-        slots: [
+        entryDiscoverySlots: [
           { kind: 'vertex', vertexId: 'build' },
           { kind: 'vertex', vertexId: 'review' },
         ],
@@ -44,12 +44,12 @@ async function main() {
   const second = mapDagFragmentIds(fragment, {
     mapId: (local) => ({ project: 'second', local }),
   });
-  const result = composeDag([first, second], {
-    dependencies: [
+  const result = composeAndValidateDagFragments([first, second], {
+    additionalWorkPrerequisites: [
       {
-        dependent: second.ports.start,
+        dependentWorkVertexId: second.vertexIdsByPortName.start,
         prerequisite: {
-          vertexId: first.ports.finish,
+          vertexId: first.vertexIdsByPortName.finish,
           milestone: 'subgraphCompletion',
         },
       },
@@ -58,19 +58,19 @@ async function main() {
   assert.equal(result.kind, 'valid');
   if (result.kind !== 'valid') throw new Error('Invalid composition');
   for (const session of [
-    result.dag.createWorkSession(),
-    await result.dag.createAsyncWorkSession(),
+    result.validatedTopology.createExternalWorkSession(),
+    await result.validatedTopology.createAsyncExternalWorkSession(),
   ]) {
     const observed: string[] = [];
     for (;;) {
-      const advance = await session.advance();
+      const advance = await session.runUntilWorkBoundary();
       if (advance.kind === 'finished') break;
       assert.equal(advance.kind, 'awaitingSettlement');
       if (advance.kind !== 'awaitingSettlement')
         throw new Error('Unexpected pause');
-      for (const ticket of advance.workTickets) {
+      for (const ticket of advance.workSettlementTickets) {
         observed.push(`${ticket.vertexId.project}/${ticket.vertexId.local}`);
-        assert.equal(session.completeWork(ticket).kind, 'accepted');
+        assert.equal(session.acceptCompletedWork(ticket).kind, 'accepted');
       }
     }
     assert.deepEqual(observed, [

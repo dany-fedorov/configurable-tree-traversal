@@ -1,6 +1,10 @@
-import { vertexHandle, vertexView, internalRef } from '@core/observationFacets';
+import {
+  createVertexHandleFacet,
+  vertexView,
+  internalRef,
+} from '@core/observationFacets';
 import type { VertexHandle } from '@core/CTTRef';
-import type { TreeDagExecutionInspection } from '@core/CoreInspection';
+import type { TreeOrDagExecutionSnapshot } from '@core/CoreInspection';
 import { AsyncRunnerSession } from '@core/drivers/AsyncRunnerSession';
 import {
   bindTreeSource,
@@ -10,11 +14,11 @@ import { createAsyncDriver } from '@core/drivers/runAsync';
 import type { CallSpec, KernelEvent } from '@core/effects/types';
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
-import type { ResolvedGraphView } from '@core/ResolvedGraphView';
-import type { ResolvedTreeStore } from '@core/ResolvedTree';
-import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type { LiveResolvedGraphView } from '@core/ResolvedGraphView';
+import type { MutableResolvedTreeStore } from '@core/ResolvedTree';
+import type { LiveResolvedTreeView } from '@core/ResolvedTreeView';
 import type {
-  SelectedTraversalEvent,
+  TraversalEventNarrowedToSelectedKinds,
   AsyncTraversalExecution,
 } from '@core/TraversalExecution';
 import { TraversalKernel } from '@core/TraversalKernel';
@@ -23,16 +27,16 @@ import type {
   TreeTraversalEvent,
 } from '@core/TraversalRunner';
 import type {
-  EmissionKind,
-  TraversalExecutionOptions,
+  TraversalEventKindForVisitorPhase,
+  TraversalExecutionSelectionPatch,
 } from '@core/TraversalRunnerIterableConfig';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 import {
   mergeAsyncBreadthFirstTraversalInstanceConfigs,
   type AsyncBreadthFirstTreeResolvedOptions,
 } from './AsyncBreadthFirstTraversalInstanceConfig';
-import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
+import { BreadthFirstTreeVisitPhase } from './BreadthFirstTraversalOrder';
 import {
   makeEffectiveBreadthFirstTraversalRunnerIterableConfig,
   type BreadthFirstTraversalRunnerIterableConfig,
@@ -40,42 +44,67 @@ import {
 import { BreadthFirstTraversalRunnerState } from './BreadthFirstTraversalRunnerState';
 
 type Event<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
-> = TreeTraversalEvent<BreadthFirstPhase, TTP, RW_TTP>;
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+> = TreeTraversalEvent<
+  BreadthFirstTreeVisitPhase,
+  InputVertexTypes,
+  RewrittenVertexTypes
+>;
 
 export interface AsyncBreadthFirstTreeRunner<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > extends AsyncTraversalExecution<
-    BreadthFirstPhase,
-    TreeTraversalEvent<BreadthFirstPhase, TTP, RW_TTP>,
-    TreeDagExecutionInspection<BreadthFirstPhase>
+    BreadthFirstTreeVisitPhase,
+    TreeTraversalEvent<
+      BreadthFirstTreeVisitPhase,
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >,
+    TreeOrDagExecutionSnapshot<BreadthFirstTreeVisitPhase>
   > {
-  getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
-  getResolvedGraphView(): ResolvedGraphView<TTP | RW_TTP>;
-  isTreeRootVertex(ref: VertexHandle<TTP | RW_TTP>): boolean;
+  getLiveResolvedTreeView(): LiveResolvedTreeView<
+    InputVertexTypes | RewrittenVertexTypes
+  >;
+  getLiveResolvedGraphView(): LiveResolvedGraphView<
+    InputVertexTypes | RewrittenVertexTypes
+  >;
+  isTreeRootVertex(
+    ref: VertexHandle<InputVertexTypes | RewrittenVertexTypes>,
+  ): boolean;
 }
 
 export class InternalAsyncBreadthFirstTreeRunner<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 > {
-  private icfg: AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP>;
-  private state: BreadthFirstTraversalRunnerState<TTP, RW_TTP>;
+  private icfg: AsyncBreadthFirstTreeResolvedOptions<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
+  private state: BreadthFirstTraversalRunnerState<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
   private resolvedTreesContainer: DepthFirstTraversalResolvedTreesContainer<
-    TTP,
-    RW_TTP
+    InputVertexTypes,
+    RewrittenVertexTypes
   >;
   private iterableConfig: BreadthFirstTraversalRunnerIterableConfig =
     makeEffectiveBreadthFirstTraversalRunnerIterableConfig();
   private readonly execution: AsyncTraversalExecution<
-    BreadthFirstPhase,
-    Event<TTP, RW_TTP>,
-    TreeDagExecutionInspection
+    BreadthFirstTreeVisitPhase,
+    Event<InputVertexTypes, RewrittenVertexTypes>,
+    TreeOrDagExecutionSnapshot
   >;
 
-  constructor(icfgInput: AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP>) {
+  constructor(
+    icfgInput: AsyncBreadthFirstTreeResolvedOptions<
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >,
+  ) {
     this.icfg = mergeAsyncBreadthFirstTraversalInstanceConfigs(icfgInput, {});
     this.icfg.visitors = Object.fromEntries(
       Object.entries(this.icfg.visitors).map(([order, records]) => [
@@ -87,59 +116,80 @@ export class InternalAsyncBreadthFirstTreeRunner<
       this.icfg.traversalRunnerInternalObjects.state,
     );
     const resolvedTreeConfig = {
-      retainOriginalTreeStructure: this.icfg.retainOriginalTreeStructure,
+      retainDiscoveredTreeBeforeVisitorCommands:
+        this.icfg.retainDiscoveredTreeBeforeVisitorCommands,
       traversalRunnerInternalObjects: {
         resolvedTreesContainer:
           this.icfg.traversalRunnerInternalObjects.resolvedTreesContainer,
       },
     };
     this.resolvedTreesContainer = new DepthFirstTraversalResolvedTreesContainer<
-      TTP,
-      RW_TTP
+      InputVertexTypes,
+      RewrittenVertexTypes
     >(resolvedTreeConfig);
-    const graphContainer = new ResolvedGraphsContainer<TTP, RW_TTP>({
+    const graphContainer = new ResolvedGraphsContainer<
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >({
       sourceMode: 'tree',
       saveOriginal: false,
       treeContainer: this.resolvedTreesContainer,
     });
-    const bindings = createCallbackBindings<TTP, RW_TTP>({
+    const bindings = createCallbackBindings<
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >({
       source: bindTreeSource(
-        this.icfg.traversableTree,
+        this.icfg.treeDiscoverySource,
         graphContainer,
         'AsyncBreadthFirstTreeRunner',
       ),
-      ...(this.icfg.transformChildHints === null
+      ...(this.icfg.transformChildHintsBeforeResolution === null
         ? {}
         : {
-            sortHints: (hints: (TTP | RW_TTP)['VertexHint'][]) =>
-              this.icfg.transformChildHints!(
-                hints as TTP['VertexHint'][],
+            sortHints: (
+              hints: (InputVertexTypes | RewrittenVertexTypes)['ChildHint'][],
+            ) =>
+              this.icfg.transformChildHintsBeforeResolution!(
+                hints as InputVertexTypes['ChildHint'][],
               ) as ReturnType<
-                NonNullable<typeof this.icfg.transformChildHints>
+                NonNullable<
+                  typeof this.icfg.transformChildHintsBeforeResolution
+                >
               >,
           }),
       visit: {
-        [BreadthFirstPhase.LEVEL_ORDER]: (
-          call: Extract<CallSpec<TTP, RW_TTP>, { kind: 'VISIT' }>,
+        [BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX]: (
+          call: Extract<
+            CallSpec<InputVertexTypes, RewrittenVertexTypes>,
+            { kind: 'VISIT' }
+          >,
         ) => {
-          const order = BreadthFirstPhase.LEVEL_ORDER;
+          const order = BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX;
           const registration = this.icfg.visitors[order][call.recordIndex]!;
-          return registration.visitor(vertexView(call.ref.getValue()), {
-            ...call.metadata,
-            previousPhaseVertexRef: vertexHandle(
-              call.metadata.previousPhaseVertexRef,
-            ),
-            resolvedTreeView: this.getResolvedTreeView(),
-            originalTreeView:
-              this.resolvedTreesContainer.originalTreeView?.asReadOnly() ??
-              null,
-            isTreeRoot: this.isTreeRootVertex(call.ref),
+          return registration.visitor(
+            vertexView(call.ref.getReferencedValue()),
+            {
+              ...call.metadata,
+              previousCommittedVisitVertexHandleForSamePhase:
+                createVertexHandleFacet(
+                  call.metadata.previousCommittedVisitVertexHandleForSamePhase,
+                ),
+              liveResolvedTreeView: this.getLiveResolvedTreeView(),
+              preCommandDiscoveredTreeView:
+                this.resolvedTreesContainer.preCommandDiscoveredTreeView?.getLiveReadOnlyTreeView() ??
+                null,
+              isTreeRoot: this.isTreeRootVertex(
+                createVertexHandleFacet(call.ref),
+              ),
 
-            vertexRef: vertexHandle(call.ref),
-            registration,
-            visitorChainState: call.metadata.visitorChainState,
-            phase: order,
-          });
+              vertexHandle: createVertexHandleFacet(call.ref),
+              visitorRegistrationMetadata: registration,
+              currentVertexPhaseChainState:
+                call.metadata.currentVertexPhaseChainState,
+              visitorPhase: order,
+            },
+          );
         },
       },
     });
@@ -150,102 +200,146 @@ export class InternalAsyncBreadthFirstTreeRunner<
       container: graphContainer,
       stateBridge: this.state,
       visitorMetadata: {
-        [BreadthFirstPhase.LEVEL_ORDER]: this.icfg.visitors[
-          BreadthFirstPhase.LEVEL_ORDER
+        [BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX]: this.icfg.visitors[
+          BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX
         ].map(
           ({
-            addedIndex,
-            priority,
+            phaseRegistrationInsertionIndex,
+            descendingExecutionPriorityWithinGroup:
+              descendingExecutionPriorityWithinGroup,
 
-            commandCommitMode,
+            visitorCommandCommitTiming,
             visitorGroup,
           }) => ({
-            addedIndex,
-            priority,
+            phaseRegistrationInsertionIndex,
+            descendingExecutionPriorityWithinGroup,
 
-            commandCommitMode,
+            visitorCommandCommitTiming,
             visitorGroup,
           }),
         ),
       },
       iterableConfig: this.iterableConfig,
       inOrderConfig: null,
-      hasHintTransformer: this.icfg.transformChildHints !== null,
-      hasHintIds: false,
-      concurrency: this.icfg.concurrency,
+      hasChildHintsListTransformer:
+        this.icfg.transformChildHintsBeforeResolution !== null,
+      hasChildHintVertexIdResolver: false,
+      maxConcurrentCallbackInvocations:
+        this.icfg.maxConcurrentCallbackInvocations,
     });
-    const driver = createAsyncDriver(kernel, bindings, this.icfg.concurrency);
+    const driver = createAsyncDriver(
+      kernel,
+      bindings,
+      this.icfg.maxConcurrentCallbackInvocations,
+    );
     this.execution = new AsyncRunnerSession(this.projectEvents(driver, kernel));
   }
 
-  getStatus() {
-    return this.execution.getStatus();
+  getTraversalLifecycleStatus() {
+    return this.execution.getTraversalLifecycleStatus();
   }
 
-  getStopReason(): TraversalStopReason | null {
-    return this.execution.getStopReason();
+  getTraversalStopReason(): TraversalStopReason | null {
+    return this.execution.getTraversalStopReason();
   }
 
-  requestPause(): boolean {
-    return this.execution.requestPause();
+  requestPauseAfterAdmittedCallbacksDrain(): boolean {
+    return this.execution.requestPauseAfterAdmittedCallbacksDrain();
   }
 
-  isHalted(): boolean {
-    return this.execution.isHalted();
+  isSuspended(): boolean {
+    return this.execution.isSuspended();
   }
 
-  inspect(): TreeDagExecutionInspection<BreadthFirstPhase> {
-    return this.execution.inspect() as TreeDagExecutionInspection<BreadthFirstPhase>;
+  captureExecutionSnapshot(): TreeOrDagExecutionSnapshot<BreadthFirstTreeVisitPhase> {
+    return this.execution.captureExecutionSnapshot() as TreeOrDagExecutionSnapshot<BreadthFirstTreeVisitPhase>;
   }
 
-  #getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP> {
+  #getResolvedTreeStore(): MutableResolvedTreeStore<
+    InputVertexTypes | RewrittenVertexTypes
+  > {
     return this.resolvedTreesContainer.resolvedTree;
   }
 
-  getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP> {
-    return this.#getResolvedTreeStore().asReadOnly();
+  getLiveResolvedTreeView(): LiveResolvedTreeView<
+    InputVertexTypes | RewrittenVertexTypes
+  > {
+    return this.#getResolvedTreeStore().getLiveReadOnlyTreeView();
   }
 
-  getResolvedGraphView(): ResolvedGraphView<TTP | RW_TTP> {
-    return this.#getResolvedTreeStore().getResolvedGraphView();
+  getLiveResolvedGraphView(): LiveResolvedGraphView<
+    InputVertexTypes | RewrittenVertexTypes
+  > {
+    return this.#getResolvedTreeStore().getLiveResolvedGraphView();
   }
 
-  isTreeRootVertex(ref: VertexHandle<TTP | RW_TTP>): boolean {
-    return internalRef(ref) === this.#getResolvedTreeStore().getRoot();
+  isTreeRootVertex(
+    ref: VertexHandle<InputVertexTypes | RewrittenVertexTypes>,
+  ): boolean {
+    return (
+      internalRef(ref) ===
+      this.#getResolvedTreeStore().getRootVertexReferenceOrNull()
+    );
   }
 
-  iterateEvents(): AsyncGenerator<Event<TTP, RW_TTP>, void, unknown>;
-  iterateEvents<Kind extends EmissionKind<BreadthFirstPhase>>(
-    config: TraversalExecutionOptions<BreadthFirstPhase, Kind> & {
-      emitEvents: readonly Kind[];
-    },
-  ): AsyncGenerator<
-    SelectedTraversalEvent<Event<TTP, RW_TTP>, Kind>,
+  runAndIterateObservationEventsUntilSuspendedOrTerminal(): AsyncGenerator<
+    Event<InputVertexTypes, RewrittenVertexTypes>,
     void,
     unknown
   >;
-  iterateEvents(
-    config?: TraversalExecutionOptions<BreadthFirstPhase>,
-  ): AsyncGenerator<Event<TTP, RW_TTP>, void, unknown>;
-  iterateEvents(
-    config?: TraversalExecutionOptions<BreadthFirstPhase>,
-  ): AsyncGenerator<Event<TTP, RW_TTP>, void, unknown> {
-    return this.execution.iterateEvents(config);
+  runAndIterateObservationEventsUntilSuspendedOrTerminal<
+    Kind extends TraversalEventKindForVisitorPhase<BreadthFirstTreeVisitPhase>,
+  >(
+    config: TraversalExecutionSelectionPatch<
+      BreadthFirstTreeVisitPhase,
+      Kind
+    > & {
+      deliveredEventKinds: readonly Kind[];
+    },
+  ): AsyncGenerator<
+    TraversalEventNarrowedToSelectedKinds<
+      Event<InputVertexTypes, RewrittenVertexTypes>,
+      Kind
+    >,
+    void,
+    unknown
+  >;
+  runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    config?: TraversalExecutionSelectionPatch<BreadthFirstTreeVisitPhase>,
+  ): AsyncGenerator<
+    Event<InputVertexTypes, RewrittenVertexTypes>,
+    void,
+    unknown
+  >;
+  runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    config?: TraversalExecutionSelectionPatch<BreadthFirstTreeVisitPhase>,
+  ): AsyncGenerator<
+    Event<InputVertexTypes, RewrittenVertexTypes>,
+    void,
+    unknown
+  > {
+    return this.execution.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+      config,
+    );
   }
 
-  async run(
-    config?: TraversalExecutionOptions<BreadthFirstPhase>,
+  async runUntilSuspendedOrTerminal(
+    config?: TraversalExecutionSelectionPatch<BreadthFirstTreeVisitPhase>,
   ): Promise<this> {
-    await this.execution.run(config);
+    await this.execution.runUntilSuspendedOrTerminal(config);
     return this;
   }
 
   private projectEvents(
-    control: AsyncSessionControl<KernelEvent<TTP | RW_TTP>>,
-    kernel: TraversalKernel<TTP, RW_TTP>,
-  ): AsyncSessionControl<Event<TTP, RW_TTP>> {
+    control: AsyncSessionControl<
+      KernelEvent<InputVertexTypes | RewrittenVertexTypes>
+    >,
+    kernel: TraversalKernel<InputVertexTypes, RewrittenVertexTypes>,
+  ): AsyncSessionControl<Event<InputVertexTypes, RewrittenVertexTypes>> {
     return {
-      advance: (mode): SessionProgress<Event<TTP, RW_TTP>> => {
+      advance: (
+        mode,
+      ): SessionProgress<Event<InputVertexTypes, RewrittenVertexTypes>> => {
         const progress = control.advance(mode);
         if (progress.kind !== 'EVENT') return progress;
         return {
@@ -253,21 +347,21 @@ export class InternalAsyncBreadthFirstTreeRunner<
           boundaryId: progress.boundaryId,
           event: {
             vertex: vertexView(progress.event.vertex),
-            vertexRef: vertexHandle(progress.event.vertexRef),
-            phase: progress.event.order as BreadthFirstPhase,
+            vertexHandle: createVertexHandleFacet(progress.event.vertexHandle),
+            eventKind: progress.event.order as BreadthFirstTreeVisitPhase,
             isTreeRoot: progress.event.isRoot,
           },
         };
       },
-      shouldEmitEvent: (event) => kernel.shouldEmit(event.phase),
+      shouldEmitEvent: (event) => kernel.shouldEmit(event.eventKind),
       acknowledgeEvent: (boundaryId) => control.acknowledgeEvent(boundaryId),
       requestHalt: () => control.requestHalt(),
       isHaltRequested: () => control.isHaltRequested(),
       resume: (config) => control.resume(config),
-      getStatus: () => control.getStatus(),
-      getStopReason: () => control.getStopReason(),
+      getTraversalLifecycleStatus: () => control.getTraversalLifecycleStatus(),
+      getTraversalStopReason: () => control.getTraversalStopReason(),
       getFailure: () => control.getFailure(),
-      inspect: () => control.inspect(),
+      captureExecutionSnapshot: () => control.captureExecutionSnapshot(),
       waitForProgress: () => control.waitForProgress(),
     };
   }

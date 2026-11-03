@@ -2,12 +2,12 @@ import {
   assertTraversalFields,
   definedOptions,
 } from '@core/assertPublicOptions';
-import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
-import type { AsyncChildHintTransformer } from '@core/ChildHintTransformer';
+import type { AsyncTreeDiscoverySource } from '@core/AsyncTraversableTree';
+import type { AsyncChildHintsListTransformer } from '@core/ChildHintTransformer';
 import type { VisitorRecord } from '@core/graph/types';
 import type { AsyncDagDiscoverySource } from '@core/TraversableGraph';
-import type { VisitorInputs } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VisitorDefinitionsByPhase } from '@core/TraversalVisitor';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import { deepFreeze } from '@utils/deepFreeze';
 import { captureDagConfigPatch, captureDagSourcePatch } from './dagSourcePatch';
@@ -21,127 +21,197 @@ import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInte
 import type { AsyncDagVisitor } from './DagTraversalVisitor';
 
 export type AsyncDagSource<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
 > =
   | {
-      traversableGraph: AsyncDagDiscoverySource<T, R, ID>;
-      traversableTree?: undefined;
+      dagDiscoverySource: AsyncDagDiscoverySource<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        VertexId
+      >;
+      treeDiscoverySource?: undefined;
     }
   | {
-      traversableTree: unknown extends ID ? AsyncTreeSource<T, R> : never;
-      traversableGraph?: undefined;
+      treeDiscoverySource: unknown extends VertexId
+        ? AsyncTreeDiscoverySource<SourceVertexTypes, RewrittenVertexTypes>
+        : never;
+      dagDiscoverySource?: undefined;
     };
 
 export type AsyncDagTraversalVisitors<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
 > = {
-  [K in DagVisitorPhase]: VisitorRecord<AsyncDagVisitor<T, R, K, ID>>[];
+  [K in DagVisitorPhase]: VisitorRecord<
+    AsyncDagVisitor<SourceVertexTypes, RewrittenVertexTypes, K, VertexId>
+  >[];
 };
 
 type AsyncDagTraversalOptions<
-  T extends VertexTypes,
-  R extends VertexTypes,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
 > = DagSchedulingOptions & {
-  completedWork?: ReadonlySet<ID> | undefined;
-  transformChildHints: AsyncChildHintTransformer<T> | null;
-  visitors: AsyncDagTraversalVisitors<T, R, ID>;
-  retainOriginalGraphStructure: boolean;
-  concurrency: number;
+  acceptedCompletedWorkVertexIds?: ReadonlySet<VertexId> | undefined;
+  transformChildHintsBeforeResolution: AsyncChildHintsListTransformer<SourceVertexTypes> | null;
+  visitors: AsyncDagTraversalVisitors<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >;
+  retainDiscoveredGraphBeforeVisitorCommands: boolean;
+  maxConcurrentCallbackInvocations: number;
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer:
-      | DagTraversalRunnerInternalObjects<T, R, ID>['resolvedGraphsContainer']
+      | DagTraversalRunnerInternalObjects<
+          SourceVertexTypes,
+          RewrittenVertexTypes,
+          VertexId
+        >['resolvedGraphsContainer']
       | null;
-    state: DagTraversalRunnerInternalObjects<T, R, ID>['state'] | null;
+    state:
+      | DagTraversalRunnerInternalObjects<
+          SourceVertexTypes,
+          RewrittenVertexTypes,
+          VertexId
+        >['state']
+      | null;
   };
 };
 
 export type AsyncDagResolvedOptions<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
-> = AsyncDagSource<T, R, ID> & AsyncDagTraversalOptions<T, R, ID>;
+  SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
+> = AsyncDagSource<SourceVertexTypes, RewrittenVertexTypes, VertexId> &
+  AsyncDagTraversalOptions<SourceVertexTypes, RewrittenVertexTypes, VertexId>;
 
 type AsyncDagTraversalOptionsInput<
-  T extends VertexTypes,
-  R extends VertexTypes,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
 > = DagSchedulingOptions & {
-  completedWork?: ReadonlySet<ID> | undefined;
-  transformChildHints?: AsyncChildHintTransformer<T> | null | undefined;
-  visitors?: VisitorInputs<AsyncDagTraversalVisitors<T, R, ID>> | undefined;
-  retainOriginalGraphStructure?: boolean | undefined;
-  concurrency?: number | undefined;
+  acceptedCompletedWorkVertexIds?: ReadonlySet<VertexId> | undefined;
+  transformChildHintsBeforeResolution?:
+    | AsyncChildHintsListTransformer<SourceVertexTypes>
+    | null
+    | undefined;
+  visitors?:
+    | VisitorDefinitionsByPhase<
+        AsyncDagTraversalVisitors<
+          SourceVertexTypes,
+          RewrittenVertexTypes,
+          VertexId
+        >
+      >
+    | undefined;
+  retainDiscoveredGraphBeforeVisitorCommands?: boolean | undefined;
+  maxConcurrentCallbackInvocations?: number | undefined;
 };
 
-export type AsyncDagOptions<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
-> = AsyncDagSource<T, R, ID> &
-  AsyncDagTraversalOptionsInput<T, R, ID> &
-  (
-    | { traversableGraph: AsyncDagDiscoverySource<T, R, ID> }
-    | { rootWorkDependencies?: never; dependsOnWorkDefault?: never }
-  );
-
-export type AsyncDagOptionsPatch<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
-> = AsyncDagTraversalOptionsInput<T, R, ID> &
+export type AsyncDagTraversalBuilderOptions<
+  SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
+> = AsyncDagSource<SourceVertexTypes, RewrittenVertexTypes, VertexId> &
+  AsyncDagTraversalOptionsInput<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  > &
   (
     | {
-        traversableGraph?: AsyncDagDiscoverySource<T, R, ID> | undefined;
-        traversableTree?: undefined;
+        dagDiscoverySource: AsyncDagDiscoverySource<
+          SourceVertexTypes,
+          RewrittenVertexTypes,
+          VertexId
+        >;
       }
     | {
-        rootWorkDependencies?: never;
-        dependsOnWorkDefault?: never;
-        traversableTree?:
-          | (unknown extends ID ? AsyncTreeSource<T, R> : never)
+        rootWorkPrerequisitePolicy?: never;
+        undeclaredWorkPrerequisitePolicy?: never;
+      }
+  );
+
+export type AsyncDagTraversalBuilderOptionsPatch<
+  SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
+> = AsyncDagTraversalOptionsInput<
+  SourceVertexTypes,
+  RewrittenVertexTypes,
+  VertexId
+> &
+  (
+    | {
+        dagDiscoverySource?:
+          | AsyncDagDiscoverySource<
+              SourceVertexTypes,
+              RewrittenVertexTypes,
+              VertexId
+            >
           | undefined;
-        traversableGraph?: undefined;
+        treeDiscoverySource?: undefined;
+      }
+    | {
+        rootWorkPrerequisitePolicy?: never;
+        undeclaredWorkPrerequisitePolicy?: never;
+        treeDiscoverySource?:
+          | (unknown extends VertexId
+              ? AsyncTreeDiscoverySource<
+                  SourceVertexTypes,
+                  RewrittenVertexTypes
+                >
+              : never)
+          | undefined;
+        dagDiscoverySource?: undefined;
       }
   );
 
 export const ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG = deepFreeze({
-  transformChildHints: null,
+  transformChildHintsBeforeResolution: null,
   visitors: {
     [DagVisitorPhase.ON_WORK_READY]: [],
-    [DagVisitorPhase.ON_SUBGRAPH_READY]: [],
+    [DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY]: [],
   },
-  retainOriginalGraphStructure: false,
-  concurrency: Infinity,
+  retainDiscoveredGraphBeforeVisitorCommands: false,
+  maxConcurrentCallbackInvocations: Infinity,
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer: null,
     state: null,
   },
 }) as unknown as Omit<
-  AsyncDagResolvedOptions<VertexTypes>,
-  'traversableGraph' | 'traversableTree'
+  AsyncDagResolvedOptions<VertexDataAndChildHintTypes>,
+  'dagDiscoverySource' | 'treeDiscoverySource'
 >;
 
 export function mergeAsyncDagTraversalInstanceConfigs<
-  T extends VertexTypes,
-  R extends VertexTypes,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
 >(
-  base: AsyncDagResolvedOptions<T, R, ID>,
-  input: AsyncDagOptionsPatch<T, R, ID>,
+  base: AsyncDagResolvedOptions<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >,
+  input: AsyncDagTraversalBuilderOptionsPatch<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >,
   sources = captureDagSourcePatch(input),
-): AsyncDagResolvedOptions<T, R, ID> {
+): AsyncDagResolvedOptions<SourceVertexTypes, RewrittenVertexTypes, VertexId> {
   const capturedInput = captureDagConfigPatch(input, sources);
   assertTraversalFields(capturedInput, Object.values(DagVisitorPhase));
-  assertDagWorkCompletion(capturedInput.workCompletion);
+  assertDagWorkCompletion(capturedInput.workCompletionPolicy);
   assertDagDependencyPolicies(
     capturedInput,
-    sources.traversableGraph !== undefined ||
-      base.traversableGraph !== undefined,
+    sources.dagDiscoverySource !== undefined ||
+      base.dagDiscoverySource !== undefined,
     input,
   );
   const visitors = {
@@ -155,17 +225,23 @@ export function mergeAsyncDagTraversalInstanceConfigs<
       [DagVisitorPhase.ON_WORK_READY]: normalizeVisitorDefinitions(
         visitors[DagVisitorPhase.ON_WORK_READY],
       ),
-      [DagVisitorPhase.ON_SUBGRAPH_READY]: normalizeVisitorDefinitions(
-        visitors[DagVisitorPhase.ON_SUBGRAPH_READY],
-      ),
+      [DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY]:
+        normalizeVisitorDefinitions(
+          visitors[DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY],
+        ),
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
     },
-  } as AsyncDagResolvedOptions<T, R, ID>;
+  } as AsyncDagResolvedOptions<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >;
   if (
-    merged.concurrency !== Infinity &&
-    (!Number.isInteger(merged.concurrency) || merged.concurrency <= 0)
+    merged.maxConcurrentCallbackInvocations !== Infinity &&
+    (!Number.isInteger(merged.maxConcurrentCallbackInvocations) ||
+      merged.maxConcurrentCallbackInvocations <= 0)
   ) {
     throw new TypeError('Concurrency must be a positive integer or Infinity');
   }

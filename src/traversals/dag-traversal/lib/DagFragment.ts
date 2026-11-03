@@ -4,20 +4,25 @@ import type { DagDefinition } from './DagDefinition';
 /** Closed local topology with string-named live-vertex ports. */
 export type DagFragment<
   Data,
-  ID = unknown,
+  VertexId = unknown,
   Port extends string = string,
 > = Readonly<{
-  definition: DagDefinition<Data, ID>;
-  ports: Readonly<Record<Port, ID>>;
+  definition: DagDefinition<Data, VertexId>;
+  vertexIdsByPortName: Readonly<Record<Port, VertexId>>;
 }>;
 
-export type DagCompositionOptions<ID = unknown> = {
-  readonly dependencies?: readonly {
-    readonly dependent: ID;
-    readonly prerequisite: DagMilestone<ID>;
+export type DagCompositionOptions<VertexId = unknown> = {
+  readonly additionalWorkPrerequisites?: readonly {
+    readonly dependentWorkVertexId: VertexId;
+    readonly prerequisite: DagMilestone<VertexId>;
   }[];
-  readonly children?: readonly { readonly parent: ID; readonly child: ID }[];
+  readonly additionalStructuralChildLinks?: readonly {
+    readonly parentVertexId: VertexId;
+    readonly childVertexId: VertexId;
+  }[];
 };
 
 /** @internal Prevent wire/port values widening the inferred identity domain (TS 4.7). */
-export type InferredDagId<ID> = [ID][ID extends unknown ? 0 : never];
+export type InferredDagId<VertexId> = [VertexId][VertexId extends unknown
+  ? 0
+  : never];

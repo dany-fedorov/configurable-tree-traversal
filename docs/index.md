@@ -4,7 +4,7 @@
 
 CTT has three source families: tree sources (objects and abstract trees), DAG sources (work with dependencies), and walking sources (cyclic information graphs). Start with the [README quickstart](../README.md#quickstart-find-the-next-agent-tasks) to find ready tasks, continue with the [agent workflow guide](agent-workflows.md) to connect readiness to your executor and storage, and use the [reference](reference.md) for exact contracts. Pick a task below; each row ends when you have what the right column names.
 
-[Public symbol lookup](api-index.md) maps exported names to signatures, supported imports, owning contracts and examples. These guides describe `configurable-tree-traversal` 0.12.0; see the [README install instructions](../README.md#install).
+[Public symbol lookup](api-index.md) maps exported names to signatures, supported imports, owning contracts and examples. These guides describe the **unreleased breaking API in this checkout**, not the released `0.12.0` package; see the [README install instructions](../README.md#install).
 
 ## Read by task
 
@@ -21,7 +21,7 @@ CTT has three source families: tree sources (objects and abstract trees), DAG so
 | Explore cyclic context, references or provenance | [Walking workflow](agent-workflows.md#explore-context-and-references) → [walking contracts](reference.md#general-graph-walking)                                                               | A lazy source, independent observations, and explicit completeness outcome              |
 | Walk an object or abstract tree                  | [Objects](reference.md#traverse-an-object) → [abstract trees](reference.md#abstract-trees) → [orders](reference.md#traversal-orders)                                                          | The correct adapter, traversal family, and order                                        |
 | Use async callbacks                              | [Execution models](agent-workflows.md#choose-an-execution-model) → [async traversal](reference.md#async-traversal) → [pause/resume](reference.md#pause-and-resume)                            | A callback concurrency limit and clear iterator ownership                               |
-| Migrate from 0.11.0                              | [Final upgrade checklist](migration-api-distinctions.md#final-upgrade-checklist) → relevant detailed checklist → [current reference](reference.md)                                            | The final canonical surface, without applying intermediate rename stages                |
+| Migrate from released 0.12                       | [Explicit API migration](migration-explicit-api.md) → [current reference](reference.md)                                                                                                       | The final canonical surface, without applying intermediate rename stages                |
 | Look up an exported name                         | [Public symbols](api-index.md) → owning reference contract                                                                                                                                    | Exact declaration and a current example                                                 |
 | Inspect vertices or paths                        | [Views, handles, identity and paths](reference.md#views-handles-identity-and-paths)                                                                                                           | Safe live queries and strict absence behavior                                           |
 | Choose valid option fields                       | [Options and defaults](reference.md#options-and-defaults)                                                                                                                                     | Correct builder, patch, prepared/session or execution bag                               |
@@ -52,15 +52,15 @@ Examples are executable programs; several DAG and agent coordination examples in
 
 ### Tree and object examples
 
-| Example                                                                                                                                                  | Demonstrates                                                                                                 |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [Object traversal](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)                         | Depth-first pre/post-order callbacks over a nested object, with `PAUSE_TRAVERSAL` and resume                 |
-| [Skip a subtree](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example-disable-subtree-traversal.ts) | `SKIP_REMAINING_CHILDREN` to prune pending expansion of the current vertex                                   |
-| [Rewrite child hints](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example-rewrite-vertex-hints.ts) | `REWRITE_CHILD_HINTS` to replace which children are discovered                                               |
-| [Iterate events](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-iterable-example.ts)                  | Pull-based `iterateEvents`, pausing by breaking the loop, and changing emission/callback selection per lease |
-| [Breadth-first](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/breadth-first-example.ts)                                 | `BreadthFirstTreeTraversal` over an object                                                                   |
-| [Configuration patches](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)                 | `configure()` patches for in-order selection before creating a runner                                        |
-| [Tree from image](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/tree-from-image-example.ts)                             | Pre/in/post-order visit points over the binary tree pictured in the reference                                |
+| Example                                                                                                                                                  | Demonstrates                                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Object traversal](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)                         | Depth-first pre/post-order callbacks over a nested object, with `PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY` and resume                               |
+| [Skip a subtree](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example-disable-subtree-traversal.ts) | `SKIP_PENDING_CHILD_DISCOVERY_OF_CURRENT_VERTEX` to prune pending expansion of the current vertex                                                     |
+| [Rewrite child hints](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example-rewrite-vertex-hints.ts) | `REPLACE_CURRENT_VERTEX_CHILD_HINTS` to replace which children are discovered                                                                         |
+| [Iterate events](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-iterable-example.ts)                  | Pull-based `runAndIterateObservationEventsUntilSuspendedOrTerminal`, pausing by breaking the loop, and changing emission/callback selection per lease |
+| [Breadth-first](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/breadth-first-example.ts)                                 | `BreadthFirstTreeTraversalBuilder` over an object                                                                                                     |
+| [Configuration patches](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)                 | `patchOptionsForFutureRunners()` patches for in-order selection before creating a runner                                                              |
+| [Tree from image](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/tree-from-image-example.ts)                             | Pre/in/post-order visit points over the binary tree pictured in the reference                                                                         |
 
 The npm package includes these guides and the reference. Examples, contributor instructions, and measurement artifacts are linked to the repository rather than bundled.
 
@@ -68,7 +68,7 @@ The npm package includes these guides and the reference. Examples, contributor i
 
 ### Upgrading from 0.11.0
 
-Start with the [final upgrade checklist](migration-api-distinctions.md). It lists the current canonical names and presence/ownership contracts and links the earlier, more detailed migration guides; you do not apply those guides in sequence.
+For this unreleased checkout, start with the [explicit API migration](migration-explicit-api.md). The [0.11-to-0.12 checklist](migration-api-distinctions.md) and its linked guides preserve historical release context; their names and snippets do not describe this checkout.
 
 - [Changelog](../CHANGELOG.md): changes and release history.
 - [Testing](testing.md): commands, coverage requirements, package/runtime checks.

@@ -1,24 +1,34 @@
 // Compile with exactOptionalPropertyTypes disabled, as in many consumer projects.
 import {
-  GraphWalk,
-  AsyncGraphWalk,
+  GraphWalkBuilder,
+  AsyncGraphWalkBuilder,
   TraversalVisitorCommandName as Command,
 } from 'configurable-tree-traversal';
 const visitors = {
-  vertex: () => ({
+  vertexOccurrence: () => ({
     commands: [
-      { commandName: Command.NOOP as const, commandArguments: undefined },
       {
-        commandName: Command.PAUSE_TRAVERSAL as const,
+        commandName: Command.NO_OPERATION as const,
+        commandArguments: undefined,
+      },
+      {
+        commandName:
+          Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY as const,
         commandArguments: undefined,
       },
     ],
   }),
 };
 const source = {
-  hydration: 'inlineOrCached' as const,
-  roots: () => [],
-  outgoing: () => [],
+  vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+  enumerateRootTargets: () => [],
+  enumerateOutgoingLinks: () => [],
 };
-new GraphWalk({ source, visitors });
-new AsyncGraphWalk({ source, visitors });
+new GraphWalkBuilder({
+  graphWalkDiscoverySource: source,
+  visitorsByObservationKind: visitors,
+});
+new AsyncGraphWalkBuilder({
+  graphWalkDiscoverySource: source,
+  visitorsByObservationKind: visitors,
+});

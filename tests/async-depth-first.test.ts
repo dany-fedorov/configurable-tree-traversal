@@ -1,88 +1,109 @@
 import { treeResolution } from './source-result-fixtures';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
-import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
+import { ObjectPropertyTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
 import {
-  AsyncDepthFirstTreeTraversal,
-  DepthFirstPhase as Order,
-  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversalBuilder,
+  DepthFirstTreeVisitPhase as Order,
+  DepthFirstTreeTraversalBuilder,
 } from '../src/traversals/depth-first-traversal';
 import { ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig';
-import type { InOrderOptions } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
+import type { DepthFirstChildBoundaryVisitOptions } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 import type { TestGraph } from './helpers/graph-fixtures';
 import {
   createInternalAsyncDepthFirstTreeRunner,
   runnerInternals,
 } from './internal-runner-fixtures';
 
-type Node = { $data: string; $childHints: (Node | null)[] };
-type Tree = VertexTypes<string, Node | null>;
-const node = ($data: string, ...$childHints: (Node | null)[]): Node => ({
-  $data,
-  $childHints,
+type Node = { $vertexData: string; $childDiscoveryHints: (Node | null)[] };
+type Tree = VertexDataAndChildHintTypes<string, Node | null>;
+const node = (
+  $vertexData: string,
+  ...$childDiscoveryHints: (Node | null)[]
+): Node => ({
+  $vertexData,
+  $childDiscoveryHints,
 });
 
 function traversal(
   root: Node | null = node('root', node('A'), node('B')),
-  concurrency = Infinity,
+  maxConcurrentCallbackInvocations = Infinity,
 ) {
-  return new AsyncDepthFirstTreeTraversal<Tree>({
-    traversableTree: {
-      resolveRoot: () => treeResolution(root),
-      resolveChild: async (hint) => treeResolution(hint),
+  return new AsyncDepthFirstTreeTraversalBuilder<Tree>({
+    treeDiscoverySource: {
+      resolveRootVertex: () => treeResolution(root),
+      resolveChildVertexFromHint: async (hint) => treeResolution(hint),
     },
-    concurrency,
+    maxConcurrentCallbackInvocations,
   });
 }
 
 async function values(
-  runner: ReturnType<ReturnType<typeof traversal>['createRunner']>,
+  runner: ReturnType<
+    ReturnType<typeof traversal>['createIndependentRunnerFromCurrentOptions']
+  >,
   order: Order,
 ): Promise<string[]> {
   const seen: string[] = [];
-  for await (const event of runner.iterateEvents({ emitEvents: [order] })) {
-    seen.push(event.vertex.getData());
+  for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    { deliveredEventKinds: [order] },
+  )) {
+    seen.push(event.vertex.getVertexData());
   }
   return seen;
 }
 
 test('exposes asynchronous depth-first post-order traversal', async () => {
-  const traversal = new AsyncDepthFirstTreeTraversal<TestGraph>({
-    traversableTree: {
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: { vertexContent: { $data: 'root', $childHints: ['A', 'B'] } },
+  const traversal = new AsyncDepthFirstTreeTraversalBuilder<TestGraph>({
+    treeDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: {
+            $vertexData: 'root',
+            $childDiscoveryHints: ['A', 'B'],
+          },
+        },
       }),
-      resolveChild: async (hint) => ({
-        kind: 'found' as const,
-        vertex: { vertexContent: { $data: hint, $childHints: [] } },
+      resolveChildVertexFromHint: async (hint) => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
+        },
       }),
     },
-    concurrency: 2,
+    maxConcurrentCallbackInvocations: 2,
   });
   const seen: string[] = [];
-  for await (const event of traversal.createRunner().iterateEvents({
-    emitEvents: [Order.POST_ORDER],
-  })) {
-    seen.push(event.vertex.getData());
-    expect(event.isTreeRoot).toBe(event.vertex.getData() === 'root');
-    expect(event.isTreeRoot).toBe(event.vertex.getData() === 'root');
+  for await (const event of traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: [Order.AFTER_CHILD_SUBTREES],
+    })) {
+    seen.push(event.vertex.getVertexData());
+    expect(event.isTreeRoot).toBe(event.vertex.getVertexData() === 'root');
+    expect(event.isTreeRoot).toBe(event.vertex.getVertexData() === 'root');
   }
   expect(seen).toEqual(['A', 'B', 'root']);
 });
 
-const inOrderCases: Array<[Partial<InOrderOptions>, string[]]> = [
+const inOrderCases: Array<
+  [Partial<DepthFirstChildBoundaryVisitOptions>, string[]]
+> = [
   [{}, ['a', 'root', 'b', 'root', 'c']],
-  [{ afterChildIndices: { indices: [0, 2] } }, ['a', 'root', 'b', 'c', 'root']],
+  [
+    { visitAfterChildIndices: { indices: [0, 2] } },
+    ['a', 'root', 'b', 'c', 'root'],
+  ],
   [
     {
-      afterChildIndices: { indices: [99] },
-      fallbackChildIndices: { indices: [-1] },
+      visitAfterChildIndices: { indices: [99] },
+      visitAfterChildIndicesWhenPrimarySelectionIsEmpty: { indices: [-1] },
     },
     ['a', 'b', 'c', 'root'],
   ],
-  [{ afterChildIndices: { indices: [-2] } }, ['a', 'b', 'root', 'c']],
+  [{ visitAfterChildIndices: { indices: [-2] } }, ['a', 'b', 'root', 'c']],
 ];
 
 test.each(inOrderCases)(
@@ -90,12 +111,15 @@ test.each(inOrderCases)(
   async (config, expected) => {
     const t = traversal(
       node('root', node('a'), node('b'), node('c')),
-    ).configure({
-      inOrder: config,
+    ).patchOptionsForFutureRunners({
+      childBoundaryVisits: config,
     });
-    await expect(values(t.createRunner(), Order.IN_ORDER)).resolves.toEqual(
-      expected,
-    );
+    await expect(
+      values(
+        t.createIndependentRunnerFromCurrentOptions(),
+        Order.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
+      ),
+    ).resolves.toEqual(expected);
   },
 );
 
@@ -103,56 +127,72 @@ test('preserves one-child and null-slot in-order options', async () => {
   await expect(
     values(
       traversal(node('root', node('only')))
-        .configure({
-          inOrder: { visitSingleChildParent: false },
+        .patchOptionsForFutureRunners({
+          childBoundaryVisits: { alsoVisitAfterOnlyChild: false },
         })
-        .createRunner(),
-      Order.IN_ORDER,
+        .createIndependentRunnerFromCurrentOptions(),
+      Order.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
     ),
   ).resolves.toEqual(['only']);
   await expect(
     values(
-      traversal(node('root', null, node('a'))).createRunner(),
-      Order.IN_ORDER,
+      traversal(
+        node('root', null, node('a')),
+      ).createIndependentRunnerFromCurrentOptions(),
+      Order.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
     ),
   ).resolves.toEqual(['root', 'a']);
   await expect(
     values(
       traversal(node('root', null, node('a')))
-        .configure({
-          inOrder: {
-            visitAfterOmittedChildren: false,
+        .patchOptionsForFutureRunners({
+          childBoundaryVisits: {
+            allowBoundaryVisitsAfterOmittedChildSlots: false,
           },
         })
-        .createRunner(),
-      Order.IN_ORDER,
+        .createIndependentRunnerFromCurrentOptions(),
+      Order.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
     ),
   ).resolves.toEqual(['a']);
   await expect(
-    values(traversal(node('root', null, null)).createRunner(), Order.IN_ORDER),
+    values(
+      traversal(
+        node('root', null, null),
+      ).createIndependentRunnerFromCurrentOptions(),
+      Order.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
+    ),
   ).resolves.toEqual(['root']);
 });
 
 test('resumes repeated mid-chain halts without repeating visitors', async () => {
   const t = traversal(node('root', node('leaf')));
   const visits: string[] = [];
-  t.addVisitorFor(Order.PRE_ORDER, (vertex) => {
-    visits.push(`halt:${vertex.getData()}`);
-    return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
+  t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, (vertex) => {
+    visits.push(`halt:${vertex.getVertexData()}`);
+    return {
+      commands: [
+        { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+      ],
+    };
   });
-  t.addVisitorFor(Order.PRE_ORDER, async (vertex) => {
-    visits.push(`after:${vertex.getData()}`);
-  });
-  const runner = t.createRunner();
+  t.registerVisitorCallbackForPhase(
+    Order.BEFORE_CHILD_EXPANSION,
+    async (vertex) => {
+      visits.push(`after:${vertex.getVertexData()}`);
+    },
+  );
+  const runner = t.createIndependentRunnerFromCurrentOptions();
 
-  await expect(runner.run({ emitEvents: [] })).resolves.toBe(runner);
-  expect(runner.getStatus()).toBe(Status.HALTED);
+  await expect(
+    runner.runUntilSuspendedOrTerminal({ deliveredEventKinds: [] }),
+  ).resolves.toBe(runner);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
   expect(visits).toEqual(['halt:root']);
-  await runner.run({ emitEvents: [] });
-  expect(runner.getStatus()).toBe(Status.HALTED);
+  await runner.runUntilSuspendedOrTerminal({ deliveredEventKinds: [] });
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
   expect(visits).toEqual(['halt:root', 'after:root', 'halt:leaf']);
-  await runner.run({ emitEvents: [] });
-  expect(runner.getStatus()).toBe(Status.FINISHED);
+  await runner.runUntilSuspendedOrTerminal({ deliveredEventKinds: [] });
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
   expect(visits).toEqual([
     'halt:root',
     'after:root',
@@ -162,16 +202,20 @@ test('resumes repeated mid-chain halts without repeating visitors', async () => 
 });
 
 test('uses new iterator filters when resuming after consumer closure', async () => {
-  const runner = traversal(node('root', node('leaf'))).createRunner();
-  for await (const event of runner.iterateEvents({
-    emitEvents: [Order.PRE_ORDER],
-  })) {
-    expect(event.vertex.getData()).toBe('root');
+  const runner = traversal(
+    node('root', node('leaf')),
+  ).createIndependentRunnerFromCurrentOptions();
+  for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    {
+      deliveredEventKinds: [Order.BEFORE_CHILD_EXPANSION],
+    },
+  )) {
+    expect(event.vertex.getVertexData()).toBe('root');
     break;
   }
-  expect(runner.getStatus()).toBe(Status.HALTED);
-  expect(runner.isHalted()).toBe(true);
-  await expect(values(runner, Order.POST_ORDER)).resolves.toEqual([
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
+  expect(runner.isSuspended()).toBe(true);
+  await expect(values(runner, Order.AFTER_CHILD_SUBTREES)).resolves.toEqual([
     'leaf',
     'root',
   ]);
@@ -179,56 +223,85 @@ test('uses new iterator filters when resuming after consumer closure', async () 
 
 test('supports promised sorting and tree runner graph and vertex queries', async () => {
   const runner = traversal(node('root', node('a'), node('b')))
-    .configure({ transformChildHints: async (hints) => hints.reverse() })
-    .createRunner();
-  await expect(values(runner, Order.PRE_ORDER)).resolves.toEqual([
+    .patchOptionsForFutureRunners({
+      transformChildHintsBeforeResolution: async (hints) => hints.reverse(),
+    })
+    .createIndependentRunnerFromCurrentOptions();
+  await expect(values(runner, Order.BEFORE_CHILD_EXPANSION)).resolves.toEqual([
     'root',
     'b',
     'a',
   ]);
-  const graph = runner.getResolvedGraphView();
-  const root = graph.getRoot();
+  const graph = runner.getLiveResolvedGraphView();
+  const root = graph.getDesignatedRootHandleOrNull();
   if (root === null) throw new Error('Expected a root');
-  const children = graph.get(root)?.slots;
-  if (children?.[0]?.kind !== 'linked') throw new Error('Expected a child');
+  const children =
+    graph.getVertexSnapshotOrNull(root)?.orderedChildDiscoverySlots;
+  if (children?.[0]?.kind !== 'linkedToVertex')
+    throw new Error('Expected a child');
   expect(runner.isTreeRootVertex(root)).toBe(true);
   expect(runner.isTreeRootVertex(root)).toBe(true);
-  expect(runner.isChildExpansionSkipped(root)).toBe(false);
-  expect(children[0].childRef.getValue().hasNoChildHints()).toBe(true);
+  expect(runner.hasSkippedPendingChildDiscovery(root)).toBe(false);
+  expect(
+    !children[0].childVertexHandle
+      .getCurrentVertexView()
+      .hasChildDiscoveryHints(),
+  ).toBe(true);
 });
 
 test('retains saved original tree data through asynchronous mutations', async () => {
-  const t = traversal(node('root', node('leaf'))).configure({
-    retainOriginalTreeStructure: true,
+  const t = traversal(node('root', node('leaf'))).patchOptionsForFutureRunners({
+    retainDiscoveredTreeBeforeVisitorCommands: true,
   });
-  t.addVisitorFor(Order.PRE_ORDER, async (vertex) => ({
-    commands: [
-      {
-        commandName: Command.REWRITE_VERTEX_DATA,
-        commandArguments: { newData: vertex.getData().toUpperCase() },
-      },
-    ],
-  }));
-  const runner = await t.createRunner().run();
-  expect(runner.getResolvedTreeView().getRoot()?.getValue().getData()).toBe(
-    'ROOT',
+  t.registerVisitorCallbackForPhase(
+    Order.BEFORE_CHILD_EXPANSION,
+    async (vertex) => ({
+      commands: [
+        {
+          commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+          commandArguments: {
+            replacementVertexData: vertex.getVertexData().toUpperCase(),
+          },
+        },
+      ],
+    }),
   );
-  const saved = runnerInternals(runner).resolvedTreesContainer.originalTreeView;
-  expect(saved?.getRoot()?.getValue().getData()).toBe('root');
+  const runner = await t
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
   expect(
-    saved?.getChildrenOf(saved.getRoot()!)?.[0]?.getValue().getData(),
+    runner
+      .getLiveResolvedTreeView()
+      .getRootVertexHandleOrNull()
+      ?.getCurrentVertexView()
+      .getVertexData(),
+  ).toBe('ROOT');
+  const saved =
+    runnerInternals(runner).resolvedTreesContainer.preCommandDiscoveredTreeView;
+  expect(
+    saved?.getRootVertexReferenceOrNull()?.getReferencedValue().getVertexData(),
+  ).toBe('root');
+  expect(
+    saved
+      ?.getDetachedChildReferenceListOrNull(
+        saved.getRootVertexReferenceOrNull()!,
+      )?.[0]
+      ?.getReferencedValue()
+      .getVertexData(),
   ).toBe('leaf');
 });
 
 test('accepts the existing synchronous object-tree adapter', async () => {
-  const runner = new AsyncDepthFirstTreeTraversal({
-    traversableTree: new ObjectTreeSource({ a: 1, b: { c: 2 } }),
-  }).createRunner();
+  const runner = new AsyncDepthFirstTreeTraversalBuilder({
+    treeDiscoverySource: new ObjectPropertyTreeSource({ a: 1, b: { c: 2 } }),
+  }).createIndependentRunnerFromCurrentOptions();
   const keys: Array<string | number | symbol> = [];
-  for await (const event of runner.iterateEvents({
-    emitEvents: [Order.PRE_ORDER],
-  })) {
-    keys.push(event.vertex.getData().key);
+  for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    {
+      deliveredEventKinds: [Order.BEFORE_CHILD_EXPANSION],
+    },
+  )) {
+    keys.push(event.vertex.getVertexData().propertyKey);
   }
   expect(keys).toEqual([
     '__TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__',
@@ -239,32 +312,40 @@ test('accepts the existing synchronous object-tree adapter', async () => {
 });
 
 test('builder visitor operations are stable and runner snapshots are isolated', async () => {
-  const ranges: { ranges: Array<{ from: number; through: number }> } = {
-    ranges: [{ from: 0, through: 0 }],
+  const ranges: {
+    ranges: Array<{ fromInclusive: number; throughInclusive: number }>;
+  } = {
+    ranges: [{ fromInclusive: 0, throughInclusive: 0 }],
   };
-  const t = traversal(node('root', node('a'), node('b'))).configure({
-    inOrder: { afterChildIndices: ranges },
+  const t = traversal(
+    node('root', node('a'), node('b')),
+  ).patchOptionsForFutureRunners({
+    childBoundaryVisits: { visitAfterChildIndices: ranges },
   });
   const seen: string[] = [];
-  t.setVisitorsFor(Order.PRE_ORDER, [
+  t.replaceVisitorDefinitionsForPhase(Order.BEFORE_CHILD_EXPANSION, [
     {
-      priority: 100,
-      commandCommitMode: 'afterEachVisitor' as const,
+      descendingExecutionPriorityWithinGroup: 100,
+      visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
       visitor: async () => {
         seen.push('first');
       },
     },
   ]);
-  t.addVisitorFor(Order.PRE_ORDER, async () => {
+  t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, async () => {
     seen.push('second');
   });
-  expect(t.listVisitorsFor(Order.PRE_ORDER)).toHaveLength(2);
-  const runner = t.createRunner();
-  ranges.ranges[0]!.from = 1;
-  t.addVisitorFor(Order.PRE_ORDER, async () => {
+  expect(
+    t.getDetachedVisitorRegistrationRecordsForPhase(
+      Order.BEFORE_CHILD_EXPANSION,
+    ),
+  ).toHaveLength(2);
+  const runner = t.createIndependentRunnerFromCurrentOptions();
+  ranges.ranges[0]!.fromInclusive = 1;
+  t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, async () => {
     seen.push('late');
   });
-  await runner.run({ emitEvents: [] });
+  await runner.runUntilSuspendedOrTerminal({ deliveredEventKinds: [] });
   expect(seen).toEqual([
     'first',
     'second',
@@ -273,23 +354,27 @@ test('builder visitor operations are stable and runner snapshots are isolated', 
     'first',
     'second',
   ]);
-  expect(runnerInternals(runner).icfg.inOrder.afterChildIndices).toEqual({
-    ranges: [{ from: 0, through: 0 }],
+  expect(
+    runnerInternals(runner).icfg.childBoundaryVisits.visitAfterChildIndices,
+  ).toEqual({
+    ranges: [{ fromInclusive: 0, throughInclusive: 0 }],
   });
 });
 
 test('reuses injected tree storage and state objects', async () => {
   const first = await traversal(node('root', node('child')))
-    .createRunner()
-    .run();
-  const state = runnerInternals(traversal().createRunner()).state;
-  const root = first.getResolvedTreeView().getRoot();
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
+  const state = runnerInternals(
+    traversal().createIndependentRunnerFromCurrentOptions(),
+  ).state;
+  const root = first.getLiveResolvedTreeView().getRootVertexHandleOrNull();
   const second = createInternalAsyncDepthFirstTreeRunner<Tree>({
-    traversableTree: {
-      resolveRoot: () => {
+    treeDiscoverySource: {
+      resolveRootVertex: () => {
         throw new Error('Existing root must be reused');
       },
-      resolveChild: (hint) => treeResolution(hint),
+      resolveChildVertexFromHint: (hint) => treeResolution(hint),
     },
     traversalRunnerInternalObjects: {
       resolvedTreesContainer: runnerInternals(first).resolvedTreesContainer,
@@ -300,70 +385,83 @@ test('reuses injected tree storage and state objects', async () => {
   expect(runnerInternals(second).state.subtreeTraversalDisabledRefs).toBe(
     state.subtreeTraversalDisabledRefs,
   );
-  await expect(values(second, Order.PRE_ORDER)).resolves.toEqual([
+  await expect(values(second, Order.BEFORE_CHILD_EXPANSION)).resolves.toEqual([
     'root',
     'child',
   ]);
-  expect(second.getResolvedTreeView().getRoot()).toBe(root);
+  expect(second.getLiveResolvedTreeView().getRootVertexHandleOrNull()).toBe(
+    root,
+  );
 });
 
 test.each([null, undefined])(
   'rethrows an original %p failure on every attempted rerun',
   async (failure) => {
-    const runner = new AsyncDepthFirstTreeTraversal<TestGraph>({
-      traversableTree: {
-        resolveRoot: async () => {
+    const runner = new AsyncDepthFirstTreeTraversalBuilder<TestGraph>({
+      treeDiscoverySource: {
+        resolveRootVertex: async () => {
           throw failure;
         },
-        resolveChild: () => ({ kind: 'omitted' as const }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
       },
-    }).createRunner();
-    await expect(runner.run()).rejects.toBe(failure);
-    expect(runner.getStatus()).toBe(Status.FAILED);
-    await expect(runner.run()).rejects.toBe(failure);
-    await expect(runner.iterateEvents().next()).rejects.toBe(failure);
+    }).createIndependentRunnerFromCurrentOptions();
+    await expect(runner.runUntilSuspendedOrTerminal()).rejects.toBe(failure);
+    expect(runner.getTraversalLifecycleStatus()).toBe(Status.FAILED);
+    await expect(runner.runUntilSuspendedOrTerminal()).rejects.toBe(failure);
+    await expect(
+      runner.runAndIterateObservationEventsUntilSuspendedOrTerminal().next(),
+    ).rejects.toBe(failure);
   },
 );
 
 test('preserves an original consumer exception and allows resumption', async () => {
   const consumerError = { source: 'consumer' };
-  const runner = traversal(node('root', node('leaf'))).createRunner();
+  const runner = traversal(
+    node('root', node('leaf')),
+  ).createIndependentRunnerFromCurrentOptions();
   let caught: unknown;
   try {
-    for await (const _event of runner.iterateEvents()) throw consumerError;
+    for await (const _event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+      throw consumerError;
   } catch (error) {
     caught = error;
   }
   expect(caught).toBe(consumerError);
-  expect(runner.getStatus()).toBe(Status.HALTED);
-  await expect(runner.run()).resolves.toBe(runner);
-  expect(runner.getStatus()).toBe(Status.FINISHED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
+  await expect(runner.runUntilSuspendedOrTerminal()).resolves.toBe(runner);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
 });
 
 test('directly exposes session one-active-iterator and synchronous close control', async () => {
-  const runner = traversal().createRunner();
-  const first = runner.iterateEvents();
+  const runner = traversal().createIndependentRunnerFromCurrentOptions();
+  const first = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const firstEvent = await first.next();
   expect(firstEvent.done).toBe(false);
-  const second = runner.iterateEvents();
+  const second =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await expect(second.next()).rejects.toThrow('Another active iterator');
   await expect(first.return(undefined)).resolves.toEqual({
     done: true,
     value: undefined,
   });
-  expect(runner.getStatus()).toBe(Status.HALTED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
 });
 
 test('validates and inspects concurrency without advancing traversal', () => {
-  const runner = traversal(undefined, 2).createRunner();
-  expect(runner.inspect()).toMatchObject({
-    execution: 'async',
-    kind: 'depth-first',
-    concurrency: 2,
-    inFlightCallbackCount: 0,
-    bufferedEventCount: 0,
+  const runner = traversal(
+    undefined,
+    2,
+  ).createIndependentRunnerFromCurrentOptions();
+  expect(runner.captureExecutionSnapshot()).toMatchObject({
+    callbackExecutionMode: 'async',
+    traversalAlgorithm: 'depth-first',
+    maxConcurrentCallbackInvocations: 2,
+    inFlightInvocationCount: 0,
+    bufferedDeliveryEventCount: 0,
   });
-  expect(runner.getStatus()).toBe(Status.INITIAL);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.NOT_STARTED);
   expect(() => traversal(undefined, 0)).toThrow(TypeError);
   expect(() => traversal(undefined, 1.5)).toThrow(TypeError);
 });
@@ -374,7 +472,7 @@ test('exports recursively frozen asynchronous defaults', () => {
   ).toBe(true);
   expect(
     Object.isFrozen(
-      ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.inOrder,
+      ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.childBoundaryVisits,
     ),
   ).toBe(true);
 });
@@ -395,24 +493,33 @@ test('matches synchronous DFS for timing-independent generated trees', async () 
       );
     const root = make(4, 'root');
     const tree = {
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: { vertexContent: root },
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: { vertexContentInput: root },
       }),
-      resolveChild: (hint: Node | null) => treeResolution(hint),
+      resolveChildVertexFromHint: (hint: Node | null) => treeResolution(hint),
     };
-    const sync = new DepthFirstTreeTraversal<Tree>({ traversableTree: tree });
-    const asyncTraversal = new AsyncDepthFirstTreeTraversal<Tree>({
-      traversableTree: tree,
-      concurrency: 3,
+    const sync = new DepthFirstTreeTraversalBuilder<Tree>({
+      treeDiscoverySource: tree,
+    });
+    const asyncTraversal = new AsyncDepthFirstTreeTraversalBuilder<Tree>({
+      treeDiscoverySource: tree,
+      maxConcurrentCallbackInvocations: 3,
     });
     for (const order of Object.values(Order)) {
       const expected = Array.from(
-        sync.createRunner().iterateEvents({ emitEvents: [order] }),
-        (event) => event.vertex.getData(),
+        sync
+          .createIndependentRunnerFromCurrentOptions()
+          .runAndIterateObservationEventsUntilSuspendedOrTerminal({
+            deliveredEventKinds: [order],
+          }),
+        (event) => event.vertex.getVertexData(),
       );
       await expect(
-        values(asyncTraversal.createRunner(), order),
+        values(
+          asyncTraversal.createIndependentRunnerFromCurrentOptions(),
+          order,
+        ),
       ).resolves.toEqual(expected);
     }
   }

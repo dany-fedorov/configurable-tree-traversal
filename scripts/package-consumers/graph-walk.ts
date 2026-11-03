@@ -1,27 +1,27 @@
 import {
-  GraphWalk,
-  AsyncGraphWalk,
-  GraphWalkPhase as Phase,
+  GraphWalkBuilder,
+  AsyncGraphWalkBuilder,
+  GraphWalkObservationKind as Phase,
   DagVisitorPhase as DagPhase,
   TraversalVisitorCommandName as Command,
   graphWalk,
-  walkGraph,
-  walkGraphAsync,
-  materializeWalkSourceFromRecords,
-  materializeWalkSourceFromRecordsAsync,
-  materializeWalkSourceFromDagDefinition,
-  defineDag,
-  type GraphWalkSource,
-  type AsyncGraphWalkSource,
+  createAndRunGraphWalkUntilSuspendedOrTerminal,
+  createAndRunGraphWalkUntilSuspendedOrTerminalAsync,
+  materializeGraphWalkSourceFromVertexRecords,
+  materializeSynchronousGraphWalkSourceFromAsyncRecords,
+  materializeGraphWalkSourceFromDagDeclarationRelations,
+  copyAndNormalizeDagDefinition,
+  type GraphWalkDiscoverySource,
+  type AsyncGraphWalkDiscoverySource,
   type GraphWalkRunner,
   type AsyncGraphWalkRunner,
   type GraphWalkEvent,
-  type GraphWalkEventFor,
-  type GraphWalkTarget,
-  type GraphWalkDagRelation,
+  type GraphWalkEventForObservationKind,
+  type GraphWalkVertexResolutionTarget,
+  type GraphWalkDagDeclarationRelation,
 } from 'configurable-tree-traversal';
 import * as walking from 'configurable-tree-traversal/traversals/graph-walk';
-import rootCjs = require('configurable-tree-traversal');
+import type rootCjs = require('configurable-tree-traversal');
 import walkingCjs = require('configurable-tree-traversal/traversals/graph-walk');
 
 const symbolId = Symbol('id');
@@ -36,72 +36,86 @@ type ID =
 type Data = { label: string };
 type Relation = { kind: 'imports' | 'references' };
 const relation: Relation = { kind: 'references' };
-const target: GraphWalkTarget<Data, ID> = {
+const target: GraphWalkVertexResolutionTarget<Data, ID> = {
   vertexId: objectId,
-  resolution: { kind: 'found', data: { label: 'root' } },
+  resolutionIfNotPreviouslyAdmitted: {
+    kind: 'found',
+    vertexData: { label: 'root' },
+  },
 };
-const source: GraphWalkSource<Data, Relation, ID> = {
-  hydration: 'resolver' as const,
-  roots: () => [
+const source: GraphWalkDiscoverySource<Data, Relation, ID> = {
+  vertexResolutionMode: 'resolverWithOptionalInlineResolution' as const,
+  enumerateRootTargets: () => [
     target,
-    { vertexId: undefined, resolution: { kind: 'omitted' } },
+    {
+      vertexId: undefined,
+      resolutionIfNotPreviouslyAdmitted: { kind: 'omitted' },
+    },
   ],
-  resolveVertex: (vertexId) => {
+  resolveVertexDataById: (vertexId) => {
     const id: ID = vertexId;
     void id;
     return { kind: 'omitted' };
   },
-  outgoing: (vertex) => {
+  enumerateOutgoingLinks: (vertex) => {
     const id: ID = vertex.vertexId;
-    const data: Data = vertex.data;
+    const data: Data = vertex.vertexData;
     void [id, data];
-    return [{ target: { vertexId: symbolId }, data: relation }];
+    return [
+      {
+        targetToResolveOnAdmission: { vertexId: symbolId },
+        edgeData: relation,
+      },
+    ];
   },
 };
-const asyncSource: AsyncGraphWalkSource<Data, Relation, ID> = {
-  hydration: 'resolver' as const,
-  async *roots() {
+const asyncSource: AsyncGraphWalkDiscoverySource<Data, Relation, ID> = {
+  vertexResolutionMode: 'resolverWithOptionalInlineResolution' as const,
+  async *enumerateRootTargets() {
     yield target;
   },
-  resolveVertex: async () => ({ kind: 'omitted' }),
-  async *outgoing(vertex) {
+  resolveVertexDataById: async () => ({ kind: 'omitted' }),
+  async *enumerateOutgoingLinks(vertex) {
     const id: ID = vertex.vertexId;
-    const data: Data = vertex.data;
+    const data: Data = vertex.vertexData;
     void [id, data];
     yield {
-      target: { vertexId: null, resolution: { kind: 'omitted' as const } },
-      data: relation,
+      targetToResolveOnAdmission: {
+        vertexId: null,
+        resolutionIfNotPreviouslyAdmitted: { kind: 'omitted' as const },
+      },
+      edgeData: relation,
     };
   },
 };
-const result = walkGraph({
-  source,
-  visitors: {
-    [Phase.VERTEX]: (event, context) => {
+const result = createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: source,
+  visitorsByObservationKind: {
+    [Phase.VERTEX_OCCURRENCE]: (event, context) => {
       const id: ID = event.vertex.vertexId;
-      const data: Data = event.vertex.data;
-      const phase: Phase.VERTEX = context.phase;
+      const data: Data = event.vertex.vertexData;
+      const phase: Phase.VERTEX_OCCURRENCE = context.observationKind;
       // @ts-expect-error Vertex callbacks cannot see relationship records.
       event.edge;
       void [id, data, phase];
     },
-    [Phase.EDGE]: (event) => {
-      const from: ID = event.edge.from;
-      const to: ID = event.edge.to;
-      const data: Relation = event.edge.data;
-      const sourceData: Data = event.fromVertex.data;
-      if (event.target.kind === 'found') {
-        const targetData: Data = event.target.vertex.data;
-        const targetId: ID = event.target.vertex.vertexId;
+    [Phase.ADMITTED_EDGE_OCCURRENCE]: (event) => {
+      const from: ID = event.edge.fromVertexId;
+      const to: ID = event.edge.toVertexId;
+      const data: Relation = event.edge.edgeData;
+      const sourceData: Data = event.fromVertex.vertexData;
+      if (event.targetResolution.kind === 'found') {
+        const targetData: Data = event.targetResolution.vertex.vertexData;
+        const targetId: ID = event.targetResolution.vertex.vertexId;
         void [targetData, targetId];
       } else {
-        const omitted: 'omitted' = event.target.kind;
+        const omitted: 'omitted' = event.targetResolution.kind;
         // @ts-expect-error Omitted targets have no fabricated vertex.
-        event.target.vertex;
+        event.targetResolution.vertex;
         void omitted;
       }
       void [from, to, data, sourceData];
-      return { commands: [{ commandName: Command.NOOP }] };
+      return { commands: [{ commandName: Command.NO_OPERATION }] };
     },
   },
 });
@@ -111,21 +125,30 @@ const namespace: graphWalk.GraphWalkRunner<Data, Relation, ID> = subpath;
 const required: rootCjs.GraphWalkRunner<Data, Relation, ID> = namespace;
 const requiredSubpath: walkingCjs.GraphWalkRunner<Data, Relation, ID> =
   required;
-const constructorIdentity: typeof GraphWalk = walkingCjs.GraphWalk;
-const helperIdentity: typeof walkGraph = walking.walkGraph;
-const namespaceIdentity: typeof walkGraph = graphWalk.walkGraph;
-const asyncConstructorIdentity: typeof AsyncGraphWalk = walking.AsyncGraphWalk;
-const asyncRequiredConstructorIdentity: typeof AsyncGraphWalk =
-  walkingCjs.AsyncGraphWalk;
-const asyncHelperIdentity: typeof walkGraphAsync = walkingCjs.walkGraphAsync;
-const asynchronous = walkGraphAsync({
-  source: asyncSource,
-  visitors: {
-    [Phase.EDGE]: async (event) => {
-      const data: Relation = event.edge.data;
-      const id: ID = event.edge.to;
+const constructorIdentity: typeof GraphWalkBuilder =
+  walkingCjs.GraphWalkBuilder;
+const helperIdentity: typeof createAndRunGraphWalkUntilSuspendedOrTerminal =
+  walking.createAndRunGraphWalkUntilSuspendedOrTerminal;
+const namespaceIdentity: typeof createAndRunGraphWalkUntilSuspendedOrTerminal =
+  graphWalk.createAndRunGraphWalkUntilSuspendedOrTerminal;
+const asyncConstructorIdentity: typeof AsyncGraphWalkBuilder =
+  walking.AsyncGraphWalkBuilder;
+const asyncRequiredConstructorIdentity: typeof AsyncGraphWalkBuilder =
+  walkingCjs.AsyncGraphWalkBuilder;
+const asyncHelperIdentity: typeof createAndRunGraphWalkUntilSuspendedOrTerminalAsync =
+  walkingCjs.createAndRunGraphWalkUntilSuspendedOrTerminalAsync;
+const asynchronous = createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+  graphWalkDiscoverySource: asyncSource,
+  visitorsByObservationKind: {
+    [Phase.ADMITTED_EDGE_OCCURRENCE]: async (event) => {
+      const data: Relation = event.edge.edgeData;
+      const id: ID = event.edge.toVertexId;
       void [data, id];
-      return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
+      return {
+        commands: [
+          { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+        ],
+      };
     },
   },
 });
@@ -136,167 +159,234 @@ asynchronous.then((runner) => {
   const cjs: walkingCjs.AsyncGraphWalkRunner<Data, Relation, ID> = sub;
   const ns: graphWalk.AsyncGraphWalkRunner<Data, Relation, ID> = cjs;
   const mixed: AsyncGenerator<
-    GraphWalkEventFor<Data, Relation, Phase.EDGE | Phase.VERTEX, ID>,
+    GraphWalkEventForObservationKind<
+      Data,
+      Relation,
+      Phase.ADMITTED_EDGE_OCCURRENCE | Phase.VERTEX_OCCURRENCE,
+      ID
+    >,
     void,
     unknown
-  > = runner.iterateEvents({ emitEvents: [Phase.EDGE, Phase.VERTEX] });
+  > = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [
+      Phase.ADMITTED_EDGE_OCCURRENCE,
+      Phase.VERTEX_OCCURRENCE,
+    ],
+  });
   // @ts-expect-error No explicit selector retains the full event union.
-  const narrow: typeof mixed = runner.iterateEvents();
+  const narrow: typeof mixed =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   void [ns, mixed, narrow];
 });
 const mixed: Generator<
-  GraphWalkEventFor<Data, Relation, Phase.VERTEX | Phase.EDGE, ID>,
+  GraphWalkEventForObservationKind<
+    Data,
+    Relation,
+    Phase.VERTEX_OCCURRENCE | Phase.ADMITTED_EDGE_OCCURRENCE,
+    ID
+  >,
   void,
   unknown
-> = result.iterateEvents({ emitEvents: [Phase.VERTEX, Phase.EDGE] });
+> = result.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+  deliveredEventKinds: [
+    Phase.VERTEX_OCCURRENCE,
+    Phase.ADMITTED_EDGE_OCCURRENCE,
+  ],
+});
 for (const event of mixed) {
-  if (event.kind === 'edge') {
-    const edge: Relation = event.edge.data;
+  if (event.eventKind === 'admittedEdgeOccurrence') {
+    const edge: Relation = event.edge.edgeData;
     void edge;
   } else {
-    const data: Data = event.vertex.data;
+    const data: Data = event.vertex.vertexData;
     void data;
   }
   // @ts-expect-error Explicit mixed selectors exclude path records.
-  event.vertices;
+  event.verticesInRootToTargetOrder;
 }
 const all: Generator<
   GraphWalkEvent<Data, Relation, ID>,
   void,
   unknown
-> = result.iterateEvents();
-const narrowLegacy: typeof mixed = result.iterateEvents({
-  // @ts-expect-error Legacy selectors are not canonical execution inputs.
-  iterateOver: [Phase.EDGE],
-});
+> = result.runAndIterateObservationEventsUntilSuspendedOrTerminal();
+const narrowLegacy: typeof mixed =
+  result.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    // @ts-expect-error Legacy selectors are not canonical execution inputs.
+    iterateOver: [Phase.ADMITTED_EDGE_OCCURRENCE],
+  });
 // @ts-expect-error No selector cannot promise only the selected phases.
-const narrowAll: typeof mixed = result.iterateEvents();
+const narrowAll: typeof mixed =
+  result.runAndIterateObservationEventsUntilSuspendedOrTerminal();
 
-walkGraph({
-  source,
-  revisit: 'walks',
-  limits: { maxDepth: 2 },
-  visitors: {
-    [Phase.PATH]: (event) => {
-      const ids: readonly ID[] = event.vertices.map(
+createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: source,
+  routeEnumerationPolicy: 'allRoutePrefixesAllowingRepeatedVertices',
+  limits: { maxRouteHopDepth: 2 },
+  visitorsByObservationKind: {
+    [Phase.ROUTE_PREFIX]: (event) => {
+      const ids: readonly ID[] = event.verticesInRootToTargetOrder.map(
         (vertex) => vertex.vertexId,
       );
-      const relationships: readonly Relation[] = event.edges.map(
-        (edge) => edge.data,
-      );
+      const relationships: readonly Relation[] =
+        event.edgesInRootToTargetOrder.map((edge) => edge.edgeData);
       void [ids, relationships];
     },
   },
 });
-walkGraphAsync({
-  source: asyncSource,
-  revisit: 'simplePaths',
-  limits: { maxCandidateReadAttempts: 10 },
+createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+  graphWalkDiscoverySource: asyncSource,
+  routeEnumerationPolicy: 'allVertexSimpleRoutePrefixes',
+  limits: { maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 10 },
 });
-new GraphWalk({
-  source,
-  shouldFollowEdge: null,
-  shouldExpandVertex: null,
-}).configure({
-  shouldFollowEdge: null,
-  shouldExpandVertex: null,
+new GraphWalkBuilder({
+  graphWalkDiscoverySource: source,
+  shouldAdmitOutgoingLinkTarget: null,
+  shouldExpandVertexOccurrence: null,
+}).patchOptionsForFutureRunners({
+  shouldAdmitOutgoingLinkTarget: null,
+  shouldExpandVertexOccurrence: null,
 });
-new AsyncGraphWalk({
-  source: asyncSource,
-  shouldFollowEdge: null,
-  shouldExpandVertex: null,
-}).configure({
-  shouldFollowEdge: null,
-  shouldExpandVertex: null,
+new AsyncGraphWalkBuilder({
+  graphWalkDiscoverySource: asyncSource,
+  shouldAdmitOutgoingLinkTarget: null,
+  shouldExpandVertexOccurrence: null,
+}).patchOptionsForFutureRunners({
+  shouldAdmitOutgoingLinkTarget: null,
+  shouldExpandVertexOccurrence: null,
 });
-new GraphWalk({
-  source,
-  shouldFollowEdge: undefined,
-  shouldExpandVertex: undefined,
-}).configure({
-  shouldFollowEdge: undefined,
-  shouldExpandVertex: undefined,
+new GraphWalkBuilder({
+  graphWalkDiscoverySource: source,
+  shouldAdmitOutgoingLinkTarget: undefined,
+  shouldExpandVertexOccurrence: undefined,
+}).patchOptionsForFutureRunners({
+  shouldAdmitOutgoingLinkTarget: undefined,
+  shouldExpandVertexOccurrence: undefined,
 });
-new AsyncGraphWalk({
-  source: asyncSource,
-  shouldFollowEdge: undefined,
-  shouldExpandVertex: undefined,
-}).configure({
-  shouldFollowEdge: undefined,
-  shouldExpandVertex: undefined,
+new AsyncGraphWalkBuilder({
+  graphWalkDiscoverySource: asyncSource,
+  shouldAdmitOutgoingLinkTarget: undefined,
+  shouldExpandVertexOccurrence: undefined,
+}).patchOptionsForFutureRunners({
+  shouldAdmitOutgoingLinkTarget: undefined,
+  shouldExpandVertexOccurrence: undefined,
 });
-// @ts-expect-error Nullable reset does not admit nonfunction predicates.
-new GraphWalk({ source }).configure({ shouldFollowEdge: false });
-new AsyncGraphWalk({ source: asyncSource }).configure({
+new GraphWalkBuilder({
+  graphWalkDiscoverySource: source,
+  // @ts-expect-error Nullable reset does not admit nonfunction predicates.
+}).patchOptionsForFutureRunners({ shouldAdmitOutgoingLinkTarget: false });
+new AsyncGraphWalkBuilder({
+  graphWalkDiscoverySource: asyncSource,
+}).patchOptionsForFutureRunners({
   // @ts-expect-error Async predicates accept callbacks or null, never booleans.
-  shouldExpandVertex: false,
+  shouldExpandVertexOccurrence: false,
 });
-new GraphWalk({ source }).configure({ revisit: 'walks' });
-new AsyncGraphWalk({ source }).configure({ revisit: 'simplePaths' });
+new GraphWalkBuilder({
+  graphWalkDiscoverySource: source,
+}).patchOptionsForFutureRunners({
+  routeEnumerationPolicy: 'allRoutePrefixesAllowingRepeatedVertices',
+});
+new AsyncGraphWalkBuilder({
+  graphWalkDiscoverySource: source,
+}).patchOptionsForFutureRunners({
+  routeEnumerationPolicy: 'allVertexSimpleRoutePrefixes',
+});
 // @ts-expect-error Route enumeration always requires depth or step bounds.
-walkGraph({ source, revisit: 'walks' });
+createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: source,
+  routeEnumerationPolicy: 'allRoutePrefixesAllowingRepeatedVertices',
+});
 // @ts-expect-error Occurrence limits alone do not bound route expansion.
-walkGraphAsync({
-  source,
-  revisit: 'simplePaths',
-  limits: { maxAdmittedTargets: 2 },
+createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+  graphWalkDiscoverySource: source,
+  routeEnumerationPolicy: 'allVertexSimpleRoutePrefixes',
+  limits: { maxAdmittedRootOrLinkTargetOccurrences: 2 },
 });
 // @ts-expect-error New helpers accept only the canonical options object.
-walkGraph(source, {});
+createAndRunGraphWalkUntilSuspendedOrTerminal(source, {});
 // @ts-expect-error Async helpers have no obsolete positional visitor overload.
-walkGraphAsync(source, null);
-// @ts-expect-error Sync source callbacks cannot return promises.
-walkGraph({ source: { ...source, roots: async () => [] } });
-walkGraph({
-  // @ts-expect-error Sync resolution cannot return a promise.
-  source: { ...source, resolveVertex: async () => ({ kind: 'omitted' }) },
+createAndRunGraphWalkUntilSuspendedOrTerminalAsync(source, null);
+createAndRunGraphWalkUntilSuspendedOrTerminal({
+  // @ts-expect-error Sync source callbacks cannot return promises.
+  graphWalkDiscoverySource: { ...source, enumerateRootTargets: async () => [] },
 });
-walkGraph({
-  source: {
+createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: {
+    ...source,
+    // @ts-expect-error Sync resolution cannot return a promise.
+    resolveVertexDataById: async () => ({ kind: 'omitted' }),
+  },
+});
+createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: {
     ...source,
     // @ts-expect-error Sync outgoing cannot return an async iterator.
-    outgoing: async function* () {
-      yield { target, data: relation };
+    enumerateOutgoingLinks: async function* () {
+      yield { targetToResolveOnAdmission: target, edgeData: relation };
     },
   },
 });
-// @ts-expect-error Sync predicates cannot return promises.
-walkGraph({ source, shouldFollowEdge: async () => true });
-// @ts-expect-error Sync visitors cannot return promises.
-walkGraph({ source, visitors: { [Phase.EDGE]: async () => undefined } });
-// @ts-expect-error DAG phases are not graph walking observation phases.
-walkGraph({ source, emitEvents: [DagPhase.ON_WORK_READY] });
-// @ts-expect-error Async execution cannot accept DAG phases either.
-walkGraphAsync({ source, visitorPhases: [DagPhase.ON_SUBGRAPH_READY] });
-// @ts-expect-error Runners remain family-safe.
-result.run({ emitEvents: [DagPhase.ON_WORK_READY] });
-walkGraph({
-  source,
-  visitors: {
+createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: source,
+  // @ts-expect-error Sync predicates cannot return promises.
+  shouldAdmitOutgoingLinkTarget: async () => true,
+});
+createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: source,
+  visitorsByObservationKind: {
+    // @ts-expect-error Sync visitors cannot return promises.
+    [Phase.ADMITTED_EDGE_OCCURRENCE]: async () => undefined,
+  },
+});
+createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: source,
+  // @ts-expect-error DAG phases are not graph walking observation phases.
+  deliveredEventKinds: [DagPhase.ON_WORK_READY],
+});
+createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+  graphWalkDiscoverySource: source,
+  // @ts-expect-error Async execution cannot accept DAG phases either.
+  admittedVisitorCallbackPhases: [DagPhase.ON_SUBGRAPH_COMPLETION_READY],
+});
+result.runUntilSuspendedOrTerminal({
+  // @ts-expect-error Runners remain family-safe.
+  deliveredEventKinds: [DagPhase.ON_WORK_READY],
+});
+createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: source,
+  visitorsByObservationKind: {
     // @ts-expect-error Walking does not support work settlement commands.
-    [Phase.EDGE]: () => ({
-      commands: [{ commandName: Command.DEFER_WORK_COMPLETION }],
-    }),
-  },
-});
-walkGraphAsync({
-  source,
-  visitors: {
-    // @ts-expect-error Async walking cannot mutate the tree topology.
-    [Phase.VERTEX]: async () => ({
-      commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
-    }),
-  },
-});
-walkGraph({
-  source,
-  visitors: {
-    // @ts-expect-error Walking does not support rewrite commands.
-    [Phase.EDGE]: () => ({
+    [Phase.ADMITTED_EDGE_OCCURRENCE]: () => ({
       commands: [
         {
-          commandName: Command.REWRITE_VERTEX_DATA,
-          commandArguments: { newData: 'value' },
+          commandName: Command.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION,
+        },
+      ],
+    }),
+  },
+});
+createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+  graphWalkDiscoverySource: source,
+  visitorsByObservationKind: {
+    // @ts-expect-error Async walking cannot mutate the tree topology.
+    [Phase.VERTEX_OCCURRENCE]: async () => ({
+      commands: [
+        {
+          commandName:
+            Command.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+        },
+      ],
+    }),
+  },
+});
+createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: source,
+  visitorsByObservationKind: {
+    // @ts-expect-error Walking does not support rewrite commands.
+    [Phase.ADMITTED_EDGE_OCCURRENCE]: () => ({
+      commands: [
+        {
+          commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+          commandArguments: { replacementVertexData: 'value' },
         },
       ],
     }),
@@ -304,59 +394,79 @@ walkGraph({
 });
 
 const items = [{ id: symbolId, label: 'item' }];
-const catalog = materializeWalkSourceFromRecords(items, {
-  id: (item) => item.id,
-  outgoing: (item) => [{ to: item.id, data: relation }],
-  roots: [symbolId],
+const catalog = materializeGraphWalkSourceFromVertexRecords(items, {
+  getVertexId: (item) => item.id,
+  enumerateOutgoingLinks: (item) => [
+    { toVertexId: item.id, edgeData: relation },
+  ],
+  rootVertexIds: [symbolId],
 });
-const catalogTyped: walking.GraphWalkSource<
+const catalogTyped: walking.GraphWalkDiscoverySource<
   typeof items[number],
   Relation,
   symbol
 > = catalog;
 const materialized: Promise<
-  GraphWalkSource<typeof items[number], Relation, symbol>
-> = materializeWalkSourceFromRecordsAsync(items, {
-  id: async (item) => item.id,
-  outgoing: async (item) => [{ to: item.id, data: relation }],
-  roots: [symbolId],
+  GraphWalkDiscoverySource<typeof items[number], Relation, symbol>
+> = materializeSynchronousGraphWalkSourceFromAsyncRecords(items, {
+  getVertexId: async (item) => item.id,
+  enumerateOutgoingLinks: async (item) => [
+    { toVertexId: item.id, edgeData: relation },
+  ],
+  rootVertexIds: [symbolId],
 });
 materialized.then((value) => {
-  new GraphWalk({ source: value });
-  new AsyncGraphWalk({ source: value });
+  new GraphWalkBuilder({ graphWalkDiscoverySource: value });
+  new AsyncGraphWalkBuilder({ graphWalkDiscoverySource: value });
 });
-const definition = defineDag<Data, ID>({
-  vertices: [
+const definition = copyAndNormalizeDagDefinition<Data, ID>({
+  vertexDeclarations: [
     {
       vertexId: objectId,
       data: { label: 'task' },
-      slots: [{ kind: 'omitted', identity: { vertexId: undefined } }],
-      dependsOnWork: [objectId],
-      dependsOnSubgraphCompletion: [],
+      childDiscoverySlots: [
+        { kind: 'omitted', omittedVertexIdentity: { vertexId: undefined } },
+      ],
+      workWaitsForWorkOf: [objectId],
+      workWaitsForSubgraphCompletionOf: [],
     },
   ],
-  omittedIds: [undefined],
+  omittedVertexIds: [undefined],
   entry: { kind: 'root', vertexId: objectId },
 });
-const dag = materializeWalkSourceFromDagDefinition(definition, {
-  relations: ['children', 'workDependencies'],
+const dag = materializeGraphWalkSourceFromDagDeclarationRelations(definition, {
+  includeDeclarationRelations: [
+    'parentToChildSlots',
+    'dependentToWorkPrerequisites',
+  ],
 });
-const projected: GraphWalkSource<Data, GraphWalkDagRelation, ID> = dag;
-const child: walking.GraphWalkDagRelation = { kind: 'child', slotIndex: 0 };
-const namespaceRelation: graphWalk.GraphWalkDagRelation = child;
-new GraphWalk({ source: dag }).addVisitorFor(Phase.EDGE, (event) => {
-  if (event.edge.data.kind === 'child') {
-    const index: number = event.edge.data.slotIndex;
+const projected: GraphWalkDiscoverySource<
+  Data,
+  GraphWalkDagDeclarationRelation,
+  ID
+> = dag;
+const child: walking.GraphWalkDagDeclarationRelation = {
+  kind: 'structuralChildSlot',
+  childSlotIndex: 0,
+};
+const namespaceRelation: graphWalk.GraphWalkDagDeclarationRelation = child;
+new GraphWalkBuilder({
+  graphWalkDiscoverySource: dag,
+}).addVisitorForObservationKind(Phase.ADMITTED_EDGE_OCCURRENCE, (event) => {
+  if (event.edge.edgeData.kind === 'structuralChildSlot') {
+    const index: number = event.edge.edgeData.childSlotIndex;
     void index;
   } else {
     // @ts-expect-error Milestone labels have no structural child slot.
-    event.edge.data.slotIndex;
+    event.edge.edgeData.childSlotIndex;
   }
 });
 // @ts-expect-error DAG projection must explicitly choose relationships.
-materializeWalkSourceFromDagDefinition(definition);
-// @ts-expect-error The relationship selection is nonempty.
-materializeWalkSourceFromDagDefinition(definition, { relations: [] });
+materializeGraphWalkSourceFromDagDeclarationRelations(definition);
+materializeGraphWalkSourceFromDagDeclarationRelations(definition, {
+  // @ts-expect-error The relationship selection is nonempty.
+  includeDeclarationRelations: [],
+});
 void [
   requiredSubpath,
   constructorIdentity,
@@ -375,42 +485,47 @@ void [
   namespaceRelation,
 ];
 
-const canonicalEdgePredicate: import('configurable-tree-traversal').GraphWalkEdgePredicate<
+const canonicalEdgePredicate: import('configurable-tree-traversal').GraphWalkLinkTargetAdmissionPredicate<
   string,
   Relation,
   ID
 > = () => true;
-const canonicalExpansionPredicate: import('configurable-tree-traversal').GraphWalkExpansionPredicate<
+const canonicalExpansionPredicate: import('configurable-tree-traversal').GraphWalkVertexOccurrenceExpansionPredicate<
   string,
   Relation,
   ID
 > = () => false;
-const canonicalAsyncEdgePredicate: import('configurable-tree-traversal').AsyncGraphWalkEdgePredicate<
+const canonicalAsyncEdgePredicate: import('configurable-tree-traversal').AsyncGraphWalkLinkTargetAdmissionPredicate<
   string,
   Relation,
   ID
 > = async () => true;
-const canonicalAsyncExpansionPredicate: import('configurable-tree-traversal').AsyncGraphWalkExpansionPredicate<
+const canonicalAsyncExpansionPredicate: import('configurable-tree-traversal').AsyncGraphWalkVertexOccurrenceExpansionPredicate<
   string,
   Relation,
   ID
 > = async () => false;
 const walkingCounts: {
-  candidateReadAttempts: number;
-  admittedTargets: number;
-  uniqueFoundVertices: number;
-  uniqueOmittedVertices: number;
-  discoveredLinks: number;
-  processedObservations: Readonly<Record<Phase, number>>;
-} = result.summary().counts;
-new GraphWalk({ source }).addVisitorFor(Phase.EDGE, (event, context) => {
-  const coordinates: number[] = [
-    event.edge.outgoingIndex,
-    context.admissionIndex,
-    context.phaseObservationIndex,
-  ];
-  void coordinates;
-});
+  rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: number;
+  admittedRootOrLinkTargetOccurrences: number;
+  resolvedFoundVertexIdCount: number;
+  resolvedOmittedVertexIdCount: number;
+  freshSourceOutgoingLinkCount: number;
+  acknowledgedObservationCountsByKind: Readonly<Record<Phase, number>>;
+} = result.captureProgressSnapshot().counts;
+new GraphWalkBuilder({
+  graphWalkDiscoverySource: source,
+}).addVisitorForObservationKind(
+  Phase.ADMITTED_EDGE_OCCURRENCE,
+  (event, context) => {
+    const coordinates: number[] = [
+      event.edge.sourceOutgoingLinkIndexBeforeFiltering,
+      context.admittedTargetOccurrenceIndex,
+      context.observationIndexWithinKind,
+    ];
+    void coordinates;
+  },
+);
 void [
   canonicalEdgePredicate,
   canonicalExpansionPredicate,
@@ -419,84 +534,103 @@ void [
   walkingCounts,
 ];
 
-const catalogRelation: rootCjs.GraphWalkCatalogLink<Relation, symbol> = {
-  to: symbolId,
-  data: relation,
+const catalogRelation: rootCjs.GraphWalkCatalogOutgoingLinkToVertexId<
+  Relation,
+  symbol
+> = {
+  toVertexId: symbolId,
+  edgeData: relation,
 };
-const namedSelectors: walking.GraphWalkRecordSelectors<
+const namedSelectors: walking.GraphWalkRecordMaterializationOptions<
   typeof items[number],
   Relation,
   symbol
 > = {
-  id: (item) => item.id,
-  outgoing: () => [catalogRelation],
-  roots: [symbolId],
+  getVertexId: (item) => item.id,
+  enumerateOutgoingLinks: () => [catalogRelation],
+  rootVertexIds: [symbolId],
 };
-const rootSelectors: graphWalk.GraphWalkRecordSelectors<
+const rootSelectors: graphWalk.GraphWalkRecordMaterializationOptions<
   typeof items[number],
   Relation,
   symbol
 > = namedSelectors;
-const namedAsyncSelectors: walkingCjs.AsyncGraphWalkRecordSelectors<
+const namedAsyncSelectors: walkingCjs.AsyncGraphWalkRecordMaterializationOptions<
   typeof items[number],
   Relation,
   symbol
 > = {
-  id: async (item) => item.id,
-  outgoing: async function* () {
+  getVertexId: async (item) => item.id,
+  enumerateOutgoingLinks: async function* () {
     yield catalogRelation;
   },
-  roots: [symbolId],
+  rootVertexIds: [symbolId],
 };
-const rootAsyncSelectors: rootCjs.AsyncGraphWalkRecordSelectors<
+const rootAsyncSelectors: rootCjs.AsyncGraphWalkRecordMaterializationOptions<
   typeof items[number],
   Relation,
   symbol
 > = namedAsyncSelectors;
 // @ts-expect-error Catalog relation endpoints are readonly.
-catalogRelation.to = symbolId;
+catalogRelation.toVertexId = symbolId;
 // @ts-expect-error Catalog relation data fields are readonly.
-catalogRelation.data = relation;
-const declaredSource = materializeWalkSourceFromRecords(items, rootSelectors);
-const declaredMode: 'resolver' = declaredSource.hydration;
-declaredSource.resolveVertex(symbolId);
-materializeWalkSourceFromRecordsAsync(items, rootAsyncSelectors).then(
-  (value) => {
-    const mode: 'resolver' = value.hydration;
-    const resolution: walking.GraphWalkVertexResult<typeof items[number]> =
-      value.resolveVertex(symbolId);
-    new GraphWalk({ source: value });
-    void [mode, resolution];
-  },
+catalogRelation.edgeData = relation;
+const declaredSource = materializeGraphWalkSourceFromVertexRecords(
+  items,
+  rootSelectors,
 );
+const declaredMode: 'resolverWithOptionalInlineResolution' =
+  declaredSource.vertexResolutionMode;
+declaredSource.resolveVertexDataById(symbolId);
+materializeSynchronousGraphWalkSourceFromAsyncRecords(
+  items,
+  rootAsyncSelectors,
+).then((value) => {
+  const mode: 'resolverWithOptionalInlineResolution' =
+    value.vertexResolutionMode;
+  const resolution: walking.GraphWalkVertexResolutionResult<
+    typeof items[number]
+  > = value.resolveVertexDataById(symbolId);
+  new GraphWalkBuilder({ graphWalkDiscoverySource: value });
+  void [mode, resolution];
+});
 // @ts-expect-error Walking hydration mode is required.
-const noMode: walking.GraphWalkSource<Data, Relation, ID> = {
-  roots: () => [],
-  outgoing: () => [],
+const noMode: walking.GraphWalkDiscoverySource<Data, Relation, ID> = {
+  enumerateRootTargets: () => [],
+  enumerateOutgoingLinks: () => [],
 };
 // @ts-expect-error Resolver sources require resolveVertex.
-const noResolver: walking.GraphWalkSource<Data, Relation, ID> = {
-  hydration: 'resolver',
-  roots: () => [],
-  outgoing: () => [],
+const noResolver: walking.GraphWalkDiscoverySource<Data, Relation, ID> = {
+  vertexResolutionMode: 'resolverWithOptionalInlineResolution',
+  enumerateRootTargets: () => [],
+  enumerateOutgoingLinks: () => [],
 };
-const cachedSource: rootCjs.GraphWalkSource<Data, Relation, ID> = {
-  hydration: 'inlineOrCached',
-  roots: () => [
+const cachedSource: rootCjs.GraphWalkDiscoverySource<Data, Relation, ID> = {
+  vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+  enumerateRootTargets: () => [
     {
-      kind: 'inline',
+      kind: 'inlineResolution',
       vertexId: objectId,
-      resolution: { kind: 'found', data: { label: 'root' } },
+      resolutionIfNotPreviouslyAdmitted: {
+        kind: 'found',
+        vertexData: { label: 'root' },
+      },
     },
   ],
-  outgoing: () => [
-    { target: { kind: 'cached', vertexId: objectId }, data: relation },
+  enumerateOutgoingLinks: () => [
+    {
+      targetToResolveOnAdmission: {
+        kind: 'previouslyAdmittedVertex',
+        vertexId: objectId,
+      },
+      edgeData: relation,
+    },
   ],
 };
 // @ts-expect-error No-resolver walking sources require tagged targets.
-const untaggedSource: walking.GraphWalkSource<Data, Relation, ID> = {
-  hydration: 'inlineOrCached',
-  roots: () => [{ vertexId: objectId }],
-  outgoing: () => [],
+const untaggedSource: walking.GraphWalkDiscoverySource<Data, Relation, ID> = {
+  vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+  enumerateRootTargets: () => [{ vertexId: objectId }],
+  enumerateOutgoingLinks: () => [],
 };
 void [declaredMode, noMode, noResolver, cachedSource, untaggedSource];

@@ -1,9 +1,9 @@
 export * as core from '@core/index';
 export * as objectRewrite from '@rewrite-object/index';
 export * from '@rewrite-object/index';
-export * as depthFirstTraversal from '@depth-first-traversal/index';
-export * as traversableObjectTree from '@traversable-object-tree/index';
-export * as breadthFirstTraversal from '@breadth-first-traversal/index';
+export * as depthFirstTreeTraversal from '@depth-first-traversal/index';
+export * as objectPropertyTree from '@traversable-object-tree/index';
+export * as breadthFirstTreeTraversal from '@breadth-first-traversal/index';
 export * as dagTraversal from './traversals/dag-traversal';
 export * from '@core/index';
 export * from '@depth-first-traversal/index';

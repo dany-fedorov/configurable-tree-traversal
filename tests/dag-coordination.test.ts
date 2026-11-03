@@ -1,76 +1,95 @@
 import {
-  DagTraversal,
-  AsyncDagTraversal,
+  DagTraversalBuilder,
+  AsyncDagTraversalBuilder,
   DagVisitorPhase as Order,
 } from '../src/traversals/dag-traversal';
 import {
-  bindDagWorkSession,
-  bindAsyncDagWorkSession,
-  type DagWorkBoundary,
-  type DagWorkTicket,
+  bindDagExternalWorkSession,
+  bindAsyncDagExternalWorkSession,
+  type DagExternalWorkRunBoundary,
+  type DagWorkSettlementTicket,
 } from '../src/traversals/dag-traversal/coordinateDag';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import { materializeDagInputFromRecords, prepareDag } from '../src';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import {
+  materializeMultiEntryDagInputFromRecordCatalog,
+  discoverValidateAndCaptureDag,
+} from '../src';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
-type G = VertexTypes<string, string>;
+type G = VertexDataAndChildHintTypes<string, string>;
 const source = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId: 'holder',
-      vertexContent: { $data: '', $childHints: ['a', 'b'] },
+      vertexContentInput: { $vertexData: '', $childDiscoveryHints: ['a', 'b'] },
     },
   }),
-  resolveChild: (id: string) => ({
-    kind: 'found' as const,
-    vertex: {
+  resolveChildHint: (id: string) => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId: id,
-      dependsOnWork: id === 'b' ? ['a'] : [],
-      vertexContent: { $data: id, $childHints: [] },
+      workWaitsForWorkOf: id === 'b' ? ['a'] : [],
+      vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] },
     },
   }),
 };
 const options = {
-  traversableGraph: source,
-  syntheticRoot: true,
-  workCompletion: 'externalSettlement' as const,
+  dagDiscoverySource: source,
+  sourceRootIsHiddenEntryHolder: true,
+  workCompletionPolicy: 'requireExternalWorkSettlement' as const,
 };
-function frontier<ID>(boundary: DagWorkBoundary<ID>) {
+function frontier<ID>(boundary: DagExternalWorkRunBoundary<ID>) {
   if (boundary.kind !== 'awaitingSettlement') throw Error('Expected work');
-  return boundary.workTickets;
+  return boundary.workSettlementTickets;
 }
 
 for (const async of [false, true]) {
   const label = async ? 'async' : 'sync';
   const create = (input = options) =>
     async
-      ? bindAsyncDagWorkSession(
-          new AsyncDagTraversal<G, G, string>(input).createRunner(),
+      ? bindAsyncDagExternalWorkSession(
+          new AsyncDagTraversalBuilder<G, G, string>(
+            input,
+          ).createIndependentRunnerFromCurrentOptions(),
         )
-      : bindDagWorkSession(
-          new DagTraversal<G, G, string>(input).createRunner(),
+      : bindDagExternalWorkSession(
+          new DagTraversalBuilder<G, G, string>(
+            input,
+          ).createIndependentRunnerFromCurrentOptions(),
         );
 
   test(`${label} observes work and accepts repeated completions without advancing it`, async () => {
     const coordinator = create();
-    expect(coordinator.summary().counts.discovered).toBe(0);
-    const ticket = frontier(await coordinator.advance())[0]!;
+    expect(
+      coordinator.captureProgressSnapshot().counts.retainedLiveVertices,
+    ).toBe(0);
+    const ticket = frontier(await coordinator.runUntilWorkBoundary())[0]!;
     expect(ticket.vertexId).toBe('a');
-    const repeated = frontier(await coordinator.advance())[0]!;
-    expect(coordinator.completeWork(ticket)).toEqual({ kind: 'accepted' });
-    expect(coordinator.completeWork(repeated)).toEqual({
+    const repeated = frontier(await coordinator.runUntilWorkBoundary())[0]!;
+    expect(coordinator.acceptCompletedWork(ticket)).toEqual({
+      kind: 'accepted',
+    });
+    expect(coordinator.acceptCompletedWork(repeated)).toEqual({
       kind: 'alreadyAccepted',
     });
-    expect(coordinator.summary().deferredWorkIds).toEqual([]);
-    const second = frontier(await coordinator.advance())[0]!;
+    expect(
+      coordinator.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual([]);
+    const second = frontier(await coordinator.runUntilWorkBoundary())[0]!;
     expect(second.vertexId).toBe('b');
-    expect(coordinator.completeWork(second)).toEqual({ kind: 'accepted' });
-    expect(await coordinator.advance()).toEqual({ kind: 'finished' });
-    expect(await coordinator.advance()).toEqual({ kind: 'finished' });
-    expect(coordinator.completeWork(ticket)).toEqual({
+    expect(coordinator.acceptCompletedWork(second)).toEqual({
+      kind: 'accepted',
+    });
+    expect(await coordinator.runUntilWorkBoundary()).toEqual({
+      kind: 'finished',
+    });
+    expect(await coordinator.runUntilWorkBoundary()).toEqual({
+      kind: 'finished',
+    });
+    expect(coordinator.acceptCompletedWork(ticket)).toEqual({
       kind: 'alreadyAccepted',
     });
   });
@@ -78,18 +97,20 @@ for (const async of [false, true]) {
   test(`${label} rejects foreign and forged tickets without consuming work`, async () => {
     const first = create();
     const second = create();
-    const ticket = frontier(await first.advance())[0]!;
-    await second.advance();
+    const ticket = frontier(await first.runUntilWorkBoundary())[0]!;
+    await second.runUntilWorkBoundary();
     for (const forged of [ticket, { ...ticket }, null, 0]) {
       expect(() =>
-        second.completeWork(forged as DagWorkTicket<string>),
+        second.acceptCompletedWork(forged as DagWorkSettlementTicket<string>),
       ).toThrow(TypeError);
       expect(() =>
-        second.failTraversal(forged as DagWorkTicket<string>, null),
+        second.failTraversal(forged as DagWorkSettlementTicket<string>, null),
       ).toThrow(TypeError);
     }
-    expect(second.summary().deferredWorkIds).toEqual(['a']);
-    expect(first.completeWork(ticket)).toEqual({ kind: 'accepted' });
+    expect(
+      second.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual(['a']);
+    expect(first.acceptCompletedWork(ticket)).toEqual({ kind: 'accepted' });
     expect(() => first.failTraversal(ticket, null)).toThrow(/Conflicting/);
   });
 
@@ -97,104 +118,135 @@ for (const async of [false, true]) {
     `${label} preserves exact fatal errors and repeated failure acceptance: %p`,
     async (error) => {
       const coordinator = create();
-      const ticket = frontier(await coordinator.advance())[0]!;
+      const ticket = frontier(await coordinator.runUntilWorkBoundary())[0]!;
       expect(coordinator.failTraversal(ticket, error)).toEqual({
         kind: 'accepted',
       });
       expect(coordinator.failTraversal(ticket, error)).toEqual({
         kind: 'alreadyAccepted',
       });
-      expect(() => coordinator.completeWork(ticket)).toThrow(/Conflicting/);
+      expect(() => coordinator.acceptCompletedWork(ticket)).toThrow(
+        /Conflicting/,
+      );
       expect(() => coordinator.failTraversal(ticket, {})).toThrow(
         /Conflicting/,
       );
-      await expect(async () => coordinator.advance()).rejects.toBe(error);
-      await expect(async () => coordinator.advance()).rejects.toBe(error);
+      await expect(async () => coordinator.runUntilWorkBoundary()).rejects.toBe(
+        error,
+      );
+      await expect(async () => coordinator.runUntilWorkBoundary()).rejects.toBe(
+        error,
+      );
     },
   );
 
   test(`${label} exposes detached summaries and empty finished boundaries`, async () => {
     const coordinator = create();
-    const before = coordinator.summary();
-    await coordinator.advance();
-    expect(before.deferredWorkIds).toEqual([]);
-    const observed = coordinator.summary();
-    (observed.deferredWorkIds as string[]).push('forged');
-    (observed.vertices as Map<string, unknown>).clear();
-    expect(coordinator.summary().deferredWorkIds).toEqual(['a']);
-    expect(coordinator.summary().vertices.size).toBe(2);
+    const before = coordinator.captureProgressSnapshot();
+    await coordinator.runUntilWorkBoundary();
+    expect(before.workCompletionDeferredVertexIds).toEqual([]);
+    const observed = coordinator.captureProgressSnapshot();
+    (observed.workCompletionDeferredVertexIds as string[]).push('forged');
+    (observed.progressByVertexId as Map<string, unknown>).clear();
+    expect(
+      coordinator.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual(['a']);
+    expect(coordinator.captureProgressSnapshot().progressByVertexId.size).toBe(
+      2,
+    );
     const empty = create({
       ...options,
-      traversableGraph: {
+      dagDiscoverySource: {
         ...source,
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: 'holder',
-            vertexContent: { $data: '', $childHints: [] },
+            vertexContentInput: { $vertexData: '', $childDiscoveryHints: [] },
           },
         }),
       },
     });
-    expect(empty.requestPause()).toBe(false);
-    expect(await empty.advance()).toEqual({ kind: 'finished' });
-    expect(empty.requestPause()).toBe(false);
+    expect(empty.requestPauseAfterAdmittedCallbacksDrain()).toBe(false);
+    expect(await empty.runUntilWorkBoundary()).toEqual({ kind: 'finished' });
+    expect(empty.requestPauseAfterAdmittedCallbacksDrain()).toBe(false);
   });
 }
 
 test('wrapping requires external settlement and does not claim or run the runner', () => {
-  for (const workCompletion of [undefined, 'afterWorkReadyChain'] as const) {
+  for (const workCompletionPolicy of [
+    undefined,
+    'afterWorkReadyVisitorChain',
+  ] as const) {
     const input = {
-      traversableGraph: source,
-      syntheticRoot: true,
-      ...(workCompletion === undefined ? {} : { workCompletion }),
+      dagDiscoverySource: source,
+      sourceRootIsHiddenEntryHolder: true,
+      ...(workCompletionPolicy === undefined ? {} : { workCompletionPolicy }),
     };
     expect(() =>
-      bindDagWorkSession(new DagTraversal<G>(input).createRunner()),
+      bindDagExternalWorkSession(
+        new DagTraversalBuilder<G>(
+          input,
+        ).createIndependentRunnerFromCurrentOptions(),
+      ),
     ).toThrow(TypeError);
     expect(() =>
-      bindAsyncDagWorkSession(new AsyncDagTraversal<G>(input).createRunner()),
+      bindAsyncDagExternalWorkSession(
+        new AsyncDagTraversalBuilder<G>(
+          input,
+        ).createIndependentRunnerFromCurrentOptions(),
+      ),
     ).toThrow(TypeError);
   }
-  const runner = new DagTraversal<G, G, string>(options).createRunner();
-  const first = bindDagWorkSession(runner);
-  const second = bindDagWorkSession(runner);
-  expect(runner.getStatus()).toBe(TraversalRunnerStatus.INITIAL);
-  runner.prepare();
-  const ticket = frontier(first.advance())[0]!;
-  expect(() => second.completeWork(ticket)).toThrow(TypeError);
-  const other = frontier(second.advance())[0]!;
-  expect(second.completeWork(other)).toEqual({ kind: 'accepted' });
-  expect(first.completeWork(ticket)).toEqual({ kind: 'alreadyAccepted' });
+  const runner = new DagTraversalBuilder<G, G, string>(
+    options,
+  ).createIndependentRunnerFromCurrentOptions();
+  const first = bindDagExternalWorkSession(runner);
+  const second = bindDagExternalWorkSession(runner);
+  expect(runner.getTraversalLifecycleStatus()).toBe(
+    TraversalRunnerStatus.NOT_STARTED,
+  );
+  runner.discoverValidateAndFreezeTopology();
+  const ticket = frontier(first.runUntilWorkBoundary())[0]!;
+  expect(() => second.acceptCompletedWork(ticket)).toThrow(TypeError);
+  const other = frontier(second.runUntilWorkBoundary())[0]!;
+  expect(second.acceptCompletedWork(other)).toEqual({ kind: 'accepted' });
+  expect(first.acceptCompletedWork(ticket)).toEqual({
+    kind: 'alreadyAccepted',
+  });
 });
 
 test('sync cooperative pause preserves callback continuation', () => {
-  const traversal = new DagTraversal<G, G, string>(options);
+  const traversal = new DagTraversalBuilder<G, G, string>(options);
   const visited: string[] = [];
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
-    visited.push(vertex.getData());
-    expect(coordinator.requestPause()).toBe(true);
-    expect(coordinator.requestPause()).toBe(false);
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+    visited.push(vertex.getVertexData());
+    expect(coordinator.requestPauseAfterAdmittedCallbacksDrain()).toBe(true);
+    expect(coordinator.requestPauseAfterAdmittedCallbacksDrain()).toBe(false);
   });
-  const coordinator = bindDagWorkSession(traversal.createRunner());
-  expect(coordinator.advance()).toEqual({ kind: 'paused' });
+  const coordinator = bindDagExternalWorkSession(
+    traversal.createIndependentRunnerFromCurrentOptions(),
+  );
+  expect(coordinator.runUntilWorkBoundary()).toEqual({ kind: 'paused' });
   expect(visited).toEqual(['a']);
-  expect(frontier(coordinator.advance())[0]!.vertexId).toBe('a');
+  expect(frontier(coordinator.runUntilWorkBoundary())[0]!.vertexId).toBe('a');
 });
 
 test('async pause drains admitted callbacks and concurrent advance keeps runner ownership', async () => {
   const entered = deferred<void>();
   const release = deferred<void>();
-  const traversal = new AsyncDagTraversal<G, G, string>(options);
-  traversal.addVisitorFor(Order.ON_WORK_READY, async () => {
+  const traversal = new AsyncDagTraversalBuilder<G, G, string>(options);
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, async () => {
     entered.resolve();
     await release.promise;
   });
-  const coordinator = bindAsyncDagWorkSession(traversal.createRunner());
-  const advancing = coordinator.advance();
+  const coordinator = bindAsyncDagExternalWorkSession(
+    traversal.createIndependentRunnerFromCurrentOptions(),
+  );
+  const advancing = coordinator.runUntilWorkBoundary();
   await entered.promise;
-  await expect(coordinator.advance()).rejects.toThrow(/active/);
-  expect(coordinator.requestPause()).toBe(true);
+  await expect(coordinator.runUntilWorkBoundary()).rejects.toThrow(/active/);
+  expect(coordinator.requestPauseAfterAdmittedCallbacksDrain()).toBe(true);
   let ended = false;
   void advancing.then(() => {
     ended = true;
@@ -203,47 +255,61 @@ test('async pause drains admitted callbacks and concurrent advance keeps runner 
   expect(ended).toBe(false);
   release.resolve();
   expect(await advancing).toEqual({ kind: 'paused' });
-  expect(frontier(await coordinator.advance())[0]!.vertexId).toBe('a');
+  expect(frontier(await coordinator.runUntilWorkBoundary())[0]!.vertexId).toBe(
+    'a',
+  );
 });
 
 test('deleted work rejects previously issued tickets as stale', () => {
-  const traversal = new DagTraversal<G, G, string>({
+  const traversal = new DagTraversalBuilder<G, G, string>({
     ...options,
-    traversableGraph: {
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
+    dagDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: 'holder',
-          vertexContent: { $data: '', $childHints: ['parent', 'gate'] },
+          vertexContentInput: {
+            $vertexData: '',
+            $childDiscoveryHints: ['parent', 'gate'],
+          },
         },
       }),
-      resolveChild: (id) => ({
-        kind: 'found' as const,
-        vertex: {
+      resolveChildHint: (id) => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: id,
-          dependsOnWork: id === 'parent' ? ['gate'] : [],
-          vertexContent: {
-            $data: id,
-            $childHints: id === 'parent' ? ['child'] : [],
+          workWaitsForWorkOf: id === 'parent' ? ['gate'] : [],
+          vertexContentInput: {
+            $vertexData: id,
+            $childDiscoveryHints: id === 'parent' ? ['child'] : [],
           },
         },
       }),
     },
-    discovery: 'eager',
+    discoveryTiming: 'completeBeforeAnyVisitor',
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
-    vertex.getData() === 'parent'
-      ? { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] }
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) =>
+    vertex.getVertexData() === 'parent'
+      ? {
+          commands: [
+            {
+              commandName:
+                Command.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+            },
+          ],
+        }
       : undefined,
   );
-  const coordinator = bindDagWorkSession(traversal.createRunner());
-  const tickets = frontier(coordinator.advance());
+  const coordinator = bindDagExternalWorkSession(
+    traversal.createIndependentRunnerFromCurrentOptions(),
+  );
+  const tickets = frontier(coordinator.runUntilWorkBoundary());
   const child = tickets.find((ticket) => ticket.vertexId === 'child')!;
-  coordinator.completeWork(
+  coordinator.acceptCompletedWork(
     tickets.find((ticket) => ticket.vertexId === 'gate')!,
   );
-  expect(coordinator.advance()).toEqual({ kind: 'finished' });
-  expect(() => coordinator.completeWork(child)).toThrow(/stale/);
+  expect(coordinator.runUntilWorkBoundary()).toEqual({ kind: 'finished' });
+  expect(() => coordinator.acceptCompletedWork(child)).toThrow(/stale/);
 });
 
 for (const async of [false, true]) {
@@ -251,38 +317,51 @@ for (const async of [false, true]) {
     `${async ? 'async' : 'sync'} tickets preserve arbitrary ID identity: %p`,
     async (id) => {
       const input = {
-        workCompletion: 'externalSettlement' as const,
-        traversableGraph: {
-          resolveRoot: () => ({
-            kind: 'found' as const,
-            vertex: {
+        workCompletionPolicy: 'requireExternalWorkSettlement' as const,
+        dagDiscoverySource: {
+          resolveRootVertex: () => ({
+            kind: 'vertexResolved' as const,
+            resolvedVertexInput: {
               vertexId: id,
-              vertexContent: { $data: 'work', $childHints: [] },
+              vertexContentInput: {
+                $vertexData: 'work',
+                $childDiscoveryHints: [],
+              },
             },
           }),
-          resolveChild: () => ({
-            identity: null,
-            kind: 'omitted' as const,
-            satisfiesDependencies: true as const,
+          resolveChildHint: () => ({
+            omittedVertexIdentity: null,
+            kind: 'vertexIntentionallyOmitted' as const,
+            satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           }),
         },
       };
       const coordinator = async
-        ? bindAsyncDagWorkSession(
-            new AsyncDagTraversal<G>(input).createRunner(),
+        ? bindAsyncDagExternalWorkSession(
+            new AsyncDagTraversalBuilder<G>(
+              input,
+            ).createIndependentRunnerFromCurrentOptions(),
           )
-        : bindDagWorkSession(new DagTraversal<G>(input).createRunner());
-      const ticket = frontier(await coordinator.advance())[0]!;
+        : bindDagExternalWorkSession(
+            new DagTraversalBuilder<G>(
+              input,
+            ).createIndependentRunnerFromCurrentOptions(),
+          );
+      const ticket = frontier(await coordinator.runUntilWorkBoundary())[0]!;
       expect(ticket.vertexId).toBe(id);
       expect(Object.isFrozen(ticket)).toBe(true);
       if (typeof id === 'object' && id !== null)
         expect(Object.isFrozen(id)).toBe(false);
       expect(() => {
         // @ts-expect-error A copied ticket has no nominal ownership.
-        coordinator.completeWork({ ...ticket });
+        coordinator.acceptCompletedWork({ ...ticket });
       }).toThrow(TypeError);
-      expect(coordinator.completeWork(ticket)).toEqual({ kind: 'accepted' });
-      expect(await coordinator.advance()).toEqual({ kind: 'finished' });
+      expect(coordinator.acceptCompletedWork(ticket)).toEqual({
+        kind: 'accepted',
+      });
+      expect(await coordinator.runUntilWorkBoundary()).toEqual({
+        kind: 'finished',
+      });
     },
   );
 
@@ -293,25 +372,31 @@ for (const async of [false, true]) {
     for (const fromSource of [true, false]) {
       const input = {
         ...options,
-        traversableGraph: {
+        dagDiscoverySource: {
           ...source,
-          resolveRoot: () => {
+          resolveRootVertex: () => {
             if (fromSource) throw error;
-            return source.resolveRoot();
+            return source.resolveRootVertex();
           },
         },
       };
       const traversal = async
-        ? new AsyncDagTraversal<G>(input)
-        : new DagTraversal<G>(input);
-      traversal.addVisitorFor(Order.ON_WORK_READY, () => {
+        ? new AsyncDagTraversalBuilder<G>(input)
+        : new DagTraversalBuilder<G>(input);
+      traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
         throw error;
       });
       const coordinator =
-        traversal instanceof AsyncDagTraversal
-          ? bindAsyncDagWorkSession(traversal.createRunner())
-          : bindDagWorkSession(traversal.createRunner());
-      await expect(async () => coordinator.advance()).rejects.toBe(error);
+        traversal instanceof AsyncDagTraversalBuilder
+          ? bindAsyncDagExternalWorkSession(
+              traversal.createIndependentRunnerFromCurrentOptions(),
+            )
+          : bindDagExternalWorkSession(
+              traversal.createIndependentRunnerFromCurrentOptions(),
+            );
+      await expect(async () => coordinator.runUntilWorkBoundary()).rejects.toBe(
+        error,
+      );
     }
   });
 }
@@ -320,42 +405,56 @@ for (const async of [false, true]) {
   test(`${
     async ? 'async' : 'sync'
   } prepared sessions explain blockers without advancing or exposing tickets`, async () => {
-    const result = prepareDag(
-      materializeDagInputFromRecords(
+    const result = discoverValidateAndCaptureDag(
+      materializeMultiEntryDagInputFromRecordCatalog(
         [
           { id: 'a', dependencies: [] as string[] },
           { id: 'b', dependencies: ['a'] },
         ],
-        { id: (item) => item.id, dependsOnWork: (item) => item.dependencies },
+        {
+          selectVertexId: (item) => item.id,
+          selectWorkPrerequisiteVertexIds: (item) => item.dependencies,
+        },
       ),
     );
     if (result.kind !== 'valid') throw Error('Expected prepared DAG');
     const session = async
-      ? await result.dag.createAsyncWorkSession()
-      : result.dag.createWorkSession();
-    const before = session.summary();
-    expect(session.getStatus()).toBe(TraversalRunnerStatus.HALTED);
-    expect(session.getStopReason()).toBe('prepared');
-    expect(session.isHalted()).toBe(true);
-    expect(session.inspect().status).toBe(TraversalRunnerStatus.HALTED);
-    const captured = session.inspectMilestones();
+      ? await result.validatedTopology.createAsyncExternalWorkSession()
+      : result.validatedTopology.createExternalWorkSession();
+    const before = session.captureProgressSnapshot();
+    expect(session.getTraversalLifecycleStatus()).toBe(
+      TraversalRunnerStatus.SUSPENDED,
+    );
+    expect(session.getTraversalStopReason()).toBe('prepared');
+    expect(session.isSuspended()).toBe(true);
+    expect(session.captureExecutionSnapshot().traversalLifecycleStatus).toBe(
+      TraversalRunnerStatus.SUSPENDED,
+    );
+    const captured = session.captureMilestoneSnapshot();
     expect(
-      captured.prerequisitesOf({ vertexId: 'b', milestone: 'work' }).milestones,
-    ).toContainEqual({ vertexId: 'a', milestone: 'work' });
-    expect(session.summary()).toEqual(before);
-    const ticket = frontier(await session.advance())[0]!;
-    expect(session.getStopReason()).toBe('awaitingSettlement');
-    expect(session.isHalted()).toBe(true);
+      captured.queryOriginalPrerequisiteMilestonesOf({
+        vertexId: 'b',
+        milestone: 'workCompletion',
+      }).reachedMilestones,
+    ).toContainEqual({ vertexId: 'a', milestone: 'workCompletion' });
+    expect(session.captureProgressSnapshot()).toEqual(before);
+    const ticket = frontier(await session.runUntilWorkBoundary())[0]!;
+    expect(session.getTraversalStopReason()).toBe('awaitingSettlement');
+    expect(session.isSuspended()).toBe(true);
     expect(
-      session.inspectMilestones().explain({ vertexId: 'b', milestone: 'work' }),
-    ).toMatchObject({ kind: 'live', satisfied: false });
-    session.completeWork(ticket);
+      session
+        .captureMilestoneSnapshot()
+        .explainMilestone({ vertexId: 'b', milestone: 'workCompletion' }),
+    ).toMatchObject({ kind: 'live', milestoneSatisfied: false });
+    session.acceptCompletedWork(ticket);
     expect(
-      session.inspectMilestones().explain({ vertexId: 'a', milestone: 'work' }),
-    ).toMatchObject({ kind: 'live', satisfied: true });
+      session
+        .captureMilestoneSnapshot()
+        .explainMilestone({ vertexId: 'a', milestone: 'workCompletion' }),
+    ).toMatchObject({ kind: 'live', milestoneSatisfied: true });
     expect(
-      captured.explain({ vertexId: 'a', milestone: 'work' }),
-    ).toMatchObject({ kind: 'live', satisfied: false });
+      captured.explainMilestone({ vertexId: 'a', milestone: 'workCompletion' }),
+    ).toMatchObject({ kind: 'live', milestoneSatisfied: false });
   });
 
   test.each([null, undefined, { fatal: true }])(
@@ -364,13 +463,17 @@ for (const async of [false, true]) {
     } failTraversal is the sole fatal settlement method: %p`,
     async (error) => {
       const session = async
-        ? bindAsyncDagWorkSession(
-            new AsyncDagTraversal<G, G, string>(options).createRunner(),
+        ? bindAsyncDagExternalWorkSession(
+            new AsyncDagTraversalBuilder<G, G, string>(
+              options,
+            ).createIndependentRunnerFromCurrentOptions(),
           )
-        : bindDagWorkSession(
-            new DagTraversal<G, G, string>(options).createRunner(),
+        : bindDagExternalWorkSession(
+            new DagTraversalBuilder<G, G, string>(
+              options,
+            ).createIndependentRunnerFromCurrentOptions(),
           );
-      const ticket = frontier(await session.advance())[0]!;
+      const ticket = frontier(await session.runUntilWorkBoundary())[0]!;
       expect('fail' in session).toBe(false);
       expect(session.failTraversal(ticket, error)).toEqual({
         kind: 'accepted',
@@ -378,9 +481,15 @@ for (const async of [false, true]) {
       expect(session.failTraversal(ticket, error)).toEqual({
         kind: 'alreadyAccepted',
       });
-      await expect(async () => session.advance()).rejects.toBe(error);
-      expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
-      expect(session.inspect().status).toBe(TraversalRunnerStatus.FAILED);
+      await expect(async () => session.runUntilWorkBoundary()).rejects.toBe(
+        error,
+      );
+      expect(session.getTraversalLifecycleStatus()).toBe(
+        TraversalRunnerStatus.FAILED,
+      );
+      expect(session.captureExecutionSnapshot().traversalLifecycleStatus).toBe(
+        TraversalRunnerStatus.FAILED,
+      );
     },
   );
 }

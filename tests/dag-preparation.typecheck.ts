@@ -1,52 +1,57 @@
 import {
-  DagTraversal,
-  AsyncDagTraversal,
+  DagTraversalBuilder,
+  AsyncDagTraversalBuilder,
   DagTraversalRunner,
   AsyncDagTraversalRunner,
-  DagDeferredWork,
-  DagSummary,
-  DagEvent,
-  VertexTypes,
+  DagWorkAwaitingSettlement,
+  DagProgressSnapshot,
+  DagCommittedMilestoneEvent,
+  VertexDataAndChildHintTypes,
   DagDiscoverySource,
 } from '../src';
-type G = VertexTypes<string, string>;
+type G = VertexDataAndChildHintTypes<string, string>;
 type ID = 'a' | 'b';
 const source: DagDiscoverySource<G, G, ID> = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId: 'a',
-      vertexContent: { $data: 'a', $childHints: [] },
+      vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: [] },
     },
   }),
-  resolveChild: () => ({
-    kind: 'found' as const,
-    vertex: {
+  resolveChildHint: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId: 'b',
-      vertexContent: { $data: 'b', $childHints: [] },
+      vertexContentInput: { $vertexData: 'b', $childDiscoveryHints: [] },
     },
   }),
 };
-const sync: DagTraversalRunner<G, G, ID> = new DagTraversal<G, G, ID>({
-  traversableGraph: source,
+const sync: DagTraversalRunner<G, G, ID> = new DagTraversalBuilder<G, G, ID>({
+  dagDiscoverySource: source,
 })
-  .createRunner()
-  .prepare();
-const asyncRunner = new AsyncDagTraversal<G, G, ID>({
-  traversableGraph: source,
-}).createRunner();
+  .createIndependentRunnerFromCurrentOptions()
+  .discoverValidateAndFreezeTopology();
+const asyncRunner = new AsyncDagTraversalBuilder<G, G, ID>({
+  dagDiscoverySource: source,
+}).createIndependentRunnerFromCurrentOptions();
 const prepared: Promise<AsyncDagTraversalRunner<G, G, ID>> =
-  asyncRunner.prepare();
-const summary: DagSummary<ID> = sync.summary();
-const work: DagDeferredWork<ID> = summary.awaitingSettlement[0]!;
+  asyncRunner.discoverValidateAndFreezeTopology();
+const captureProgressSnapshot: DagProgressSnapshot<ID> =
+  sync.captureProgressSnapshot();
+const work: DagWorkAwaitingSettlement<ID> =
+  captureProgressSnapshot.workAwaitingSettlement[0]!;
 const id: ID = work.vertexId;
-sync.settle(id, { kind: 'workCompleted' }, work.generation);
+sync.settleDeferredWork(id, { kind: 'workCompleted' }, work.settlementToken);
 // @ts-expect-error Frontier records cannot be changed through the public type.
-work.generation = Symbol();
+work.settlementToken = Symbol();
 // @ts-expect-error Frontier collections are readonly snapshots.
-summary.awaitingSettlement.push(work);
+captureProgressSnapshot.workAwaitingSettlement.push(work);
 // @ts-expect-error ID domain is preserved at the readiness boundary.
-const other: DagDeferredWork<'other'> = work;
-const event: DagEvent<G> = sync.iterateEvents().next().value!;
-const kind: 'workCompleted' | 'subgraphCompleted' = event.kind;
+const other: DagWorkAwaitingSettlement<'other'> = work;
+const event: DagCommittedMilestoneEvent<G> = sync
+  .runAndIterateObservationEventsUntilSuspendedOrTerminal()
+  .next().value!;
+const kind: 'workCompletionCommitted' | 'subgraphCompletionCommitted' =
+  event.eventKind;
 void [prepared, other, kind];

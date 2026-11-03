@@ -1,10 +1,10 @@
 import { assertOwnKeys, definedOptions } from '@core/assertPublicOptions';
 import type { VisitorRecord } from '@core/graph/types';
 import type {
-  NoInferPhase,
-  TraversalVisitorFunctionOptions,
+  PreventVisitorReturnFromWideningPhase,
+  VisitorRegistrationOptions,
   VisitorGroupDefinition,
-  VisitorPhaseInput,
+  VisitorDefinitionsForPhase,
 } from '@core/TraversalVisitor';
 import {
   appendVisitorDefinition,
@@ -17,82 +17,131 @@ import {
   type AsyncGraphWalkRunner,
 } from './AsyncGraphWalkRunner';
 import type {
-  AsyncGraphWalkOptions,
-  AsyncGraphWalkOptionsPatch,
+  AsyncGraphWalkBuilderOptions,
+  AsyncGraphWalkBuilderOptionsPatch,
 } from './GraphWalkOptions';
-import { GraphWalkPhase } from './GraphWalkPhase';
+import { GraphWalkObservationKind } from './GraphWalkPhase';
 import type { AsyncGraphWalkVisitor } from './GraphWalkVisitor';
 import type { GraphWalkResolvedOptions } from './lib/normalizeWalkOptions';
 import { normalizeWalkOptions } from './lib/normalizeWalkOptions';
 
-export class AsyncGraphWalk<Data, Edge, ID> {
-  private options: GraphWalkResolvedOptions<Data, Edge, ID>;
-  constructor(options: AsyncGraphWalkOptions<Data, Edge, ID>) {
+export class AsyncGraphWalkBuilder<VertexData, EdgeData, VertexId> {
+  private options: GraphWalkResolvedOptions<VertexData, EdgeData, VertexId>;
+  constructor(
+    options: AsyncGraphWalkBuilderOptions<VertexData, EdgeData, VertexId>,
+  ) {
     this.options = normalizeWalkOptions(options);
   }
-  configure(patch: AsyncGraphWalkOptionsPatch<Data, Edge, ID>): this {
+  patchOptionsForFutureRunners(
+    patch: AsyncGraphWalkBuilderOptionsPatch<VertexData, EdgeData, VertexId>,
+  ): this {
     this.options = normalizeWalkOptions(patch, this.options);
     return this;
   }
-  addVisitorFor<Phase extends GraphWalkPhase>(
-    phase: Phase,
-    visitor: AsyncGraphWalkVisitor<Data, Edge, NoInferPhase<Phase>, ID>,
-    options: Partial<TraversalVisitorFunctionOptions> = {},
+  addVisitorForObservationKind<
+    ObservationKind extends GraphWalkObservationKind,
+  >(
+    observationKind: ObservationKind,
+    visitor: AsyncGraphWalkVisitor<
+      VertexData,
+      EdgeData,
+      PreventVisitorReturnFromWideningPhase<ObservationKind>,
+      VertexId
+    >,
+    options: Partial<VisitorRegistrationOptions> = {},
   ): this {
-    assertOwnKeys(options, ['priority', 'commandCommitMode']);
-    const records = appendVisitorDefinition(this.recordsFor(phase), {
+    assertOwnKeys(options, [
+      'descendingExecutionPriorityWithinGroup',
+      'visitorCommandCommitTiming',
+    ]);
+    const records = appendVisitorDefinition(this.recordsFor(observationKind), {
       visitor,
       ...definedOptions(options),
     });
     this.options = {
       ...this.options,
-      visitors: { ...this.options.visitors, [phase]: records },
+      visitorsByObservationKind: {
+        ...this.options.visitorsByObservationKind,
+        [observationKind]: records,
+      },
     };
     return this;
   }
-  addVisitorGroupFor<Phase extends GraphWalkPhase>(
-    phase: Phase,
+  addVisitorGroupForObservationKind<
+    ObservationKind extends GraphWalkObservationKind,
+  >(
+    observationKind: ObservationKind,
     group: VisitorGroupDefinition<
-      AsyncGraphWalkVisitor<Data, Edge, NoInferPhase<Phase>, ID>
+      AsyncGraphWalkVisitor<
+        VertexData,
+        EdgeData,
+        PreventVisitorReturnFromWideningPhase<ObservationKind>,
+        VertexId
+      >
     >,
   ): this {
-    const records = appendVisitorGroup(this.recordsFor(phase), group);
+    const records = appendVisitorGroup(this.recordsFor(observationKind), group);
     this.options = {
       ...this.options,
-      visitors: { ...this.options.visitors, [phase]: records },
+      visitorsByObservationKind: {
+        ...this.options.visitorsByObservationKind,
+        [observationKind]: records,
+      },
     };
     return this;
   }
-  setVisitorsFor<Phase extends GraphWalkPhase>(
-    phase: Phase,
-    input: VisitorPhaseInput<
-      AsyncGraphWalkVisitor<Data, Edge, NoInferPhase<Phase>, ID>
+  replaceVisitorsForObservationKind<
+    ObservationKind extends GraphWalkObservationKind,
+  >(
+    observationKind: ObservationKind,
+    input: VisitorDefinitionsForPhase<
+      AsyncGraphWalkVisitor<
+        VertexData,
+        EdgeData,
+        PreventVisitorReturnFromWideningPhase<ObservationKind>,
+        VertexId
+      >
     >,
   ): this {
-    this.recordsFor(phase);
+    this.recordsFor(observationKind);
     const records = normalizeVisitorDefinitions(input);
     this.options = {
       ...this.options,
-      visitors: { ...this.options.visitors, [phase]: records },
+      visitorsByObservationKind: {
+        ...this.options.visitorsByObservationKind,
+        [observationKind]: records,
+      },
     };
     return this;
   }
-  listVisitorsFor<Phase extends GraphWalkPhase>(
-    phase: Phase,
-  ): VisitorRecord<AsyncGraphWalkVisitor<Data, Edge, Phase, ID>>[] {
-    return copyVisitorRecords(this.recordsFor(phase));
+  listVisitorRegistrationsForObservationKind<
+    ObservationKind extends GraphWalkObservationKind,
+  >(
+    observationKind: ObservationKind,
+  ): VisitorRecord<
+    AsyncGraphWalkVisitor<VertexData, EdgeData, ObservationKind, VertexId>
+  >[] {
+    return copyVisitorRecords(this.recordsFor(observationKind));
   }
-  private recordsFor<Phase extends GraphWalkPhase>(
-    phase: Phase,
-  ): VisitorRecord<AsyncGraphWalkVisitor<Data, Edge, Phase, ID>>[] {
-    if (!Object.values(GraphWalkPhase).includes(phase))
-      throw new TypeError('Unknown walking visitor phase');
-    // Phase-keyed normalized records preserve the registered callback event type.
-    return this.options.visitors[phase] as VisitorRecord<
-      AsyncGraphWalkVisitor<Data, Edge, Phase, ID>
+  private recordsFor<ObservationKind extends GraphWalkObservationKind>(
+    observationKind: ObservationKind,
+  ): VisitorRecord<
+    AsyncGraphWalkVisitor<VertexData, EdgeData, ObservationKind, VertexId>
+  >[] {
+    if (!Object.values(GraphWalkObservationKind).includes(observationKind))
+      throw new TypeError('Unknown walking observation kind');
+    // ObservationKind-keyed normalized records preserve the registered callback event type.
+    return this.options.visitorsByObservationKind[
+      observationKind
+    ] as VisitorRecord<
+      AsyncGraphWalkVisitor<VertexData, EdgeData, ObservationKind, VertexId>
     >[];
   }
-  createRunner(): AsyncGraphWalkRunner<Data, Edge, ID> {
+  createIndependentRunnerFromCurrentOptions(): AsyncGraphWalkRunner<
+    VertexData,
+    EdgeData,
+    VertexId
+  > {
     return new InternalAsyncGraphWalkRunner(
       normalizeWalkOptions({}, this.options),
     );

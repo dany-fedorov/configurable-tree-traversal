@@ -1,18 +1,18 @@
 import type {
-  TreeChildResolutionContext,
+  TreeChildResolverContext,
   TreeVertexResolution,
 } from '@core/TraversableTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
 
 /** Input T owns discovery hints/results; callbacks must accept the full T | R live context. */
-export interface AsyncTreeSource<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
+export interface AsyncTreeDiscoverySource<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > {
-  resolveRoot: () => MaybePromise<TreeVertexResolution<T>>;
-  resolveChild: (
-    hint: T['VertexHint'],
-    options: TreeChildResolutionContext<T, R>,
-  ) => MaybePromise<TreeVertexResolution<T>>;
+  resolveRootVertex: () => MaybePromise<TreeVertexResolution<InputVertexTypes>>;
+  resolveChildVertexFromHint: (
+    hint: InputVertexTypes['ChildHint'],
+    options: TreeChildResolverContext<InputVertexTypes, RewrittenVertexTypes>,
+  ) => MaybePromise<TreeVertexResolution<InputVertexTypes>>;
 }

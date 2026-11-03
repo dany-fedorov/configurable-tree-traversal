@@ -1,197 +1,222 @@
-import type { OwnerToken } from '@core/effects/types';
+import type { SchedulingOwnerValidityToken } from '@core/effects/types';
 import type { InternalVertexRef } from '@core/graph/types';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { InOrderOptions } from './DepthFirstTraversalInOrderTraversalConfig';
-import { DepthFirstPhase } from './DepthFirstTraversalOrder';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
+import type { DepthFirstChildBoundaryVisitOptions } from './DepthFirstTraversalInOrderTraversalConfig';
+import { DepthFirstTreeVisitPhase } from './DepthFirstTraversalOrder';
 import { shouldVisitParentOnInOrder } from '../in-order-helpers/shouldVisitParentOnInOrder';
 
-export type DepthFirstFrameStage =
-  | 'pre'
-  | 'pre-visit'
-  | 'transformHints'
-  | 'sort-wait'
-  | 'children'
-  | 'child-wait'
-  | 'leaf-after-close'
-  | 'in-visit'
-  | 'post'
-  | 'post-visit'
-  | 'done';
+export type DepthFirstTraversalFrameStage =
+  | 'beforeInitialVisitAdmission'
+  | 'waitingForInitialVisitChain'
+  | 'transformingChildHints'
+  | 'waitingForChildHintTransformation'
+  | 'processingChildDiscoverySlots'
+  | 'waitingForChildResolution'
+  | 'beforeLeafBoundaryVisit'
+  | 'waitingForChildBoundaryVisitChain'
+  | 'beforeCompletionVisitAdmission'
+  | 'waitingForCompletionVisitChain'
+  | 'frameTraversalFinished';
 
-export type DepthFirstFrame<T extends VertexTypes> = {
-  owner: OwnerToken;
-  vertexRef: InternalVertexRef<T>;
+export type DepthFirstFrame<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = {
+  owner: SchedulingOwnerValidityToken;
+  vertexHandle: InternalVertexRef<InputVertexTypes>;
   depth: number;
-  stage: DepthFirstFrameStage;
-  hints: T['VertexHint'][];
+  stage: DepthFirstTraversalFrameStage;
+  hints: InputVertexTypes['ChildHint'][];
   nextChild: number;
   completedChild: { index: number; resolved: boolean } | null;
-  resumeAfterInOrder: 'children' | 'post';
+  resumeAfterInOrder:
+    | 'processingChildDiscoverySlots'
+    | 'beforeCompletionVisitAdmission';
 };
 
-export type DepthFirstWork<T extends VertexTypes> =
+export type DepthFirstWork<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> =
   | {
       kind: 'VISIT';
-      frame: DepthFirstFrame<T>;
-      order: DepthFirstPhase;
+      frame: DepthFirstFrame<InputVertexTypes>;
+      order: DepthFirstTreeVisitPhase;
     }
   | {
       kind: 'PREPARE_HINTS';
-      frame: DepthFirstFrame<T>;
-      hints: T['VertexHint'][];
+      frame: DepthFirstFrame<InputVertexTypes>;
+      hints: InputVertexTypes['ChildHint'][];
     }
   | {
       kind: 'SORT_HINTS';
-      frame: DepthFirstFrame<T>;
-      hints: T['VertexHint'][];
+      frame: DepthFirstFrame<InputVertexTypes>;
+      hints: InputVertexTypes['ChildHint'][];
     }
   | {
       kind: 'MAKE_VERTEX';
-      frame: DepthFirstFrame<T>;
+      frame: DepthFirstFrame<InputVertexTypes>;
       index: number;
     }
-  | { kind: 'CLOSE'; frame: DepthFirstFrame<T> }
-  | { kind: 'POP'; frame: DepthFirstFrame<T> };
+  | { kind: 'CLOSE'; frame: DepthFirstFrame<InputVertexTypes> }
+  | { kind: 'POP'; frame: DepthFirstFrame<InputVertexTypes> };
 
 /** Explicit stack policy preserving the legacy synchronous DFS boundaries. */
-export class DepthFirstPolicy<T extends VertexTypes> {
-  private readonly frames: DepthFirstFrame<T>[] = [];
+export class DepthFirstPolicy<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> {
+  private readonly frames: DepthFirstFrame<InputVertexTypes>[] = [];
 
   constructor(
-    private readonly inOrderConfig: InOrderOptions,
-    private readonly hasHintTransformer: boolean,
+    private readonly inOrderConfig: DepthFirstChildBoundaryVisitOptions,
+    private readonly hasChildHintsListTransformer: boolean,
   ) {}
 
   push(
-    owner: OwnerToken,
-    vertexRef: InternalVertexRef<T>,
+    owner: SchedulingOwnerValidityToken,
+    vertexHandle: InternalVertexRef<InputVertexTypes>,
     depth: number,
   ): void {
     this.frames.push({
       owner,
-      vertexRef,
+      vertexHandle,
       depth,
-      stage: 'pre',
+      stage: 'beforeInitialVisitAdmission',
       hints: [],
       nextChild: 0,
       completedChild: null,
-      resumeAfterInOrder: 'children',
+      resumeAfterInOrder: 'processingChildDiscoverySlots',
     });
   }
 
   next(
-    hasVertex: (ref: InternalVertexRef<T>) => boolean,
-    isDisabled: (ref: InternalVertexRef<T>) => boolean,
-  ): DepthFirstWork<T> | null {
+    hasVertex: (ref: InternalVertexRef<InputVertexTypes>) => boolean,
+    isDisabled: (ref: InternalVertexRef<InputVertexTypes>) => boolean,
+  ): DepthFirstWork<InputVertexTypes> | null {
     for (;;) {
       const frame = this.frames[this.frames.length - 1];
       if (frame === undefined) return null;
-      if (!hasVertex(frame.vertexRef)) {
+      if (!hasVertex(frame.vertexHandle)) {
         this.frames.pop();
         continue;
       }
       switch (frame.stage) {
-        case 'pre':
-          frame.stage = 'pre-visit';
+        case 'beforeInitialVisitAdmission':
+          frame.stage = 'waitingForInitialVisitChain';
           return {
             kind: 'VISIT',
             frame,
-            order: DepthFirstPhase.PRE_ORDER,
+            order: DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
           };
-        case 'transformHints': {
-          const hints = isDisabled(frame.vertexRef)
+        case 'transformingChildHints': {
+          const hints = isDisabled(frame.vertexHandle)
             ? []
-            : frame.vertexRef.getValue().getChildHints().slice();
-          if (this.hasHintTransformer) {
-            frame.stage = 'sort-wait';
+            : frame.vertexHandle
+                .getReferencedValue()
+                .getMutableChildDiscoveryHints()
+                .slice();
+          if (this.hasChildHintsListTransformer) {
+            frame.stage = 'waitingForChildHintTransformation';
             return { kind: 'SORT_HINTS', frame, hints };
           }
           return { kind: 'PREPARE_HINTS', frame, hints };
         }
-        case 'children': {
+        case 'processingChildDiscoverySlots': {
           if (frame.completedChild !== null) {
             const completed = frame.completedChild;
             frame.completedChild = null;
             if (
               (completed.resolved ||
-                this.inOrderConfig.visitAfterOmittedChildren) &&
+                this.inOrderConfig.allowBoundaryVisitsAfterOmittedChildSlots) &&
               shouldVisitParentOnInOrder(
                 this.inOrderConfig,
                 completed.index,
                 frame.hints.length,
               )
             ) {
-              frame.resumeAfterInOrder = 'children';
-              frame.stage = 'in-visit';
+              frame.resumeAfterInOrder = 'processingChildDiscoverySlots';
+              frame.stage = 'waitingForChildBoundaryVisitChain';
               return {
                 kind: 'VISIT',
                 frame,
-                order: DepthFirstPhase.IN_ORDER,
+                order:
+                  DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
               };
             }
             continue;
           }
           if (
             frame.nextChild < frame.hints.length &&
-            !isDisabled(frame.vertexRef)
+            !isDisabled(frame.vertexHandle)
           ) {
             const index = frame.nextChild++;
-            frame.stage = 'child-wait';
+            frame.stage = 'waitingForChildResolution';
             return { kind: 'MAKE_VERTEX', frame, index };
           }
-          frame.stage = frame.hints.length === 0 ? 'leaf-after-close' : 'post';
+          frame.stage =
+            frame.hints.length === 0
+              ? 'beforeLeafBoundaryVisit'
+              : 'beforeCompletionVisitAdmission';
           return { kind: 'CLOSE', frame };
         }
-        case 'leaf-after-close':
-          frame.resumeAfterInOrder = 'post';
-          frame.stage = 'in-visit';
+        case 'beforeLeafBoundaryVisit':
+          frame.resumeAfterInOrder = 'beforeCompletionVisitAdmission';
+          frame.stage = 'waitingForChildBoundaryVisitChain';
           return {
             kind: 'VISIT',
             frame,
-            order: DepthFirstPhase.IN_ORDER,
+            order:
+              DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
           };
-        case 'post':
-          frame.stage = 'post-visit';
+        case 'beforeCompletionVisitAdmission':
+          frame.stage = 'waitingForCompletionVisitChain';
           return {
             kind: 'VISIT',
             frame,
-            order: DepthFirstPhase.POST_ORDER,
+            order: DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
           };
-        case 'done':
+        case 'frameTraversalFinished':
           this.frames.pop();
           return { kind: 'POP', frame };
-        case 'pre-visit':
-        case 'sort-wait':
-        case 'child-wait':
-        case 'in-visit':
-        case 'post-visit':
+        case 'waitingForInitialVisitChain':
+        case 'waitingForChildHintTransformation':
+        case 'waitingForChildResolution':
+        case 'waitingForChildBoundaryVisitChain':
+        case 'waitingForCompletionVisitChain':
           return null;
       }
     }
   }
 
-  completeVisit(frame: DepthFirstFrame<T>, order: DepthFirstPhase): void {
-    if (order === DepthFirstPhase.PRE_ORDER) frame.stage = 'transformHints';
-    else if (order === DepthFirstPhase.IN_ORDER)
+  completeVisit(
+    frame: DepthFirstFrame<InputVertexTypes>,
+    order: DepthFirstTreeVisitPhase,
+  ): void {
+    if (order === DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION)
+      frame.stage = 'transformingChildHints';
+    else if (
+      order === DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES
+    )
       frame.stage = frame.resumeAfterInOrder;
-    else frame.stage = 'done';
+    else frame.stage = 'frameTraversalFinished';
   }
 
-  setHints(frame: DepthFirstFrame<T>, hints: T['VertexHint'][]): void {
+  setHints(
+    frame: DepthFirstFrame<InputVertexTypes>,
+    hints: InputVertexTypes['ChildHint'][],
+  ): void {
     frame.hints = hints.slice();
-    frame.stage = 'children';
+    frame.stage = 'processingChildDiscoverySlots';
   }
 
   completeChild(
-    frame: DepthFirstFrame<T>,
+    frame: DepthFirstFrame<InputVertexTypes>,
     index: number,
     resolved: boolean,
   ): void {
     frame.completedChild = { index, resolved };
-    frame.stage = 'children';
+    frame.stage = 'processingChildDiscoverySlots';
   }
 
-  getFrames(): readonly DepthFirstFrame<T>[] {
+  getFrames(): readonly DepthFirstFrame<InputVertexTypes>[] {
     return this.frames;
   }
 

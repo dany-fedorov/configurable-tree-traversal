@@ -1,18 +1,27 @@
 import { sortVisitorRecords } from '@core/executeVisitors';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { BreadthFirstTreeResolvedOptions } from '../lib/BreadthFirstTraversalInstanceConfig';
-import type { BreadthFirstTraversalVisitors } from '../lib/BreadthFirstTraversalVisitors';
+import type { BreadthFirstTreeVisitorRegistrationsByPhase } from '../lib/BreadthFirstTraversalVisitors';
 
 export function initBreadthFirstVisitors<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 >(
-  config: Pick<BreadthFirstTreeResolvedOptions<TTP, RW_TTP>, 'visitors'>,
-): BreadthFirstTraversalVisitors<TTP, RW_TTP> {
+  config: Pick<
+    BreadthFirstTreeResolvedOptions<InputVertexTypes, RewrittenVertexTypes>,
+    'visitors'
+  >,
+): BreadthFirstTreeVisitorRegistrationsByPhase<
+  InputVertexTypes,
+  RewrittenVertexTypes
+> {
   return Object.fromEntries(
     Object.entries(config.visitors).map(([order, visitors]) => [
       order,
       sortVisitorRecords(visitors),
     ]),
-  ) as BreadthFirstTraversalVisitors<TTP, RW_TTP>;
+  ) as BreadthFirstTreeVisitorRegistrationsByPhase<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
 }

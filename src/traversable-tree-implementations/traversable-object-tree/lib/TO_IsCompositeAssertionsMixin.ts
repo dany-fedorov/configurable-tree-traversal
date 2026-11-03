@@ -1,5 +1,5 @@
-export type ObjectCompositeClassification = {
-  isComposite: boolean;
-  isArray: boolean;
-  isObject: boolean;
+export type ObjectPropertyAssemblyClassification = {
+  matchesAnyCompositeAssemblyPredicate: boolean;
+  matchesArrayAssemblyPredicate: boolean;
+  matchesObjectAssemblyPredicate: boolean;
 };

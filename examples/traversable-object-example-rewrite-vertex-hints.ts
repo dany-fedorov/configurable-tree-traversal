@@ -1,7 +1,7 @@
 import {
-  ObjectTreeSource,
-  DepthFirstTreeTraversal,
-  DepthFirstPhase,
+  ObjectPropertyTreeSource,
+  DepthFirstTreeTraversalBuilder,
+  DepthFirstTreeVisitPhase,
   TraversalVisitorCommandName,
 } from '../src';
 
@@ -31,98 +31,109 @@ const obj = {
   },
 };
 
-const traversableTree = new ObjectTreeSource(obj, {
-  resolveChildHook: (vertexHint) => {
-    if (vertexHint.value === null) {
-      return { kind: 'omitted' };
+const treeDiscoverySource = new ObjectPropertyTreeSource(obj, {
+  resolveChildPropertyOrUseDefault: (vertexHint) => {
+    if (vertexHint.propertyValue === null) {
+      return { kind: 'vertexIntentionallyOmitted' };
     }
-    return { kind: 'useDefault' };
+    return { kind: 'useDefaultChildPropertyResolution' };
   },
 });
-const traversal = new DepthFirstTreeTraversal({
-  traversableTree,
+const traversal = new DepthFirstTreeTraversalBuilder({
+  treeDiscoverySource,
 });
 
-traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (v) => {
-  console.log(
-    '-',
-    RED_FG,
-    'Pre-order'.padEnd(10),
-    RESET,
-    'key:',
-    v.getData().key,
-    '; value:',
-    JSON.stringify(v.getData().value),
-  );
-  if (v.getData().value === 'E') {
-    return {
-      commands: [
-        {
-          commandName: TraversalVisitorCommandName.REWRITE_CHILD_HINTS,
-          commandArguments: {
-            newHints: [
-              { key: 'AA', value: 1 },
-              { key: 'DD', value: ['CC', 'EE'] },
-              { key: 'XX', value: ['YY'] },
-            ],
+traversal.registerVisitorCallbackForPhase(
+  DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+  (v) => {
+    console.log(
+      '-',
+      RED_FG,
+      'Pre-order'.padEnd(10),
+      RESET,
+      'key:',
+      v.getVertexData().propertyKey,
+      '; value:',
+      JSON.stringify(v.getVertexData().propertyValue),
+    );
+    if (v.getVertexData().propertyValue === 'E') {
+      return {
+        commands: [
+          {
+            commandName:
+              TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+            commandArguments: {
+              replacementChildHints: [
+                { propertyKey: 'AA', propertyValue: 1 },
+                { propertyKey: 'DD', propertyValue: ['CC', 'EE'] },
+                { propertyKey: 'XX', propertyValue: ['YY'] },
+              ],
+            },
           },
-        },
-      ],
-    };
-  }
-  return {};
-});
-traversal.addVisitorFor(DepthFirstPhase.POST_ORDER, (v) => {
-  console.log(
-    '-',
-    BLUE_FG,
-    'Post-order'.padEnd(10),
-    RESET,
-    'key:',
-    v.getData().key,
-    '; value:',
-    JSON.stringify(v.getData().value),
-  );
-  if (v.getData().key === 'B') {
-    return {
-      commands: [
-        {
-          commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL,
-        },
-      ],
-    };
-  }
-  return {};
-});
-traversal.addVisitorFor(DepthFirstPhase.IN_ORDER, (v) => {
-  console.log(
-    '-',
-    GREEN_FG,
-    'In-order'.padEnd(10),
-    RESET,
-    'key:',
-    v.getData().key,
-    '; value:',
-    JSON.stringify(v.getData().value),
-  );
-});
-const traversalRunner = traversal.createRunner();
+        ],
+      };
+    }
+    return {};
+  },
+);
+traversal.registerVisitorCallbackForPhase(
+  DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
+  (v) => {
+    console.log(
+      '-',
+      BLUE_FG,
+      'Post-order'.padEnd(10),
+      RESET,
+      'key:',
+      v.getVertexData().propertyKey,
+      '; value:',
+      JSON.stringify(v.getVertexData().propertyValue),
+    );
+    if (v.getVertexData().propertyKey === 'B') {
+      return {
+        commands: [
+          {
+            commandName:
+              TraversalVisitorCommandName.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY,
+          },
+        ],
+      };
+    }
+    return {};
+  },
+);
+traversal.registerVisitorCallbackForPhase(
+  DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
+  (v) => {
+    console.log(
+      '-',
+      GREEN_FG,
+      'In-order'.padEnd(10),
+      RESET,
+      'key:',
+      v.getVertexData().propertyKey,
+      '; value:',
+      JSON.stringify(v.getVertexData().propertyValue),
+    );
+  },
+);
+const traversalRunner = traversal.createIndependentRunnerFromCurrentOptions();
 
-traversalRunner.run();
+traversalRunner.runUntilSuspendedOrTerminal();
 
 console.log();
 console.log(
   'First stop. TreeTraversal runner status:',
-  traversalRunner.getStatus(),
+  traversalRunner.getTraversalLifecycleStatus(),
 );
 console.log();
 
-traversalRunner.run();
+traversalRunner.runUntilSuspendedOrTerminal();
 
 console.log();
 console.log(
   'Second stop. TreeTraversal runner status:',
-  traversalRunner.getStatus(),
+  traversalRunner.getTraversalLifecycleStatus(),
 );
 
 /*

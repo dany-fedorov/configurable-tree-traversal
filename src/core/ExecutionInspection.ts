@@ -4,12 +4,12 @@ import type {
 } from './TraversalRunner';
 
 /** Common observational state shared by independent traversal engines. */
-export interface ExecutionInspection {
-  readonly status: TraversalRunnerStatus;
-  readonly stopReason: TraversalStopReason | null;
+export interface TraversalExecutionSnapshot {
+  readonly traversalLifecycleStatus: TraversalRunnerStatus;
+  readonly traversalStopReason: TraversalStopReason | null;
   readonly pauseRequested: boolean;
-  readonly kind: string;
-  readonly execution: 'sync' | 'async';
-  readonly inFlightCallbackCount: number;
-  readonly bufferedEventCount: number;
+  readonly traversalAlgorithm: string;
+  readonly callbackExecutionMode: 'sync' | 'async';
+  readonly inFlightInvocationCount: number;
+  readonly bufferedDeliveryEventCount: number;
 }

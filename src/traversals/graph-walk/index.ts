@@ -1,39 +1,39 @@
-export { AsyncGraphWalk } from './AsyncGraphWalk';
+export { AsyncGraphWalkBuilder } from './AsyncGraphWalk';
 export type { AsyncGraphWalkRunner } from './AsyncGraphWalkRunner';
-export { GraphWalk } from './GraphWalk';
+export { GraphWalkBuilder } from './GraphWalk';
 export type { GraphWalkRunner } from './GraphWalkRunner';
-export { GraphWalkPhase } from './GraphWalkPhase';
+export { GraphWalkObservationKind } from './GraphWalkPhase';
 export type {
-  GraphWalkHydration,
-  GraphWalkVertex,
-  GraphWalkVertexResult,
-  GraphWalkTarget,
-  GraphWalkLink,
-  GraphWalkSource,
-  AsyncGraphWalkSource,
+  GraphWalkVertexResolutionMode,
+  GraphWalkResolvedVertex,
+  GraphWalkVertexResolutionResult,
+  GraphWalkVertexResolutionTarget,
+  GraphWalkOutgoingLink,
+  GraphWalkDiscoverySource,
+  AsyncGraphWalkDiscoverySource,
 } from './GraphWalkSource';
 export type {
   GraphWalkEdge,
   GraphWalkEvent,
-  GraphWalkEventFor,
-  GraphWalkPathEvent,
+  GraphWalkEventForObservationKind,
+  GraphWalkRoutePrefixEvent,
 } from './GraphWalkEvent';
 export type {
-  GraphWalkStrategy,
-  GraphWalkRevisitPolicy,
-  GraphWalkLimits,
-  GraphWalkRevisitOptions,
-  GraphWalkRouteContext,
-  GraphWalkExpandContext,
-  GraphWalkFollowContext,
-  GraphWalkExpansionPredicate,
-  AsyncGraphWalkExpansionPredicate,
-  GraphWalkEdgePredicate,
-  AsyncGraphWalkEdgePredicate,
-  GraphWalkOptions,
-  AsyncGraphWalkOptions,
-  GraphWalkOptionsPatch,
-  AsyncGraphWalkOptionsPatch,
+  GraphWalkExpansionOrder,
+  GraphWalkRouteEnumerationPolicy,
+  GraphWalkExplorationLimits,
+  GraphWalkRouteEnumerationAndRequiredBounds,
+  GraphWalkRouteEnumerationContext,
+  GraphWalkVertexOccurrenceExpansionContext,
+  GraphWalkLinkTargetAdmissionContext,
+  GraphWalkVertexOccurrenceExpansionPredicate,
+  AsyncGraphWalkVertexOccurrenceExpansionPredicate,
+  GraphWalkLinkTargetAdmissionPredicate,
+  AsyncGraphWalkLinkTargetAdmissionPredicate,
+  GraphWalkBuilderOptions,
+  AsyncGraphWalkBuilderOptions,
+  GraphWalkBuilderOptionsPatch,
+  AsyncGraphWalkBuilderOptionsPatch,
 } from './GraphWalkOptions';
 export type {
   GraphWalkVisitorResult,
@@ -42,22 +42,22 @@ export type {
   AsyncGraphWalkVisitor,
 } from './GraphWalkVisitor';
 export type {
-  GraphWalkCounts,
-  GraphWalkOutcome,
-  GraphWalkSummary,
+  GraphWalkProgressCounts,
+  GraphWalkTerminalOutcome,
+  GraphWalkProgressSnapshot,
 } from './lib/GraphWalkSummary';
 export type { GraphWalkInspection } from './lib/GraphWalkInspection';
 export {
-  materializeWalkSourceFromRecords,
-  materializeWalkSourceFromRecordsAsync,
+  materializeGraphWalkSourceFromVertexRecords,
+  materializeSynchronousGraphWalkSourceFromAsyncRecords,
 } from './walkSourceFrom';
 export type {
-  GraphWalkRecordSelectors,
-  AsyncGraphWalkRecordSelectors,
-  GraphWalkCatalogLink,
+  GraphWalkRecordMaterializationOptions,
+  AsyncGraphWalkRecordMaterializationOptions,
+  GraphWalkCatalogOutgoingLinkToVertexId,
 } from './walkSourceFrom';
-export { materializeWalkSourceFromDagDefinition } from './walkSourceFromDag';
-export type { GraphWalkDagRelation } from './walkSourceFromDag';
-export { walkGraph } from './walkGraph';
-export { walkGraphAsync } from './walkGraphAsync';
-export type { GraphWalkOperation } from './GraphWalkOperation';
+export { materializeGraphWalkSourceFromDagDeclarationRelations } from './walkSourceFromDag';
+export type { GraphWalkDagDeclarationRelation } from './walkSourceFromDag';
+export { createAndRunGraphWalkUntilSuspendedOrTerminal } from './walkGraph';
+export { createAndRunGraphWalkUntilSuspendedOrTerminalAsync } from './walkGraphAsync';
+export type { GraphWalkPendingInvocationOperation } from './GraphWalkOperation';

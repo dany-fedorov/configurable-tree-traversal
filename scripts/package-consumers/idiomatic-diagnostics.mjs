@@ -15,22 +15,25 @@ for (const api of [esm, cjs]) {
   });
   const id = { opaque: true };
   let sourceCalls = 0;
-  const runner = new api.AsyncDagTraversal({
-    traversableGraph: {
-      resolveRoot: () => {
+  const runner = new api.AsyncDagTraversalBuilder({
+    dagDiscoverySource: {
+      resolveRootVertex: () => {
         sourceCalls++;
         return {
-          kind: 'found',
-          vertex: {
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
             vertexId: id,
-            vertexContent: { $data: 'root', $childHints: [] },
+            vertexContentInput: {
+              $vertexData: 'root',
+              $childDiscoveryHints: [],
+            },
           },
         };
       },
-      resolveChild: () => ({
-        identity: null,
-        kind: 'omitted',
-        satisfiesDependencies: true,
+      resolveChildHint: () => ({
+        omittedVertexIdentity: null,
+        kind: 'vertexIntentionallyOmitted',
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true,
       }),
     },
     visitors: {
@@ -39,33 +42,51 @@ for (const api of [esm, cjs]) {
         await gate;
       },
     },
-  }).createRunner();
-  const running = runner.run();
+  }).createIndependentRunnerFromCurrentOptions();
+  const running = runner.runUntilSuspendedOrTerminal();
   await entered;
-  const inspection = runner.inspect();
-  const chain = inspection.chains[0];
-  assert.equal(chain.phase, 'ON_WORK_READY');
-  assert.equal(chain.state, 'running');
-  assert.equal(chain.visitorIndex, 0);
-  assert.equal(chain.executionOptions.visitorPhases, 'all');
-  assert.equal(chain.commandCommitMode, 'afterEachVisitor');
+  const inspection = runner.captureExecutionSnapshot();
+  const chain = inspection.vertexPhaseVisitorChains[0];
+  assert.equal(chain.visitorPhase, 'ON_WORK_READY');
+  assert.equal(chain.state, 'active');
+  assert.equal(chain.visitorCallbackIndexInPhaseChain, 0);
+  assert.equal(
+    chain.executionSelectionsAtAdmission.admittedVisitorCallbackPhases,
+    'all',
+  );
+  assert.equal(chain.visitorCommandCommitTiming, 'afterEachVisitorCallback');
   for (const key of ['order', 'group', 'position', 'config'])
     assert.equal(key in chain, false);
-  assert.equal(inspection.inFlightCallbackCount, 1);
-  assert.equal(inspection.pendingRequests[0].operation, 'visit');
-  assert.equal('kind' in inspection.pendingRequests[0], false);
-  assert.deepEqual(inspection.pendingRequests[0].owner, chain.owner);
-  assert.deepEqual(runner.inspect(), inspection);
+  assert.equal(inspection.inFlightInvocationCount, 1);
+  assert.equal(
+    inspection.pendingCallbackRequests[0].operation,
+    'invokeVisitorCallback',
+  );
+  assert.equal('kind' in inspection.pendingCallbackRequests[0], false);
+  assert.deepEqual(inspection.pendingCallbackRequests[0].owner, chain.owner);
+  assert.deepEqual(runner.captureExecutionSnapshot(), inspection);
   assert.equal(sourceCalls, 1);
-  const graph = runner.getResolvedGraphView();
-  const ref = graph.getVertexRefById(id);
-  assert.equal(graph.get(ref).vertexId, id);
-  assert.equal(graph.get(ref).visitStage, 'INITIAL_VISIT_STARTED');
-  assert.equal(graph.getVisitStageOf(ref), 'INITIAL_VISIT_STARTED');
-  assert.equal('status' in graph.get(ref), false);
+  const graph = runner.getLiveResolvedGraphView();
+  const ref = graph.getVertexHandleByIdOrNull(id);
+  assert.equal(graph.getVertexSnapshotOrNull(ref).vertexId, id);
+  assert.equal(
+    graph.getVertexSnapshotOrNull(ref).schedulingVisitStage,
+    'INITIAL_VISIT_STARTED',
+  );
+  assert.equal(
+    graph.getVertexVisitSchedulingStageOrNull(ref),
+    'INITIAL_VISIT_STARTED',
+  );
+  assert.equal('status' in graph.getVertexSnapshotOrNull(ref), false);
   assert.equal('getStatusOf' in graph, false);
   release();
   await running;
-  assert.equal(graph.getVisitStageOf(ref), 'COMPLETE');
-  assert.equal(runner.getStatus(), api.TraversalRunnerStatus.FINISHED);
+  assert.equal(
+    graph.getVertexVisitSchedulingStageOrNull(ref),
+    'COMPLETION_VISIT_COMMITTED',
+  );
+  assert.equal(
+    runner.getTraversalLifecycleStatus(),
+    api.TraversalRunnerStatus.FINISHED,
+  );
 }

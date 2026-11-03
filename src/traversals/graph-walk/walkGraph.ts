@@ -1,9 +1,15 @@
-import { GraphWalk } from './GraphWalk';
-import type { GraphWalkOptions } from './GraphWalkOptions';
+import { GraphWalkBuilder } from './GraphWalk';
+import type { GraphWalkBuilderOptions } from './GraphWalkOptions';
 import type { GraphWalkRunner } from './GraphWalkRunner';
 
-export function walkGraph<Data, Edge, ID>(
-  options: GraphWalkOptions<Data, Edge, ID>,
-): GraphWalkRunner<Data, Edge, ID> {
-  return new GraphWalk(options).createRunner().run();
+export function createAndRunGraphWalkUntilSuspendedOrTerminal<
+  VertexData,
+  EdgeData,
+  VertexId,
+>(
+  options: GraphWalkBuilderOptions<VertexData, EdgeData, VertexId>,
+): GraphWalkRunner<VertexData, EdgeData, VertexId> {
+  return new GraphWalkBuilder(options)
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
 }

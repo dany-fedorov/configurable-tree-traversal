@@ -1,12 +1,16 @@
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { DagTraversalRunnerState } from './DagTraversalRunnerState';
 
 export type DagTraversalRunnerInternalObjects<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
 > = {
-  resolvedGraphsContainer: ResolvedGraphsContainer<T, R, ID>;
-  state: DagTraversalRunnerState<T, R>;
+  resolvedGraphsContainer: ResolvedGraphsContainer<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >;
+  state: DagTraversalRunnerState<SourceVertexTypes, RewrittenVertexTypes>;
 };

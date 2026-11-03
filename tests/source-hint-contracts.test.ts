@@ -1,65 +1,75 @@
 import type { VertexView } from '../src';
 import {
-  AsyncBreadthFirstTreeTraversal,
-  AsyncDagTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  DagTraversal,
-  DepthFirstTreeTraversal,
-  DepthFirstPhase,
-  ObjectTreeSource,
-  createObjectMutationBinder,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  DepthFirstTreeTraversalBuilder,
+  DepthFirstTreeVisitPhase,
+  ObjectPropertyTreeSource,
+  createObjectPropertyMutationHelperBinder,
   rewriteObject,
-  traverseTreeDepthFirst,
+  runTreeDepthFirstUntilSuspendedOrTerminal,
   TraversalVisitorCommandName as Command,
   type DagDiscoverySource,
-  type TreeSource,
-  type VertexTypes,
-  type ObjectTreeVertexTypes,
-  type ObjectCurrentVertexTypes,
+  type TreeDiscoverySource,
+  type VertexDataAndChildHintTypes,
+  type ObjectPropertyTreeVertexTypes,
+  type LiveObjectPropertyVertexTypes,
 } from '../src';
 
 test('owned and composed object sources resolve explicitly declared union hints and preserve original records', () => {
-  type Input = ObjectTreeVertexTypes<'input' | 'output', number | string>;
-  type Output = ObjectTreeVertexTypes<'output', string>;
-  type Current = ObjectCurrentVertexTypes<Input, Output>;
+  type Input = ObjectPropertyTreeVertexTypes<
+    'input' | 'output',
+    number | string
+  >;
+  type Output = ObjectPropertyTreeVertexTypes<'output', string>;
+  type Current = LiveObjectPropertyVertexTypes<Input, Output>;
   for (const owned of [true, false]) {
-    const input = { key: 'input' as const, value: 1 };
-    const extra = { key: 'output' as const, value: 'discovered' };
-    const hints: Input['VertexHint'][] = [input, extra];
-    const seen: Input['VertexHint'][] = [];
+    const input = { propertyKey: 'input' as const, propertyValue: 1 };
+    const extra = {
+      propertyKey: 'output' as const,
+      propertyValue: 'discovered',
+    };
+    const hints: Input['ChildHint'][] = [input, extra];
+    const seen: Input['ChildHint'][] = [];
     const discovered: Current['VertexData'][] = [];
-    const binder = createObjectMutationBinder<Input, Output>();
+    const binder = createObjectPropertyMutationHelperBinder<Input, Output>();
     const options = {
-      getRootPropertyFromInputObject: () => ({
-        key: 'input' as const,
-        value: 0,
+      mapInputToRootProperty: () => ({
+        propertyKey: 'input' as const,
+        propertyValue: 0,
       }),
-      getChildrenOfProperty: () => [],
-      resolveChildHook: (hint: Input['VertexHint']) => {
+      enumerateChildPropertyHints: () => [],
+      resolveChildPropertyOrUseDefault: (hint: Input['ChildHint']) => {
         seen.push(hint);
-        return { kind: 'useDefault' as const };
+        return { kind: 'useDefaultChildPropertyResolution' as const };
       },
     };
     const visitors = {
-      [DepthFirstPhase.PRE_ORDER]: (
+      [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION]: (
         vertex: VertexView<Current>,
         context: Parameters<typeof binder>[1],
       ) => {
-        discovered.push(vertex.getData());
+        discovered.push(vertex.getVertexData());
         expect(
-          context.originalTreeView!.getRoot()!.getValue().getData(),
-        ).toEqual({ key: 'input', value: 0 });
+          context
+            .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+            .getCurrentVertexView()
+            .getVertexData(),
+        ).toEqual({ propertyKey: 'input', propertyValue: 0 });
         return context.isTreeRoot
           ? {
               commands: [
-                binder(vertex, context).makeMutationCommand({
-                  kind: 'rewrite',
-                  patch: { value: 'rewritten parent' },
+                binder(vertex, context).createObjectPropertyMutationCommand({
+                  kind: 'patchPropertyKeyOrValue',
+                  propertyPatch: { propertyValue: 'rewritten parent' },
                 }),
                 {
-                  commandName: Command.REWRITE_CHILD_HINTS as const,
-                  commandArguments: { newHints: hints },
+                  commandName:
+                    Command.REPLACE_CURRENT_VERTEX_CHILD_HINTS as const,
+                  commandArguments: { replacementChildHints: hints },
                 },
               ],
             }
@@ -74,10 +84,13 @@ test('owned and composed object sources resolve explicitly declared union hints 
           unknown,
           'output',
           string
-        >(0, { ...options, visitors, retainOriginalTreeStructure: true })
-          .traversalRunner
-      : traverseTreeDepthFirst<Input, Current>({
-          traversableTree: new ObjectTreeSource<
+        >(0, {
+          ...options,
+          visitors,
+          retainDiscoveredTreeBeforeVisitorCommands: true,
+        }).traversalRunner
+      : runTreeDepthFirstUntilSuspendedOrTerminal<Input, Current>({
+          treeDiscoverySource: new ObjectPropertyTreeSource<
             number,
             'input' | 'output',
             number | string,
@@ -85,20 +98,24 @@ test('owned and composed object sources resolve explicitly declared union hints 
             string
           >(0, options),
           visitors,
-          retainOriginalTreeStructure: true,
+          retainDiscoveredTreeBeforeVisitorCommands: true,
         });
     expect(seen).toEqual([input, extra]);
     expect(seen[0]).toBe(input);
     expect(seen[1]).toBe(extra);
-    const view = runner.getResolvedTreeView();
-    expect(view.getRoot()!.getValue().getData()).toEqual({
-      key: 'input',
-      value: 'rewritten parent',
+    const view = runner.getLiveResolvedTreeView();
+    expect(
+      view.getRootVertexHandleOrNull()!.getCurrentVertexView().getVertexData(),
+    ).toEqual({
+      propertyKey: 'input',
+      propertyValue: 'rewritten parent',
     });
-    const children = view.getChildrenOf(view.getRoot()!)!;
-    expect(children[0]!.getValue().getData()).toEqual(input);
+    const children = view.getChildVertexHandlesOrNull(
+      view.getRootVertexHandleOrNull()!,
+    )!;
+    expect(children[0]!.getCurrentVertexView().getVertexData()).toEqual(input);
     expect(discovered[1]).toBe(input);
-    expect(children[1]!.getValue().getData()).toEqual(extra);
+    expect(children[1]!.getCurrentVertexView().getVertexData()).toEqual(extra);
     expect(discovered[2]).toBe(extra);
   }
 });
@@ -110,8 +127,8 @@ for (const asyncMode of [false, true]) {
     } ${family} keeps union hints, live context, input snapshots and identity distinct`, async () => {
       type Data = { value: number };
       type Hint = 'lookup' | { data: Data };
-      type T = VertexTypes<Data, Hint>;
-      type R = VertexTypes<{ rewritten: string }, boolean>;
+      type T = VertexDataAndChildHintTypes<Data, Hint>;
+      type R = VertexDataAndChildHintTypes<{ rewritten: string }, boolean>;
       type ID = object | undefined;
       const rootData = { value: 0 };
       const lookupData = { value: 1 };
@@ -124,18 +141,21 @@ for (const asyncMode of [false, true]) {
       const originalParents: Data[] = [];
       const currentParents: (T | R)['VertexData'][] = [];
       const visit = (vertex: VertexView<T | R>) => {
-        const data = vertex.getData();
+        const data = vertex.getVertexData();
         observedData.push(data);
         return data === rootData
           ? {
               commands: [
                 {
-                  commandName: Command.REWRITE_VERTEX_DATA as const,
-                  commandArguments: { newData: rewritten },
+                  commandName: Command.REPLACE_CURRENT_VERTEX_DATA as const,
+                  commandArguments: { replacementVertexData: rewritten },
                 },
                 {
-                  commandName: Command.REWRITE_CHILD_HINTS as const,
-                  commandArguments: { newHints: ['lookup', inline] as Hint[] },
+                  commandName:
+                    Command.REPLACE_CURRENT_VERTEX_CHILD_HINTS as const,
+                  commandArguments: {
+                    replacementChildHints: ['lookup', inline] as Hint[],
+                  },
                 },
               ],
             }
@@ -144,127 +164,153 @@ for (const asyncMode of [false, true]) {
       const content = (hint: Hint) => {
         observedHints.push(hint);
         return {
-          $data: hint === 'lookup' ? lookupData : hint.data,
-          $childHints: [],
+          $vertexData: hint === 'lookup' ? lookupData : hint.data,
+          $childDiscoveryHints: [],
         };
       };
-      const tree: TreeSource<T, R> = {
-        resolveRoot: () => ({
-          kind: 'found',
-          vertex: { vertexContent: { $data: rootData, $childHints: [] } },
-        }),
-        resolveChild: (hint, context) => {
-          currentParents.push(
-            context.resolutionContext.parentVertexRef!.getValue().getData(),
-          );
-          originalParents.push(
-            context.originalTreeView!.getRoot()!.getValue().getData(),
-          );
-          return { kind: 'found', vertex: { vertexContent: content(hint) } };
-        },
-      };
-      const graph: DagDiscoverySource<T, R, ID> = {
-        resolveRoot: () => ({
-          kind: 'found',
-          vertex: {
-            vertexId: rootId,
-            vertexContent: { $data: rootData, $childHints: [] },
+      const tree: TreeDiscoverySource<T, R> = {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: rootData,
+              $childDiscoveryHints: [],
+            },
           },
         }),
-        getVertexIdFromHint: (hint) => ({
-          vertexId: hint === 'lookup' ? undefined : inlineId,
-        }),
-        resolveChild: (hint, context) => {
+        resolveChildVertexFromHint: (hint, context) => {
           currentParents.push(
-            context.resolutionContext.parentVertexRef!.getValue().getData(),
+            context.childDiscoveryContext
+              .parentVertexHandle!.getCurrentVertexView()
+              .getVertexData(),
           );
           originalParents.push(
             context
-              .originalGraphView!.getVertexRefById(rootId)!
-              .getValue()
-              .getData(),
+              .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+              .getCurrentVertexView()
+              .getVertexData(),
           );
           return {
-            kind: 'found',
-            vertex: {
+            kind: 'vertexResolved',
+            resolvedVertexInput: { vertexContentInput: content(hint) },
+          };
+        },
+      };
+      const graph: DagDiscoverySource<T, R, ID> = {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexId: rootId,
+            vertexContentInput: {
+              $vertexData: rootData,
+              $childDiscoveryHints: [],
+            },
+          },
+        }),
+        tryGetVertexIdentityFromHint: (hint) => ({
+          vertexId: hint === 'lookup' ? undefined : inlineId,
+        }),
+        resolveChildHint: (hint, context) => {
+          currentParents.push(
+            context.structuralChildResolution
+              .parentVertexHandle!.getCurrentVertexView()
+              .getVertexData(),
+          );
+          originalParents.push(
+            context
+              .preCommandDiscoveredGraphView!.getVertexHandleByIdOrNull(rootId)!
+              .getCurrentVertexView()
+              .getVertexData(),
+          );
+          return {
+            kind: 'vertexResolved',
+            resolvedVertexInput: {
               vertexId: hint === 'lookup' ? undefined : inlineId,
-              vertexContent: content(hint),
+              vertexContentInput: content(hint),
             },
           };
         },
       };
       // Actual async resolvers exercise the async protocol, not only sync-source admission.
       const asyncTree = {
-        resolveRoot: async () => tree.resolveRoot(),
-        resolveChild: async (...args: Parameters<typeof tree.resolveChild>) =>
-          tree.resolveChild(...args),
+        resolveRootVertex: async () => tree.resolveRootVertex(),
+        resolveChildVertexFromHint: async (
+          ...args: Parameters<typeof tree.resolveChildVertexFromHint>
+        ) => tree.resolveChildVertexFromHint(...args),
       };
       const asyncGraph = {
         ...graph,
-        resolveRoot: async () => graph.resolveRoot(),
-        resolveChild: async (...args: Parameters<typeof graph.resolveChild>) =>
-          graph.resolveChild(...args),
+        resolveRootVertex: async () => graph.resolveRootVertex(),
+        resolveChildHint: async (
+          ...args: Parameters<typeof graph.resolveChildHint>
+        ) => graph.resolveChildHint(...args),
       };
       const treeOptions = {
-        traversableTree: tree,
-        retainOriginalTreeStructure: true,
+        treeDiscoverySource: tree,
+        retainDiscoveredTreeBeforeVisitorCommands: true,
       };
       const asyncTreeOptions = {
-        traversableTree: asyncTree,
-        retainOriginalTreeStructure: true,
+        treeDiscoverySource: asyncTree,
+        retainDiscoveredTreeBeforeVisitorCommands: true,
       };
       if (family === 'dfs') {
-        const visitors = { PRE_ORDER: visit };
+        const visitors = { BEFORE_CHILD_EXPANSION: visit };
         if (asyncMode)
-          await new AsyncDepthFirstTreeTraversal<T, R>({
+          await new AsyncDepthFirstTreeTraversalBuilder<T, R>({
             ...asyncTreeOptions,
             visitors,
           })
-            .createRunner()
-            .run();
+            .createIndependentRunnerFromCurrentOptions()
+            .runUntilSuspendedOrTerminal();
         else
-          new DepthFirstTreeTraversal<T, R>({ ...treeOptions, visitors })
-            .createRunner()
-            .run();
+          new DepthFirstTreeTraversalBuilder<T, R>({ ...treeOptions, visitors })
+            .createIndependentRunnerFromCurrentOptions()
+            .runUntilSuspendedOrTerminal();
       } else if (family === 'bfs') {
-        const visitors = { LEVEL_ORDER: visit };
+        const visitors = { AT_LEVEL_ORDER_VERTEX: visit };
         if (asyncMode)
-          await new AsyncBreadthFirstTreeTraversal<T, R>({
+          await new AsyncBreadthFirstTreeTraversalBuilder<T, R>({
             ...asyncTreeOptions,
             visitors,
           })
-            .createRunner()
-            .run();
+            .createIndependentRunnerFromCurrentOptions()
+            .runUntilSuspendedOrTerminal();
         else
-          new BreadthFirstTreeTraversal<T, R>({ ...treeOptions, visitors })
-            .createRunner()
-            .run();
+          new BreadthFirstTreeTraversalBuilder<T, R>({
+            ...treeOptions,
+            visitors,
+          })
+            .createIndependentRunnerFromCurrentOptions()
+            .runUntilSuspendedOrTerminal();
       } else {
         const visitors = { ON_WORK_READY: visit };
-        const options = { retainOriginalGraphStructure: true, visitors };
+        const options = {
+          retainDiscoveredGraphBeforeVisitorCommands: true,
+          visitors,
+        };
         const runner = asyncMode
-          ? new AsyncDagTraversal<T, R, ID>({
+          ? new AsyncDagTraversalBuilder<T, R, ID>({
               ...options,
-              traversableGraph: asyncGraph,
-            }).createRunner()
-          : new DagTraversal<T, R, ID>({
+              dagDiscoverySource: asyncGraph,
+            }).createIndependentRunnerFromCurrentOptions()
+          : new DagTraversalBuilder<T, R, ID>({
               ...options,
-              traversableGraph: graph,
-            }).createRunner();
-        await runner.run();
+              dagDiscoverySource: graph,
+            }).createIndependentRunnerFromCurrentOptions();
+        await runner.runUntilSuspendedOrTerminal();
         expect(
           runner
-            .getResolvedGraphView()
-            .getVertexRefById(undefined)!
-            .getValue()
-            .getData(),
+            .getLiveResolvedGraphView()
+            .getVertexHandleByIdOrNull(undefined)!
+            .getCurrentVertexView()
+            .getVertexData(),
         ).toBe(lookupData);
         expect(
           runner
-            .getResolvedGraphView()
-            .getVertexRefById(inlineId)!
-            .getValue()
-            .getData(),
+            .getLiveResolvedGraphView()
+            .getVertexHandleByIdOrNull(inlineId)!
+            .getCurrentVertexView()
+            .getVertexData(),
         ).toBe(inline.data);
       }
       expect(observedHints).toEqual(['lookup', inline]);

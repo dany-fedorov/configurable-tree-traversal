@@ -1,15 +1,15 @@
 import { createVertexIdLabeler } from '@core/graph/identity';
 
 /** A vertex milestone in the original declared dependency constraints. */
-export type DagMilestone<ID = unknown> = {
-  vertexId: ID;
-  milestone: 'work' | 'subgraphCompletion';
+export type DagMilestone<VertexId = unknown> = {
+  vertexId: VertexId;
+  milestone: 'workCompletion' | 'subgraphCompletion';
 };
 
 /** Direction means waiter waits for prerequisite, independently of accepted work seeds. */
-export type DagWaitEdge<ID = unknown> = {
-  waiter: DagMilestone<ID>;
-  prerequisite: DagMilestone<ID>;
+export type DagMilestoneConstraint<VertexId = unknown> = {
+  waitingMilestone: DagMilestone<VertexId>;
+  prerequisiteMilestone: DagMilestone<VertexId>;
   reason:
     | 'workDependency'
     | 'subgraphCompletionDependency'
@@ -17,37 +17,43 @@ export type DagWaitEdge<ID = unknown> = {
     | 'structuralChild';
 };
 
-export type DagTraversalStallDiagnostics<ID = unknown> = {
-  dependencies: Array<{ vertexId: ID; unmetPrerequisiteIds: ID[] }>;
-  unknownPrerequisiteIds: ID[];
+export type DagTraversalStallDiagnostics<VertexId = unknown> = {
+  blockedVertexPrerequisiteReports: Array<{
+    vertexId: VertexId;
+    prerequisiteVertexIdsInReport: VertexId[];
+  }>;
+  unresolvedPrerequisiteVertexIds: VertexId[];
   /** Strongly connected component membership, not ordered cycle witnesses. */
-  dependencyCycleComponents: ID[][];
-  dependencyEdges: DagWaitEdge<ID>[];
-  dependencyBlockedIds: ID[];
-  structurallyIncompleteIds: ID[];
+  milestoneCycleVertexIdComponents: VertexId[][];
+  originalMilestoneConstraints: DagMilestoneConstraint<VertexId>[];
+  nonCyclePrerequisiteBlockedVertexIds: VertexId[];
+  incompleteVertexIdsWithoutUnmetPrerequisites: VertexId[];
 };
 
 // Keep legacy constructor calls in the unknown domain (including heterogeneous
 // IDs); explicit type arguments validate diagnostics on TypeScript 4.7 too.
-type DiagnosticId<ID> = [ID][ID extends unknown ? 0 : never];
+type DiagnosticId<VertexId> = [VertexId][VertexId extends unknown ? 0 : never];
 
 /** Explicit ID annotations type diagnostics; arbitrary catches retain the unknown ID domain. */
-export class DagTraversalStallError<ID = unknown> extends Error {
-  readonly diagnostics: DagTraversalStallDiagnostics<ID>;
+export class DagTraversalStallError<VertexId = unknown> extends Error {
+  readonly diagnostics: DagTraversalStallDiagnostics<VertexId>;
 
   constructor(
     diagnostics: Omit<
-      DagTraversalStallDiagnostics<DiagnosticId<ID>>,
-      'dependencyEdges'
+      DagTraversalStallDiagnostics<DiagnosticId<VertexId>>,
+      'originalMilestoneConstraints'
     > &
       Partial<
-        Pick<DagTraversalStallDiagnostics<DiagnosticId<ID>>, 'dependencyEdges'>
+        Pick<
+          DagTraversalStallDiagnostics<DiagnosticId<VertexId>>,
+          'originalMilestoneConstraints'
+        >
       >,
   ) {
-    const ids = diagnostics.dependencies.flatMap(
-      ({ vertexId, unmetPrerequisiteIds }) => [
+    const ids = diagnostics.blockedVertexPrerequisiteReports.flatMap(
+      ({ vertexId, prerequisiteVertexIdsInReport }) => [
         vertexId,
-        ...unmetPrerequisiteIds,
+        ...prerequisiteVertexIdsInReport,
       ],
     );
     const detail =
@@ -57,23 +63,29 @@ export class DagTraversalStallError<ID = unknown> extends Error {
     super(`DAG traversal stalled: ${detail}`);
     this.name = 'DagTraversalStallError';
     this.diagnostics = {
-      dependencies: diagnostics.dependencies.map(
-        ({ vertexId, unmetPrerequisiteIds }) => ({
-          vertexId,
-          unmetPrerequisiteIds: unmetPrerequisiteIds.slice(),
-        }),
-      ),
-      unknownPrerequisiteIds: diagnostics.unknownPrerequisiteIds.slice(),
-      dependencyCycleComponents: diagnostics.dependencyCycleComponents.map(
-        (ids) => ids.slice(),
-      ),
-      dependencyEdges: (diagnostics.dependencyEdges ?? []).map((edge) => ({
-        waiter: { ...edge.waiter },
-        prerequisite: { ...edge.prerequisite },
+      blockedVertexPrerequisiteReports:
+        diagnostics.blockedVertexPrerequisiteReports.map(
+          ({ vertexId, prerequisiteVertexIdsInReport }) => ({
+            vertexId,
+            prerequisiteVertexIdsInReport:
+              prerequisiteVertexIdsInReport.slice(),
+          }),
+        ),
+      unresolvedPrerequisiteVertexIds:
+        diagnostics.unresolvedPrerequisiteVertexIds.slice(),
+      milestoneCycleVertexIdComponents:
+        diagnostics.milestoneCycleVertexIdComponents.map((ids) => ids.slice()),
+      originalMilestoneConstraints: (
+        diagnostics.originalMilestoneConstraints ?? []
+      ).map((edge) => ({
+        waitingMilestone: { ...edge.waitingMilestone },
+        prerequisiteMilestone: { ...edge.prerequisiteMilestone },
         reason: edge.reason,
       })),
-      dependencyBlockedIds: diagnostics.dependencyBlockedIds.slice(),
-      structurallyIncompleteIds: diagnostics.structurallyIncompleteIds.slice(),
+      nonCyclePrerequisiteBlockedVertexIds:
+        diagnostics.nonCyclePrerequisiteBlockedVertexIds.slice(),
+      incompleteVertexIdsWithoutUnmetPrerequisites:
+        diagnostics.incompleteVertexIdsWithoutUnmetPrerequisites.slice(),
     };
   }
 }

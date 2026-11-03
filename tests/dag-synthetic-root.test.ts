@@ -1,65 +1,89 @@
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import { createVertexHandleFacet } from '../src/core/observationFacets';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
+import { AsyncDagTraversalBuilder } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { DagTraversalBuilder } from '../src/traversals/dag-traversal/DagTraversal';
 import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { runnerInternals } from './internal-runner-fixtures';
 
-type G = VertexTypes<string, string>;
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+type G = VertexDataAndChildHintTypes<string, string>;
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test(`${Constructor.name} hides synthetic roots from visits, events and graph paths`, async () => {
     const traversal = new Constructor<G>({
-      ...{ discovery: 'eager' as const, syntheticRoot: true },
-      retainOriginalGraphStructure: true,
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
+      ...{
+        discoveryTiming: 'completeBeforeAnyVisitor' as const,
+        sourceRootIsHiddenEntryHolder: true,
+      },
+      retainDiscoveredGraphBeforeVisitorCommands: true,
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: 'a',
-            vertexContent: { $data: 'catalog', $childHints: ['a', 'b'] },
+            vertexContentInput: {
+              $vertexData: 'catalog',
+              $childDiscoveryHints: ['a', 'b'],
+            },
           },
         }),
-        resolveChild: (hint) => ({
-          kind: 'found' as const,
-          vertex: {
+        resolveChildHint: (hint) => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: hint,
-            vertexContent: { $data: hint, $childHints: [] },
+            vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
           },
         }),
       },
     });
     const seen: string[] = [];
-    for (const order of [Order.ON_WORK_READY, Order.ON_SUBGRAPH_READY])
-      traversal.addVisitorFor(order, (vertex, options) => {
-        seen.push(vertex.getData());
-        expect(options.isGraphRoot).toBe(false);
-        expect(options.isGraphRoot).toBe(false);
-        expect(options.resolvedGraphView.getRoot()).toBeNull();
+    for (const order of [
+      Order.ON_WORK_READY,
+      Order.ON_SUBGRAPH_COMPLETION_READY,
+    ])
+      traversal.registerVisitorCallbackForPhase(order, (vertex, options) => {
+        seen.push(vertex.getVertexData());
+        expect(options.isVisibleSourceRoot).toBe(false);
+        expect(options.isVisibleSourceRoot).toBe(false);
         expect(
-          options.resolvedGraphView.get(options.vertexRef)!.dependsOnWork,
+          options.liveResolvedGraphView.getDesignatedRootHandleOrNull(),
+        ).toBeNull();
+        expect(
+          options.liveResolvedGraphView.getVertexSnapshotOrNull(
+            options.vertexHandle,
+          )!.workWaitsForWorkOf,
         ).toEqual([]);
         expect(
-          options.resolvedGraphView.get(options.vertexRef)!.incoming,
+          options.liveResolvedGraphView.getVertexSnapshotOrNull(
+            options.vertexHandle,
+          )!.incomingStructuralChildEdges,
         ).toEqual([]);
       });
-    const runner = traversal.createRunner();
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
     const events: string[] = [];
-    for await (const event of runner.iterateEvents())
-      events.push(event.vertex.getData());
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+      events.push(event.vertex.getVertexData());
     expect(events.sort()).toEqual(['a', 'a', 'b', 'b']);
     expect(seen.sort()).toEqual(events);
     for (const graph of [
-      runner.getResolvedGraphView(),
-      runner.originalGraphView!,
+      runner.getLiveResolvedGraphView(),
+      runner.preCommandDiscoveredGraphView!,
     ]) {
-      expect(graph.getRoot()).toBeNull();
+      expect(graph.getDesignatedRootHandleOrNull()).toBeNull();
       expect(
-        graph.getVertexRefs().map((ref) => graph.requireVertexId(ref)),
+        graph.getVertexHandles().map((ref) => graph.requireVertexId(ref)),
       ).toEqual(['a', 'b']);
-      const a = graph.getVertexRefById('a')!;
-      expect(graph.getParentsOf(a)).toEqual([]);
-      expect(graph.requirePathsTo(a)).toEqual([[a]]);
-      expect(graph.requirePathsTo(a, { noRoot: true })).toEqual([[a]]);
-      expect(graph.requirePathsTo(a, { noSelf: true })).toEqual([[]]);
+      const a = graph.getVertexHandleByIdOrNull('a')!;
+      expect(graph.getDistinctStructuralParentHandlesOrNull(a)).toEqual([]);
+      expect(graph.requireAllStructuralAncestorPathsTo(a)).toEqual([[a]]);
+      expect(
+        graph.requireAllStructuralAncestorPathsTo(a, {
+          includeDesignatedRoot: false,
+        }),
+      ).toEqual([[a]]);
+      expect(
+        graph.requireAllStructuralAncestorPathsTo(a, {
+          includeTargetVertex: false,
+        }),
+      ).toEqual([[]]);
     }
   });
 
@@ -67,149 +91,191 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     `${Constructor.name} rejects %s catalog entries`,
     async (invalid) => {
       const traversal = new Constructor<G>({
-        ...{ discovery: 'eager' as const, syntheticRoot: true },
-        traversableGraph: {
-          resolveRoot: () => ({
-            kind: 'found' as const,
-            vertex: {
-              vertexContent: { $data: 'catalog', $childHints: ['a', 'a'] },
+        ...{
+          discoveryTiming: 'completeBeforeAnyVisitor' as const,
+          sourceRootIsHiddenEntryHolder: true,
+        },
+        dagDiscoverySource: {
+          resolveRootVertex: () => ({
+            kind: 'vertexResolved' as const,
+            resolvedVertexInput: {
+              vertexContentInput: {
+                $vertexData: 'catalog',
+                $childDiscoveryHints: ['a', 'a'],
+              },
             },
           }),
-          resolveChild: (hint) => ({
-            kind: 'found' as const,
-            vertex: {
+          resolveChildHint: (hint) => ({
+            kind: 'vertexResolved' as const,
+            resolvedVertexInput: {
               ...(invalid === 'duplicate' ? { vertexId: hint } : {}),
-              vertexContent: { $data: hint, $childHints: [] },
+              vertexContentInput: {
+                $vertexData: hint,
+                $childDiscoveryHints: [],
+              },
             },
           }),
         },
       });
       await expect(async () => {
-        await traversal.createRunner().run();
+        await traversal
+          .createIndependentRunnerFromCurrentOptions()
+          .runUntilSuspendedOrTerminal();
       }).rejects.toThrow(/catalog/i);
     },
   );
 
   test(`${Constructor.name} empty catalog produces no events`, async () => {
     const runner = new Constructor<G>({
-      ...{ syntheticRoot: true },
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: { vertexContent: { $data: 'catalog', $childHints: [] } },
+      ...{ sourceRootIsHiddenEntryHolder: true },
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'catalog',
+              $childDiscoveryHints: [],
+            },
+          },
         }),
-        resolveChild: () => ({
-          identity: null,
-          satisfiesDependencies: true as const,
-          kind: 'omitted' as const,
+        resolveChildHint: () => ({
+          omittedVertexIdentity: null,
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+          kind: 'vertexIntentionallyOmitted' as const,
         }),
       },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
     const events = [];
-    for await (const event of runner.iterateEvents()) events.push(event);
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+      events.push(event);
     expect(events).toEqual([]);
-    expect(runner.getResolvedGraphView().getVertexRefs()).toEqual([]);
+    expect(runner.getLiveResolvedGraphView().getVertexHandles()).toEqual([]);
   });
 }
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test.each([false, true])(
     `${Constructor.name} preserves shared descendants with hint identity %s`,
     async (identify) => {
       const resolved: string[] = [];
       const traversal = new Constructor<G>({
-        syntheticRoot: true,
-        discovery: 'eager',
-        retainOriginalGraphStructure: true,
-        transformChildHints: (hints) => hints.slice(),
-        traversableGraph: {
-          resolveRoot: () => ({
-            kind: 'found' as const,
-            vertex: {
-              vertexContent: {
-                $data: 'catalog',
-                $childHints: ['a', 'b', 'shared'],
+        sourceRootIsHiddenEntryHolder: true,
+        discoveryTiming: 'completeBeforeAnyVisitor',
+        retainDiscoveredGraphBeforeVisitorCommands: true,
+        transformChildHintsBeforeResolution: (hints) => hints.slice(),
+        dagDiscoverySource: {
+          resolveRootVertex: () => ({
+            kind: 'vertexResolved' as const,
+            resolvedVertexInput: {
+              vertexContentInput: {
+                $vertexData: 'catalog',
+                $childDiscoveryHints: ['a', 'b', 'shared'],
               },
             },
           }),
-          resolveChild: (hint, options) => {
-            expect(options.resolvedGraphView.getRoot()).toBeNull();
+          resolveChildHint: (hint, options) => {
+            expect(
+              options.liveResolvedGraphView.getDesignatedRootHandleOrNull(),
+            ).toBeNull();
             resolved.push(hint);
             return {
-              kind: 'found' as const,
-              vertex: {
+              kind: 'vertexResolved' as const,
+              resolvedVertexInput: {
                 vertexId: hint,
-                dependsOnWork: [],
-                vertexContent: {
-                  $data: hint,
-                  $childHints: hint === 'shared' ? [] : ['shared'],
+                workWaitsForWorkOf: [],
+                vertexContentInput: {
+                  $vertexData: hint,
+                  $childDiscoveryHints: hint === 'shared' ? [] : ['shared'],
                 },
               },
             };
           },
           ...(identify
-            ? { getVertexIdFromHint: (hint: string) => ({ vertexId: hint }) }
+            ? {
+                tryGetVertexIdentityFromHint: (hint: string) => ({
+                  vertexId: hint,
+                }),
+              }
             : {}),
         },
       });
-      const runner = traversal.createRunner();
-      await runner.run();
+      const runner = traversal.createIndependentRunnerFromCurrentOptions();
+      await runner.runUntilSuspendedOrTerminal();
       expect(resolved.filter((id) => id === 'shared').length).toBe(
         identify ? 1 : 3,
       );
       for (const graph of [
-        runner.getResolvedGraphView(),
-        runner.originalGraphView!,
+        runner.getLiveResolvedGraphView(),
+        runner.preCommandDiscoveredGraphView!,
       ]) {
-        const shared = graph.getVertexRefById('shared')!;
-        const a = graph.getVertexRefById('a')!;
-        const b = graph.getVertexRefById('b')!;
-        expect(graph.getParentsOf(shared)).toEqual([a, b]);
-        expect(graph.getChildrenOf(a)).toEqual([shared]);
-        expect(graph.requirePathsTo(shared)).toEqual([
+        const shared = graph.getVertexHandleByIdOrNull('shared')!;
+        const a = graph.getVertexHandleByIdOrNull('a')!;
+        const b = graph.getVertexHandleByIdOrNull('b')!;
+        expect(graph.getDistinctStructuralParentHandlesOrNull(shared)).toEqual([
+          a,
+          b,
+        ]);
+        expect(graph.getStructuralChildHandlesInSlotOrderOrNull(a)).toEqual([
+          shared,
+        ]);
+        expect(graph.requireAllStructuralAncestorPathsTo(shared)).toEqual([
           [a, shared],
           [b, shared],
         ]);
         expect(
-          graph.requirePathsTo(shared, { noSelf: true, noRoot: true }),
+          graph.requireAllStructuralAncestorPathsTo(shared, {
+            includeTargetVertex: false,
+            includeDesignatedRoot: false,
+          }),
         ).toEqual([[a], [b]]);
       }
-      const graph = runner.getResolvedGraphView();
-      const shared = graph.getVertexRefById('shared')!;
+      const graph = runner.getLiveResolvedGraphView();
+      const shared = graph.getVertexHandleByIdOrNull('shared')!;
       expect(
         graph
-          .get(shared)!
-          .incoming.map((edge) => graph.requireVertexId(edge.parentRef)),
+          .getVertexSnapshotOrNull(shared)!
+          .incomingStructuralChildEdges.map((edge) =>
+            graph.requireVertexId(edge.parentVertexHandle),
+          ),
       ).toEqual(['a', 'b']);
-      expect(graph.has(shared)).toBe(true);
-      expect(graph.getVisitStageOf(shared)).toBe('COMPLETE');
+      expect(graph.containsVertexHandle(shared)).toBe(true);
+      expect(graph.getVertexVisitSchedulingStageOrNull(shared)).toBe(
+        'COMPLETION_VISIT_COMMITTED',
+      );
     },
   );
 
   test(`${Constructor.name} duplicate identified catalog entries fail before any work`, async () => {
     let visited = false;
     const traversal = new Constructor<G>({
-      syntheticRoot: true,
-      discovery: 'eager',
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
-            vertexContent: { $data: 'catalog', $childHints: ['a', 'a'] },
+      sourceRootIsHiddenEntryHolder: true,
+      discoveryTiming: 'completeBeforeAnyVisitor',
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'catalog',
+              $childDiscoveryHints: ['a', 'a'],
+            },
           },
         }),
-        getVertexIdFromHint: (hint) => ({ vertexId: hint }),
-        resolveChild: () => ({
-          kind: 'found' as const,
-          vertex: { vertexContent: { $data: 'a', $childHints: [] } },
+        tryGetVertexIdentityFromHint: (hint) => ({ vertexId: hint }),
+        resolveChildHint: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: [] },
+          },
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
+    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
       visited = true;
     });
     await expect(async () => {
-      await traversal.createRunner().run();
+      await traversal
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal();
     }).rejects.toThrow(/catalog/);
     expect(visited).toBe(false);
   });
@@ -217,131 +283,156 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} disconnected seeded catalog cycles fail before visitors`, async () => {
     let visited = false;
     const traversal = new Constructor<G>({
-      syntheticRoot: true,
-      discovery: 'eager',
-      completedWork: new Set(['a', 'b']),
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
-            vertexContent: {
-              $data: 'catalog',
-              $childHints: ['source', 'a', 'b'],
+      sourceRootIsHiddenEntryHolder: true,
+      discoveryTiming: 'completeBeforeAnyVisitor',
+      acceptedCompletedWorkVertexIds: new Set(['a', 'b']),
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'catalog',
+              $childDiscoveryHints: ['source', 'a', 'b'],
             },
           },
         }),
-        resolveChild: (hint) => ({
-          kind: 'found' as const,
-          vertex: {
+        resolveChildHint: (hint) => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: hint,
-            dependsOnWork: hint === 'source' ? [] : [hint === 'a' ? 'b' : 'a'],
-            vertexContent: { $data: hint, $childHints: [] },
+            workWaitsForWorkOf:
+              hint === 'source' ? [] : [hint === 'a' ? 'b' : 'a'],
+            vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
           },
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
+    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
       visited = true;
     });
     await expect(async () => {
-      await traversal.createRunner().run();
+      await traversal
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal();
     }).rejects.toMatchObject({
-      diagnostics: { dependencyCycleComponents: [['a', 'b']] },
+      diagnostics: { milestoneCycleVertexIdComponents: [['a', 'b']] },
     });
     expect(visited).toBe(false);
   });
 
   test(`${Constructor.name} synthetic views reject hidden and unknown references`, async () => {
     const runner = new Constructor<G>({
-      syntheticRoot: true,
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: { vertexContent: { $data: 'catalog', $childHints: ['a'] } },
+      sourceRootIsHiddenEntryHolder: true,
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'catalog',
+              $childDiscoveryHints: ['a'],
+            },
+          },
         }),
-        resolveChild: () => ({
-          kind: 'found' as const,
-          vertex: {
+        resolveChildHint: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: 'a',
-            vertexContent: { $data: 'a', $childHints: [] },
+            vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: [] },
           },
         }),
       },
-    }).createRunner();
-    await runner.run();
-    const graph = runner.getResolvedGraphView();
+    }).createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
+    const graph = runner.getLiveResolvedGraphView();
     const internal =
-      runnerInternals(runner).resolvedGraphsContainer.resolvedGraphView;
-    const hidden = internal.getRoot()!;
-    expect(graph.get(hidden)).toBeNull();
-    expect(graph.has(hidden)).toBe(false);
-    expect(graph.getVertexRefById(internal.requireVertexId(hidden))).toBeNull();
-    expect(graph.getVertexRefById('absent')).toBeNull();
+      runnerInternals(runner).resolvedGraphsContainer.liveResolvedGraphView;
+    const hidden = createVertexHandleFacet(internal.getRoot()!);
+    expect(graph.getVertexSnapshotOrNull(hidden)).toBeNull();
+    expect(graph.containsVertexHandle(hidden)).toBe(false);
+    expect(
+      graph.getVertexHandleByIdOrNull(
+        internal.requireVertexId(internal.getRoot()!),
+      ),
+    ).toBeNull();
+    expect(graph.getVertexHandleByIdOrNull('absent')).toBeNull();
     expect(() => graph.requireVertexId(hidden)).toThrow();
-    expect(() => graph.requirePathsTo(hidden)).toThrow();
-    expect(graph.getParentsOf(hidden)).toBeNull();
-    expect(graph.getChildrenOf(hidden)).toBeNull();
-    expect(graph.getVisitStageOf(hidden)).toBeNull();
+    expect(() => graph.requireAllStructuralAncestorPathsTo(hidden)).toThrow();
+    expect(graph.getDistinctStructuralParentHandlesOrNull(hidden)).toBeNull();
+    expect(graph.getStructuralChildHandlesInSlotOrderOrNull(hidden)).toBeNull();
+    expect(graph.getVertexVisitSchedulingStageOrNull(hidden)).toBeNull();
     const foreign = new Constructor<G>({
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: { vertexContent: { $data: 'foreign', $childHints: [] } },
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'foreign',
+              $childDiscoveryHints: [],
+            },
+          },
         }),
-        resolveChild: () => ({
-          identity: null,
-          satisfiesDependencies: true as const,
-          kind: 'omitted' as const,
+        resolveChildHint: () => ({
+          omittedVertexIdentity: null,
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+          kind: 'vertexIntentionallyOmitted' as const,
         }),
       },
-    }).createRunner();
-    await foreign.run();
-    const unknown = foreign.getResolvedGraphView().getRoot()!;
-    expect(graph.get(unknown)).toBeNull();
-    expect(graph.has(unknown)).toBe(false);
-    expect(graph.getParentsOf(unknown)).toBeNull();
-    expect(graph.getChildrenOf(unknown)).toBeNull();
-    expect(graph.getVisitStageOf(unknown)).toBeNull();
+    }).createIndependentRunnerFromCurrentOptions();
+    await foreign.runUntilSuspendedOrTerminal();
+    const unknown = foreign
+      .getLiveResolvedGraphView()
+      .getDesignatedRootHandleOrNull()!;
+    expect(graph.getVertexSnapshotOrNull(unknown)).toBeNull();
+    expect(graph.containsVertexHandle(unknown)).toBe(false);
+    expect(graph.getDistinctStructuralParentHandlesOrNull(unknown)).toBeNull();
+    expect(
+      graph.getStructuralChildHandlesInSlotOrderOrNull(unknown),
+    ).toBeNull();
+    expect(graph.getVertexVisitSchedulingStageOrNull(unknown)).toBeNull();
   });
 }
 
 test('synthetic catalog preserves arbitrary IDs without freezing or consuming its supplied ID', async () => {
   const objectId = { mutable: true };
   const ids = [undefined, null, NaN, objectId, Symbol('real')];
-  const traversal = new AsyncDagTraversal<G>({
-    syntheticRoot: true,
-    discovery: 'eager',
-    completedWork: new Set(ids),
-    traversableGraph: {
-      resolveRoot: async () => ({
-        kind: 'found' as const,
-        vertex: {
+  const traversal = new AsyncDagTraversalBuilder<G>({
+    sourceRootIsHiddenEntryHolder: true,
+    discoveryTiming: 'completeBeforeAnyVisitor',
+    acceptedCompletedWorkVertexIds: new Set(ids),
+    dagDiscoverySource: {
+      resolveRootVertex: async () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: objectId,
-          vertexContent: {
-            $data: 'catalog',
-            $childHints: ['0', '1', '2', '3', '4'],
+          vertexContentInput: {
+            $vertexData: 'catalog',
+            $childDiscoveryHints: ['0', '1', '2', '3', '4'],
           },
         },
       }),
-      getVertexIdFromHint: async (hint) => ({ vertexId: ids[Number(hint)] }),
-      resolveChild: async (hint) => ({
-        kind: 'found' as const,
-        vertex: { vertexContent: { $data: hint, $childHints: [] } },
+      tryGetVertexIdentityFromHint: async (hint) => ({
+        vertexId: ids[Number(hint)],
+      }),
+      resolveChildHint: async (hint) => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
+        },
       }),
     },
   });
   const seen: string[] = [];
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
-    seen.push(vertex.getData());
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+    seen.push(vertex.getVertexData());
   });
-  const runner = traversal.createRunner();
-  await runner.run();
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  await runner.runUntilSuspendedOrTerminal();
   expect(seen).toEqual([]);
   expect(
     runner
-      .getResolvedGraphView()
-      .getVertexRefs()
-      .map((ref) => runner.getResolvedGraphView().requireVertexId(ref)),
+      .getLiveResolvedGraphView()
+      .getVertexHandles()
+      .map((ref) => runner.getLiveResolvedGraphView().requireVertexId(ref)),
   ).toEqual(ids);
   expect(Object.isFrozen(objectId)).toBe(false);
 });
@@ -349,24 +440,29 @@ test('synthetic catalog preserves arbitrary IDs without freezing or consuming it
 test.each([undefined, null, NaN])(
   'catalog rejects duplicate SameValueZero IDs %s',
   (id) => {
-    const runner = new DagTraversal<G>({
-      syntheticRoot: true,
-      discovery: 'eager',
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
-            vertexContent: { $data: 'catalog', $childHints: ['a', 'b'] },
+    const runner = new DagTraversalBuilder<G>({
+      sourceRootIsHiddenEntryHolder: true,
+      discoveryTiming: 'completeBeforeAnyVisitor',
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'catalog',
+              $childDiscoveryHints: ['a', 'b'],
+            },
           },
         }),
-        getVertexIdFromHint: () => ({ vertexId: id }),
-        resolveChild: () => ({
-          identity: null,
-          kind: 'omitted' as const,
-          satisfiesDependencies: true as const,
+        tryGetVertexIdentityFromHint: () => ({ vertexId: id }),
+        resolveChildHint: () => ({
+          omittedVertexIdentity: null,
+          kind: 'vertexIntentionallyOmitted' as const,
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         }),
       },
-    }).createRunner();
-    expect(() => runner.run()).toThrow(/Duplicate catalog/);
+    }).createIndependentRunnerFromCurrentOptions();
+    expect(() => runner.runUntilSuspendedOrTerminal()).toThrow(
+      /Duplicate catalog/,
+    );
   },
 );

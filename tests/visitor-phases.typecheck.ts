@@ -1,172 +1,96 @@
 import { TraversalVisitorCommandName as VisitorCommand } from '../src';
 import {
-  DagTraversal,
-  AsyncDagTraversal,
+  DagTraversalBuilder,
+  AsyncDagTraversalBuilder,
   DagVisitorPhase as D,
-  DepthFirstTreeTraversal,
-  AsyncDepthFirstTreeTraversal,
-  DepthFirstPhase as F,
-  BreadthFirstTreeTraversal,
-  AsyncBreadthFirstTreeTraversal,
-  BreadthFirstPhase as B,
+  DepthFirstTreeTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  DepthFirstTreeVisitPhase as F,
+  BreadthFirstTreeTraversalBuilder,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  BreadthFirstTreeVisitPhase as B,
   TraversalVisitorCommandName as C,
-  traverseTreeDepthFirst,
-  traverseTreeDepthFirstAsync,
+  runTreeDepthFirstUntilSuspendedOrTerminal,
+  runTreeDepthFirstUntilSuspendedOrTerminalAsync,
   traverseDag,
   traverseDagAsync,
 } from '../src';
-import type { VertexTypes, DagVisitor, TraversalVisitorResult } from '../src';
-type T = VertexTypes<string, string>;
+import type {
+  VertexDataAndChildHintTypes,
+  DagVisitor,
+  VisitorCommandsResult,
+} from '../src';
+type T = VertexDataAndChildHintTypes<string, string>;
 declare const graph: {
-  traversableGraph: import('../src').DagDiscoverySource<T>;
+  dagDiscoverySource: import('../src').DagDiscoverySource<T>;
 };
-declare const tree: { traversableTree: import('../src').TreeSource<T> };
+declare const tree: {
+  treeDiscoverySource: import('../src').TreeDiscoverySource<T>;
+};
 declare const dagOrder: D;
 declare const dfsOrder: F;
 for (const traversal of [
-  new DagTraversal<T>(graph),
-  new AsyncDagTraversal<T>(graph),
+  new DagTraversalBuilder<T>(graph),
+  new AsyncDagTraversalBuilder<T>(graph),
 ]) {
-  traversal.addVisitorFor(D.ON_WORK_READY, (_vertex, options) => {
-    const phase: D.ON_WORK_READY = options.phase;
-    void phase;
-    return { commands: [{ commandName: C.DEFER_WORK_COMPLETION }] };
-  });
-  traversal.addVisitorFor(D.ON_SUBGRAPH_READY, () => ({
-    // @ts-expect-error Completion cannot defer, including by legacy sentinel.
-    commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
+  traversal.registerVisitorCallbackForPhase(
+    D.ON_WORK_READY,
+    (_vertex, options) => {
+      const phase: D.ON_WORK_READY = options.visitorPhase;
+      void phase;
+      return {
+        commands: [
+          { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+        ],
+      };
+    },
+  );
+  traversal.registerVisitorCallbackForPhase(
+    D.ON_SUBGRAPH_COMPLETION_READY,
+    () => ({
+      commands: [
+        {
+          // @ts-expect-error Completion cannot defer, including by legacy sentinel.
+          commandName:
+            VisitorCommand.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION as const,
+        },
+      ],
+    }),
+  );
+  traversal.registerVisitorCallbackForPhase(
+    D.ON_SUBGRAPH_COMPLETION_READY,
+    () => ({
+      commands: [
+        // @ts-expect-error Completion cannot defer by command.
+        { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+      ],
+    }),
+  );
+  traversal.registerVisitorCallbackForPhase(dagOrder, () => ({
+    commands: [
+      // @ts-expect-error A union phase can be completion.
+      { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+    ],
   }));
-  traversal.addVisitorFor(D.ON_SUBGRAPH_READY, () => ({
-    // @ts-expect-error Completion cannot defer by command.
-    commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
-  }));
-  traversal.addVisitorFor(dagOrder, () => ({
-    // @ts-expect-error A union phase can be completion.
-    commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
-  }));
-  traversal.addVisitorFor(D.ON_WORK_READY, () => ({
+  traversal.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => ({
     // @ts-expect-error Deferral cannot be combined with another command.
     commands: [
-      { commandName: C.DEFER_WORK_COMPLETION },
-      { commandName: C.NOOP },
+      { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+      { commandName: C.NO_OPERATION },
     ],
   }));
 
-  traversal.configure({
+  traversal.patchOptionsForFutureRunners({
     visitors: {
-      [D.ON_SUBGRAPH_READY]: [
+      [D.ON_SUBGRAPH_COMPLETION_READY]: [
         {
-          priority: 100,
-          visitor: () => ({
-            commands: [
-              // @ts-expect-error Config map controls phase.
-              { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
-            ],
-          }),
-        },
-      ],
-    },
-  });
-  traversal.setVisitorsFor(D.ON_SUBGRAPH_READY, [
-    {
-      priority: 100,
-      visitor: () => ({
-        commands: [
-          {
-            // @ts-expect-error setVisitorsFor controls phase.
-            commandName: C.REWRITE_CHILD_HINTS,
-            // @ts-expect-error setVisitorsFor controls phase.
-            commandArguments: { newHints: [] },
-          },
-        ],
-      }),
-    },
-  ]);
-}
-new DagTraversal<T>(graph).configure({
-  visitors: {
-    [D.ON_WORK_READY]: [
-      {
-        priority: 100,
-        visitor: (_v, o) => {
-          const phase: D.ON_WORK_READY = o.phase;
-          void phase;
-          return {
-            commands: [
-              { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
-            ],
-          };
-        },
-      },
-    ],
-  },
-});
-new AsyncDagTraversal<T>(graph).configure({
-  visitors: {
-    [D.ON_WORK_READY]: [
-      {
-        priority: 100,
-        visitor: (_v, o) => {
-          const phase: D.ON_WORK_READY = o.phase;
-          void phase;
-          return {
-            commands: [
-              { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
-            ],
-          };
-        },
-      },
-    ],
-  },
-});
-for (const traversal of [
-  new DepthFirstTreeTraversal<T>(tree),
-  new AsyncDepthFirstTreeTraversal<T>(tree),
-]) {
-  traversal.addVisitorFor(F.PRE_ORDER, (_v, o) => {
-    const phase: F.PRE_ORDER = o.phase;
-    void phase;
-    return {
-      commands: [
-        {
-          commandName: C.REWRITE_CHILD_HINTS,
-          commandArguments: { newHints: [] },
-        },
-      ],
-    };
-  });
-  traversal.addVisitorFor(F.POST_ORDER, () => ({
-    commands: [
-      {
-        // @ts-expect-error Rewrite is forbidden at POST_ORDER.
-        commandName: C.REWRITE_CHILD_HINTS,
-        // @ts-expect-error Rewrite is forbidden at POST_ORDER.
-        commandArguments: { newHints: [] },
-      },
-    ],
-  }));
-  traversal.addVisitorFor(dfsOrder, () => ({
-    commands: [
-      {
-        // @ts-expect-error Union phase can be POST_ORDER.
-        commandName: C.REWRITE_CHILD_HINTS,
-        // @ts-expect-error Union phase can be POST_ORDER.
-        commandArguments: { newHints: [] },
-      },
-    ],
-  }));
-  traversal.configure({
-    visitors: {
-      [F.IN_ORDER]: [
-        {
-          priority: 1,
+          descendingExecutionPriorityWithinGroup: 100,
           visitor: () => ({
             commands: [
               {
                 // @ts-expect-error Config map controls phase.
-                commandName: C.REWRITE_CHILD_HINTS,
-                // @ts-expect-error Config map controls phase.
-                commandArguments: { newHints: [] },
+                commandName:
+                  VisitorCommand.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION as const,
               },
             ],
           }),
@@ -174,16 +98,132 @@ for (const traversal of [
       ],
     },
   });
-  traversal.setVisitorsFor(F.POST_ORDER, [
+  traversal.replaceVisitorDefinitionsForPhase(D.ON_SUBGRAPH_COMPLETION_READY, [
     {
-      priority: 1,
+      descendingExecutionPriorityWithinGroup: 100,
       visitor: () => ({
         commands: [
           {
             // @ts-expect-error setVisitorsFor controls phase.
-            commandName: C.REWRITE_CHILD_HINTS,
+            commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
             // @ts-expect-error setVisitorsFor controls phase.
-            commandArguments: { newHints: [] },
+            commandArguments: { replacementChildHints: [] },
+          },
+        ],
+      }),
+    },
+  ]);
+}
+new DagTraversalBuilder<T>(graph).patchOptionsForFutureRunners({
+  visitors: {
+    [D.ON_WORK_READY]: [
+      {
+        descendingExecutionPriorityWithinGroup: 100,
+        visitor: (_v, o) => {
+          const phase: D.ON_WORK_READY = o.visitorPhase;
+          void phase;
+          return {
+            commands: [
+              {
+                commandName:
+                  VisitorCommand.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION as const,
+              },
+            ],
+          };
+        },
+      },
+    ],
+  },
+});
+new AsyncDagTraversalBuilder<T>(graph).patchOptionsForFutureRunners({
+  visitors: {
+    [D.ON_WORK_READY]: [
+      {
+        descendingExecutionPriorityWithinGroup: 100,
+        visitor: (_v, o) => {
+          const phase: D.ON_WORK_READY = o.visitorPhase;
+          void phase;
+          return {
+            commands: [
+              {
+                commandName:
+                  VisitorCommand.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION as const,
+              },
+            ],
+          };
+        },
+      },
+    ],
+  },
+});
+for (const traversal of [
+  new DepthFirstTreeTraversalBuilder<T>(tree),
+  new AsyncDepthFirstTreeTraversalBuilder<T>(tree),
+]) {
+  traversal.registerVisitorCallbackForPhase(
+    F.BEFORE_CHILD_EXPANSION,
+    (_v, o) => {
+      const phase: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
+      void phase;
+      return {
+        commands: [
+          {
+            commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+            commandArguments: { replacementChildHints: [] },
+          },
+        ],
+      };
+    },
+  );
+  traversal.registerVisitorCallbackForPhase(F.AFTER_CHILD_SUBTREES, () => ({
+    commands: [
+      {
+        // @ts-expect-error Rewrite is forbidden at POST_ORDER.
+        commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+        // @ts-expect-error Rewrite is forbidden at POST_ORDER.
+        commandArguments: { replacementChildHints: [] },
+      },
+    ],
+  }));
+  traversal.registerVisitorCallbackForPhase(dfsOrder, () => ({
+    commands: [
+      {
+        // @ts-expect-error Union phase can be POST_ORDER.
+        commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+        // @ts-expect-error Union phase can be POST_ORDER.
+        commandArguments: { replacementChildHints: [] },
+      },
+    ],
+  }));
+  traversal.patchOptionsForFutureRunners({
+    visitors: {
+      [F.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES]: [
+        {
+          descendingExecutionPriorityWithinGroup: 1,
+          visitor: () => ({
+            commands: [
+              {
+                // @ts-expect-error Config map controls phase.
+                commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+                // @ts-expect-error Config map controls phase.
+                commandArguments: { replacementChildHints: [] },
+              },
+            ],
+          }),
+        },
+      ],
+    },
+  });
+  traversal.replaceVisitorDefinitionsForPhase(F.AFTER_CHILD_SUBTREES, [
+    {
+      descendingExecutionPriorityWithinGroup: 1,
+      visitor: () => ({
+        commands: [
+          {
+            // @ts-expect-error setVisitorsFor controls phase.
+            commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+            // @ts-expect-error setVisitorsFor controls phase.
+            commandArguments: { replacementChildHints: [] },
           },
         ],
       }),
@@ -191,56 +231,69 @@ for (const traversal of [
   ]);
 }
 for (const traversal of [
-  new BreadthFirstTreeTraversal<T>(tree),
-  new AsyncBreadthFirstTreeTraversal<T>(tree),
+  new BreadthFirstTreeTraversalBuilder<T>(tree),
+  new AsyncBreadthFirstTreeTraversalBuilder<T>(tree),
 ]) {
-  traversal.addVisitorFor(B.LEVEL_ORDER, (_v, o) => {
-    const phase: B.LEVEL_ORDER = o.phase;
-    void phase;
-    return {
-      commands: [
-        {
-          commandName: C.REWRITE_CHILD_HINTS,
-          commandArguments: { newHints: [] },
-        },
-      ],
-    };
-  });
-  traversal.addVisitorFor(B.LEVEL_ORDER, () => ({
-    // @ts-expect-error Tree callbacks cannot defer.
-    commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+  traversal.registerVisitorCallbackForPhase(
+    B.AT_LEVEL_ORDER_VERTEX,
+    (_v, o) => {
+      const phase: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
+      void phase;
+      return {
+        commands: [
+          {
+            commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+            commandArguments: { replacementChildHints: [] },
+          },
+        ],
+      };
+    },
+  );
+  traversal.registerVisitorCallbackForPhase(B.AT_LEVEL_ORDER_VERTEX, () => ({
+    commands: [
+      // @ts-expect-error Tree callbacks cannot defer.
+      { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+    ],
   }));
-  traversal.configure({
+  traversal.patchOptionsForFutureRunners({
     visitors: {
-      [B.LEVEL_ORDER]: [
+      [B.AT_LEVEL_ORDER_VERTEX]: [
         {
-          priority: 1,
+          descendingExecutionPriorityWithinGroup: 1,
           visitor: () => ({
-            // @ts-expect-error Config map controls phase.
-            commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+            commands: [
+              {
+                // @ts-expect-error Config map controls phase.
+                commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION,
+              },
+            ],
           }),
         },
       ],
     },
   });
-  traversal.setVisitorsFor(B.LEVEL_ORDER, [
+  traversal.replaceVisitorDefinitionsForPhase(B.AT_LEVEL_ORDER_VERTEX, [
     {
-      priority: 1,
-      // @ts-expect-error setVisitorsFor controls phase.
-      visitor: () => ({ commands: [{ commandName: C.DEFER_WORK_COMPLETION }] }),
+      descendingExecutionPriorityWithinGroup: 1,
+      visitor: () => ({
+        commands: [
+          // @ts-expect-error setVisitorsFor controls phase.
+          { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+        ],
+      }),
     },
   ]);
 }
 {
-  traverseTreeDepthFirst<T>({
-    traversableTree: tree.traversableTree!,
+  runTreeDepthFirstUntilSuspendedOrTerminal<T>({
+    treeDiscoverySource: tree.treeDiscoverySource!,
     // @ts-expect-error POST_ORDER cannot rewrite child hints.
     visitors: {
-      POST_ORDER: () => ({
+      AFTER_CHILD_SUBTREES: () => ({
         commands: [
           {
-            commandName: C.REWRITE_CHILD_HINTS,
-            commandArguments: { newHints: [] },
+            commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+            commandArguments: { replacementChildHints: [] },
           },
         ],
       }),
@@ -248,15 +301,15 @@ for (const traversal of [
   });
 }
 {
-  traverseTreeDepthFirstAsync<T>({
-    traversableTree: tree.traversableTree!,
+  runTreeDepthFirstUntilSuspendedOrTerminalAsync<T>({
+    treeDiscoverySource: tree.treeDiscoverySource!,
     // @ts-expect-error POST_ORDER cannot rewrite child hints.
     visitors: {
-      POST_ORDER: () => ({
+      AFTER_CHILD_SUBTREES: () => ({
         commands: [
           {
-            commandName: C.REWRITE_CHILD_HINTS,
-            commandArguments: { newHints: [] },
+            commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+            commandArguments: { replacementChildHints: [] },
           },
         ],
       }),
@@ -268,9 +321,12 @@ for (const traversal of [
     ...graph,
     // @ts-expect-error Simple helper map controls phase.
     visitors: {
-      ON_SUBGRAPH_READY: () => ({
+      ON_SUBGRAPH_COMPLETION_READY: () => ({
         commands: [
-          { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+          {
+            commandName:
+              VisitorCommand.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION as const,
+          },
         ],
       }),
     },
@@ -281,111 +337,146 @@ for (const traversal of [
     ...graph,
     // @ts-expect-error Simple helper map controls phase.
     visitors: {
-      ON_SUBGRAPH_READY: () => ({
+      ON_SUBGRAPH_COMPLETION_READY: () => ({
         commands: [
-          { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+          {
+            commandName:
+              VisitorCommand.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION as const,
+          },
         ],
       }),
     },
   });
 }
 const commonVisitor: DagVisitor<T> = () => ({
-  commands: [{ commandName: C.NOOP }],
+  commands: [{ commandName: C.NO_OPERATION }],
 });
 void commonVisitor;
 const broadVisitor: DagVisitor<T> = () => ({
-  // @ts-expect-error A broad visitor must be explicitly annotated ON_WORK_READY to defer.
-  commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
+  commands: [
+    {
+      // @ts-expect-error A broad visitor must be explicitly annotated ON_WORK_READY to defer.
+      commandName:
+        VisitorCommand.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION as const,
+    },
+  ],
 });
 void broadVisitor;
-const broadResult: TraversalVisitorResult<T> = {
+const broadResult: VisitorCommandsResult<T> = {
   commands: [
-    // @ts-expect-error A result with unknown phase cannot rewrite hints.
-    { commandName: C.REWRITE_CHILD_HINTS, commandArguments: { newHints: [] } },
+    {
+      // @ts-expect-error A result with unknown phase cannot rewrite hints.
+      commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+      // @ts-expect-error A result with unknown phase cannot rewrite hints.
+      commandArguments: { replacementChildHints: [] },
+    },
   ],
 };
 void broadResult;
 
 // Pre-typed callbacks must not hide an invalid phase behind a broader registration.
 declare const ready: DagVisitor<T, T, D.ON_WORK_READY>;
-declare const pre: import('../src').TreeVisitor<F.PRE_ORDER, T, T>;
+declare const pre: import('../src').TreeVertexPhaseVisitorCallback<
+  T,
+  T,
+  F.BEFORE_CHILD_EXPANSION
+>;
 for (const traversal of [
-  new DagTraversal<T>(graph),
-  new AsyncDagTraversal<T>(graph),
+  new DagTraversalBuilder<T>(graph),
+  new AsyncDagTraversalBuilder<T>(graph),
 ]) {
   // @ts-expect-error The callback requires ON_WORK_READY but the registration can complete.
-  traversal.addVisitorFor(dagOrder, ready);
-  // @ts-expect-error A narrow callback cannot be registered for another phase.
-  traversal.addVisitorFor(D.ON_SUBGRAPH_READY, ready);
-  traversal.configure({
+  traversal.registerVisitorCallbackForPhase(dagOrder, ready);
+  traversal.registerVisitorCallbackForPhase(
+    D.ON_SUBGRAPH_COMPLETION_READY,
+    // @ts-expect-error A narrow callback cannot be registered for another phase.
+    ready,
+  );
+  traversal.patchOptionsForFutureRunners({
     visitors: {
-      // @ts-expect-error A pre-typed narrow callback cannot evade map phase restrictions.
-      [D.ON_SUBGRAPH_READY]: [{ priority: 1, visitor: ready }],
+      [D.ON_SUBGRAPH_COMPLETION_READY]: [
+        // @ts-expect-error A pre-typed narrow callback cannot evade map phase restrictions.
+        { descendingExecutionPriorityWithinGroup: 1, visitor: ready },
+      ],
     },
   });
-  traversal.setVisitorsFor(dagOrder, [
+  traversal.replaceVisitorDefinitionsForPhase(dagOrder, [
     // @ts-expect-error A pre-typed narrow callback cannot evade setVisitorsFor restrictions.
-    { priority: 1, visitor: ready },
+    { descendingExecutionPriorityWithinGroup: 1, visitor: ready },
   ]);
 }
 for (const traversal of [
-  new DepthFirstTreeTraversal<T>(tree),
-  new AsyncDepthFirstTreeTraversal<T>(tree),
+  new DepthFirstTreeTraversalBuilder<T>(tree),
+  new AsyncDepthFirstTreeTraversalBuilder<T>(tree),
 ]) {
   // @ts-expect-error The callback can rewrite hints while the registration can run post-phase.
-  traversal.addVisitorFor(dfsOrder, pre);
-  traversal.configure({
+  traversal.registerVisitorCallbackForPhase(dfsOrder, pre);
+  traversal.patchOptionsForFutureRunners({
     visitors: {
-      // @ts-expect-error A pre-typed narrow callback cannot evade map phase restrictions.
-      [F.POST_ORDER]: [{ priority: 1, visitor: pre }],
+      [F.AFTER_CHILD_SUBTREES]: [
+        // @ts-expect-error A pre-typed narrow callback cannot evade map phase restrictions.
+        { descendingExecutionPriorityWithinGroup: 1, visitor: pre },
+      ],
     },
   });
-  traversal.setVisitorsFor(dfsOrder, [
+  traversal.replaceVisitorDefinitionsForPhase(dfsOrder, [
     // @ts-expect-error A pre-typed narrow callback cannot evade setVisitorsFor restrictions.
-    { priority: 1, visitor: pre },
+    { descendingExecutionPriorityWithinGroup: 1, visitor: pre },
   ]);
 }
 {
-  traverseTreeDepthFirst<T>({
-    traversableTree: tree.traversableTree,
+  runTreeDepthFirstUntilSuspendedOrTerminal<T>({
+    treeDiscoverySource: tree.treeDiscoverySource,
     // @ts-expect-error A pre-typed narrow callback cannot evade helper map phase restrictions.
-    visitors: { POST_ORDER: pre },
+    visitors: { AFTER_CHILD_SUBTREES: pre },
   });
 }
 {
-  traverseTreeDepthFirstAsync<T>({
-    traversableTree: tree.traversableTree,
+  runTreeDepthFirstUntilSuspendedOrTerminalAsync<T>({
+    treeDiscoverySource: tree.treeDiscoverySource,
     // @ts-expect-error A pre-typed narrow callback cannot evade helper map phase restrictions.
-    visitors: { POST_ORDER: pre },
+    visitors: { AFTER_CHILD_SUBTREES: pre },
   });
 }
 {
-  // @ts-expect-error A pre-typed narrow callback cannot evade helper map phase restrictions.
-  traverseDag<T>({ ...graph, visitors: { ON_SUBGRAPH_READY: ready } });
+  traverseDag<T>({
+    ...graph,
+    // @ts-expect-error A pre-typed narrow callback cannot evade helper map phase restrictions.
+    visitors: { ON_SUBGRAPH_COMPLETION_READY: ready },
+  });
 }
 {
-  // @ts-expect-error A pre-typed narrow callback cannot evade helper map phase restrictions.
-  traverseDagAsync<T>({ ...graph, visitors: { ON_SUBGRAPH_READY: ready } });
+  traverseDagAsync<T>({
+    ...graph,
+    // @ts-expect-error A pre-typed narrow callback cannot evade helper map phase restrictions.
+    visitors: { ON_SUBGRAPH_COMPLETION_READY: ready },
+  });
 }
 
-new DagTraversal<T>(graph).addVisitorFor(D.ON_WORK_READY, commonVisitor);
+new DagTraversalBuilder<T>(graph).registerVisitorCallbackForPhase(
+  D.ON_WORK_READY,
+  commonVisitor,
+);
 const asyncCommon: import('../src').AsyncDagVisitor<T> = async () => ({
-  commands: [{ commandName: C.NOOP }],
+  commands: [{ commandName: C.NO_OPERATION }],
 });
-new AsyncDagTraversal<T>(graph).addVisitorFor(D.ON_WORK_READY, asyncCommon);
+new AsyncDagTraversalBuilder<T>(graph).registerVisitorCallbackForPhase(
+  D.ON_WORK_READY,
+  asyncCommon,
+);
 
 {
   importedBreadth({
-    traversableTree: tree.traversableTree!,
+    treeDiscoverySource: tree.treeDiscoverySource!,
     visitors: {
-      LEVEL_ORDER: (_v, options) => {
-        const phase: B.LEVEL_ORDER = options.phase;
+      AT_LEVEL_ORDER_VERTEX: (_v, options) => {
+        const phase: B.AT_LEVEL_ORDER_VERTEX = options.visitorPhase;
         void phase;
         return {
           commands: [
             {
-              commandName: C.REWRITE_CHILD_HINTS,
-              commandArguments: { newHints: [] },
+              commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+              commandArguments: { replacementChildHints: [] },
             },
           ],
         };
@@ -393,22 +484,24 @@ new AsyncDagTraversal<T>(graph).addVisitorFor(D.ON_WORK_READY, asyncCommon);
     },
   });
   // @ts-expect-error Breadth-first helpers cannot defer DAG readiness.
-  importedBreadth(tree.traversableTree, () => ({
-    commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+  importedBreadth(tree.treeDiscoverySource, () => ({
+    commands: [
+      { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+    ],
   }));
 }
 {
   importedBreadthAsync({
-    traversableTree: tree.traversableTree!,
+    treeDiscoverySource: tree.treeDiscoverySource!,
     visitors: {
-      LEVEL_ORDER: (_v, options) => {
-        const phase: B.LEVEL_ORDER = options.phase;
+      AT_LEVEL_ORDER_VERTEX: (_v, options) => {
+        const phase: B.AT_LEVEL_ORDER_VERTEX = options.visitorPhase;
         void phase;
         return {
           commands: [
             {
-              commandName: C.REWRITE_CHILD_HINTS,
-              commandArguments: { newHints: [] },
+              commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+              commandArguments: { replacementChildHints: [] },
             },
           ],
         };
@@ -416,27 +509,29 @@ new AsyncDagTraversal<T>(graph).addVisitorFor(D.ON_WORK_READY, asyncCommon);
     },
   });
   // @ts-expect-error Breadth-first helpers cannot defer DAG readiness.
-  importedBreadthAsync(tree.traversableTree, () => ({
-    commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+  importedBreadthAsync(tree.treeDiscoverySource, () => ({
+    commands: [
+      { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+    ],
   }));
 }
 import {
-  traverseTreeBreadthFirst as importedBreadth,
-  traverseTreeBreadthFirstAsync as importedBreadthAsync,
+  runTreeBreadthFirstUntilSuspendedOrTerminal as importedBreadth,
+  runTreeBreadthFirstUntilSuspendedOrTerminalAsync as importedBreadthAsync,
 } from '../src';
-new DepthFirstTreeTraversal<T>(tree).configure({
+new DepthFirstTreeTraversalBuilder<T>(tree).patchOptionsForFutureRunners({
   visitors: {
-    [F.PRE_ORDER]: [
+    [F.BEFORE_CHILD_EXPANSION]: [
       {
-        priority: 1,
+        descendingExecutionPriorityWithinGroup: 1,
         visitor: (_v, o) => {
-          const phase: F.PRE_ORDER = o.phase;
+          const phase: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
           void phase;
           return {
             commands: [
               {
-                commandName: C.REWRITE_CHILD_HINTS,
-                commandArguments: { newHints: [] },
+                commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+                commandArguments: { replacementChildHints: [] },
               },
             ],
           };
@@ -445,19 +540,19 @@ new DepthFirstTreeTraversal<T>(tree).configure({
     ],
   },
 });
-new AsyncDepthFirstTreeTraversal<T>(tree).configure({
+new AsyncDepthFirstTreeTraversalBuilder<T>(tree).patchOptionsForFutureRunners({
   visitors: {
-    [F.PRE_ORDER]: [
+    [F.BEFORE_CHILD_EXPANSION]: [
       {
-        priority: 1,
+        descendingExecutionPriorityWithinGroup: 1,
         visitor: (_v, o) => {
-          const phase: F.PRE_ORDER = o.phase;
+          const phase: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
           void phase;
           return {
             commands: [
               {
-                commandName: C.REWRITE_CHILD_HINTS,
-                commandArguments: { newHints: [] },
+                commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+                commandArguments: { replacementChildHints: [] },
               },
             ],
           };
@@ -466,88 +561,114 @@ new AsyncDepthFirstTreeTraversal<T>(tree).configure({
     ],
   },
 });
-new DepthFirstTreeTraversal<T>(tree).setVisitorsFor(F.PRE_ORDER, [
+new DepthFirstTreeTraversalBuilder<T>(tree).replaceVisitorDefinitionsForPhase(
+  F.BEFORE_CHILD_EXPANSION,
+  [
+    {
+      descendingExecutionPriorityWithinGroup: 1,
+      visitor: (_v, o) => {
+        const phase: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
+        void phase;
+      },
+    },
+  ],
+);
+new AsyncDepthFirstTreeTraversalBuilder<T>(
+  tree,
+).replaceVisitorDefinitionsForPhase(F.BEFORE_CHILD_EXPANSION, [
   {
-    priority: 1,
+    descendingExecutionPriorityWithinGroup: 1,
     visitor: (_v, o) => {
-      const phase: F.PRE_ORDER = o.phase;
+      const phase: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
       void phase;
     },
   },
 ]);
-new AsyncDepthFirstTreeTraversal<T>(tree).setVisitorsFor(F.PRE_ORDER, [
-  {
-    priority: 1,
-    visitor: (_v, o) => {
-      const phase: F.PRE_ORDER = o.phase;
-      void phase;
-    },
-  },
-]);
-new BreadthFirstTreeTraversal<T>(tree).configure({
+new BreadthFirstTreeTraversalBuilder<T>(tree).patchOptionsForFutureRunners({
   visitors: {
-    [B.LEVEL_ORDER]: [
+    [B.AT_LEVEL_ORDER_VERTEX]: [
       {
-        priority: 1,
+        descendingExecutionPriorityWithinGroup: 1,
         visitor: (_v, o) => {
-          const phase: B.LEVEL_ORDER = o.phase;
+          const phase: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
           void phase;
         },
       },
     ],
   },
 });
-new AsyncBreadthFirstTreeTraversal<T>(tree).configure({
-  visitors: {
-    [B.LEVEL_ORDER]: [
-      {
-        priority: 1,
-        visitor: (_v, o) => {
-          const phase: B.LEVEL_ORDER = o.phase;
-          void phase;
+new AsyncBreadthFirstTreeTraversalBuilder<T>(tree).patchOptionsForFutureRunners(
+  {
+    visitors: {
+      [B.AT_LEVEL_ORDER_VERTEX]: [
+        {
+          descendingExecutionPriorityWithinGroup: 1,
+          visitor: (_v, o) => {
+            const phase: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
+            void phase;
+          },
         },
+      ],
+    },
+  },
+);
+new BreadthFirstTreeTraversalBuilder<T>(tree).replaceVisitorDefinitionsForPhase(
+  B.AT_LEVEL_ORDER_VERTEX,
+  [
+    {
+      descendingExecutionPriorityWithinGroup: 1,
+      visitor: (_v, o) => {
+        const phase: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
+        void phase;
       },
-    ],
-  },
-});
-new BreadthFirstTreeTraversal<T>(tree).setVisitorsFor(B.LEVEL_ORDER, [
+    },
+  ],
+);
+new AsyncBreadthFirstTreeTraversalBuilder<T>(
+  tree,
+).replaceVisitorDefinitionsForPhase(B.AT_LEVEL_ORDER_VERTEX, [
   {
-    priority: 1,
+    descendingExecutionPriorityWithinGroup: 1,
     visitor: (_v, o) => {
-      const phase: B.LEVEL_ORDER = o.phase;
+      const phase: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
       void phase;
     },
   },
 ]);
-new AsyncBreadthFirstTreeTraversal<T>(tree).setVisitorsFor(B.LEVEL_ORDER, [
-  {
-    priority: 1,
-    visitor: (_v, o) => {
-      const phase: B.LEVEL_ORDER = o.phase;
-      void phase;
+new DagTraversalBuilder<T>(graph).replaceVisitorDefinitionsForPhase(
+  D.ON_WORK_READY,
+  [
+    {
+      descendingExecutionPriorityWithinGroup: 1,
+      visitor: (_v, o) => {
+        const phase: D.ON_WORK_READY = o.visitorPhase;
+        void phase;
+        return {
+          commands: [
+            { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+          ],
+        };
+      },
     },
-  },
-]);
-new DagTraversal<T>(graph).setVisitorsFor(D.ON_WORK_READY, [
-  {
-    priority: 1,
-    visitor: (_v, o) => {
-      const phase: D.ON_WORK_READY = o.phase;
-      void phase;
-      return { commands: [{ commandName: C.DEFER_WORK_COMPLETION }] };
+  ],
+);
+new AsyncDagTraversalBuilder<T>(graph).replaceVisitorDefinitionsForPhase(
+  D.ON_WORK_READY,
+  [
+    {
+      descendingExecutionPriorityWithinGroup: 1,
+      visitor: (_v, o) => {
+        const phase: D.ON_WORK_READY = o.visitorPhase;
+        void phase;
+        return {
+          commands: [
+            { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+          ],
+        };
+      },
     },
-  },
-]);
-new AsyncDagTraversal<T>(graph).setVisitorsFor(D.ON_WORK_READY, [
-  {
-    priority: 1,
-    visitor: (_v, o) => {
-      const phase: D.ON_WORK_READY = o.phase;
-      void phase;
-      return { commands: [{ commandName: C.DEFER_WORK_COMPLETION }] };
-    },
-  },
-]);
+  ],
+);
 
 // Match async callback types to async entry points so phase errors cannot be
 // masked by the independent sync/async recursive visitor-record distinction.
@@ -556,46 +677,59 @@ declare const asyncReady: import('../src').AsyncDagVisitor<
   T,
   D.ON_WORK_READY
 >;
-declare const asyncPre: import('../src').AsyncTreeVisitor<F.PRE_ORDER, T, T>;
-const asyncDag = new AsyncDagTraversal<T>(graph);
-const asyncDfs = new AsyncDepthFirstTreeTraversal<T>(tree);
-asyncDag.addVisitorFor(D.ON_WORK_READY, asyncReady);
-asyncDfs.addVisitorFor(F.PRE_ORDER, asyncPre);
+declare const asyncPre: import('../src').AsyncTreeVertexPhaseVisitorCallback<
+  T,
+  T,
+  F.BEFORE_CHILD_EXPANSION
+>;
+const asyncDag = new AsyncDagTraversalBuilder<T>(graph);
+const asyncDfs = new AsyncDepthFirstTreeTraversalBuilder<T>(tree);
+asyncDag.registerVisitorCallbackForPhase(D.ON_WORK_READY, asyncReady);
+asyncDfs.registerVisitorCallbackForPhase(F.BEFORE_CHILD_EXPANSION, asyncPre);
 // @ts-expect-error An async ON_WORK_READY callback cannot run at a union phase.
-asyncDag.addVisitorFor(dagOrder, asyncReady);
+asyncDag.registerVisitorCallbackForPhase(dagOrder, asyncReady);
 // @ts-expect-error An async PRE_ORDER callback cannot run at a union phase.
-asyncDfs.addVisitorFor(dfsOrder, asyncPre);
-asyncDag.configure({
+asyncDfs.registerVisitorCallbackForPhase(dfsOrder, asyncPre);
+asyncDag.patchOptionsForFutureRunners({
   visitors: {
-    // @ts-expect-error Async configuration maps preserve phases of pre-typed callbacks.
-    [D.ON_SUBGRAPH_READY]: [{ priority: 1, visitor: asyncReady }],
+    [D.ON_SUBGRAPH_COMPLETION_READY]: [
+      // @ts-expect-error Async configuration maps preserve phases of pre-typed callbacks.
+      { descendingExecutionPriorityWithinGroup: 1, visitor: asyncReady },
+    ],
   },
 });
-asyncDfs.configure({
+asyncDfs.patchOptionsForFutureRunners({
   visitors: {
-    // @ts-expect-error Async configuration maps preserve phases of pre-typed callbacks.
-    [F.POST_ORDER]: [{ priority: 1, visitor: asyncPre }],
+    [F.AFTER_CHILD_SUBTREES]: [
+      // @ts-expect-error Async configuration maps preserve phases of pre-typed callbacks.
+      { descendingExecutionPriorityWithinGroup: 1, visitor: asyncPre },
+    ],
   },
 });
-asyncDag.setVisitorsFor(dagOrder, [
+asyncDag.replaceVisitorDefinitionsForPhase(dagOrder, [
   // @ts-expect-error Async replacement maps preserve phases of pre-typed callbacks.
-  { priority: 1, visitor: asyncReady },
+  { descendingExecutionPriorityWithinGroup: 1, visitor: asyncReady },
 ]);
-asyncDfs.setVisitorsFor(dfsOrder, [
+asyncDfs.replaceVisitorDefinitionsForPhase(dfsOrder, [
   // @ts-expect-error Async replacement maps preserve phases of pre-typed callbacks.
-  { priority: 1, visitor: asyncPre },
+  { descendingExecutionPriorityWithinGroup: 1, visitor: asyncPre },
 ]);
-// @ts-expect-error Async helper maps preserve phases of pre-typed callbacks.
-traverseDagAsync({ ...graph, visitors: { ON_SUBGRAPH_READY: asyncReady } });
-traverseTreeDepthFirstAsync({
-  traversableTree: tree.traversableTree,
+traverseDagAsync({
+  ...graph,
   // @ts-expect-error Async helper maps preserve phases of pre-typed callbacks.
-  visitors: { POST_ORDER: asyncPre },
+  visitors: { ON_SUBGRAPH_COMPLETION_READY: asyncReady },
 });
-const defaultTreeVisitor: import('../src').TreeVisitor = () => ({
-  commands: [{ commandName: C.NOOP }],
+runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+  treeDiscoverySource: tree.treeDiscoverySource,
+  // @ts-expect-error Async helper maps preserve phases of pre-typed callbacks.
+  visitors: { AFTER_CHILD_SUBTREES: asyncPre },
 });
-const defaultAsyncVisitor: import('../src').AsyncTreeVisitor = async () => ({
-  commands: [{ commandName: C.NOOP }],
-});
+const defaultTreeVisitor: import('../src').TreeVertexPhaseVisitorCallback =
+  () => ({
+    commands: [{ commandName: C.NO_OPERATION }],
+  });
+const defaultAsyncVisitor: import('../src').AsyncTreeVertexPhaseVisitorCallback =
+  async () => ({
+    commands: [{ commandName: C.NO_OPERATION }],
+  });
 void [defaultTreeVisitor, defaultAsyncVisitor];

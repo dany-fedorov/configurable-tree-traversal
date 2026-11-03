@@ -1,8 +1,8 @@
 import {
-  defineDag,
-  prepareDagDefinition,
-  reviseDag,
-  diffDagDefinitions,
+  copyAndNormalizeDagDefinition,
+  validateAndPrepareDagDefinition,
+  applyDagDefinitionRevisionBatch,
+  diffDagDefinitionDeclarationsShallowly,
   dagTraversal,
   type DagRevisionOperation,
   type DagRevisionResult,
@@ -12,80 +12,89 @@ import {
 } from 'configurable-tree-traversal';
 import * as dag from 'configurable-tree-traversal/traversals/dag-traversal';
 type ID = 'task';
-const definition = defineDag<number, ID>({
-  vertices: [
+const definition = copyAndNormalizeDagDefinition<number, ID>({
+  vertexDeclarations: [
     {
       vertexId: 'task',
       data: 1,
-      slots: [],
-      dependsOnWork: [],
-      dependsOnSubgraphCompletion: [],
+      childDiscoverySlots: [],
+      workWaitsForWorkOf: [],
+      workWaitsForSubgraphCompletionOf: [],
     },
   ],
-  omittedIds: [],
+  omittedVertexIds: [],
   entry: { kind: 'root', vertexId: 'task' },
 });
-const prepared = prepareDagDefinition(definition);
+const prepared = validateAndPrepareDagDefinition(definition);
 const operation: DagRevisionOperation<number, ID> = {
-  kind: 'replaceVertex',
-  vertex: { ...definition.vertices[0]!, data: 2 },
+  kind: 'replaceVertexDeclaration',
+  vertexDeclaration: { ...definition.vertexDeclarations[0]!, data: 2 },
 };
 const subOperation: dag.DagRevisionOperation<number, ID> = operation;
 const namespaceOperation: dagTraversal.DagRevisionOperation<number, ID> =
   subOperation;
-const sameRevise: typeof reviseDag = dag.reviseDag;
-const namespaceRevise: typeof reviseDag = dagTraversal.reviseDag;
-const sameDiff: typeof diffDagDefinitions = dag.diffDagDefinitions;
-const namespaceDiff: typeof diffDagDefinitions =
-  dagTraversal.diffDagDefinitions;
-const diff: DagDefinitionDiff<ID> = diffDagDefinitions(
+const sameRevise: typeof applyDagDefinitionRevisionBatch =
+  dag.applyDagDefinitionRevisionBatch;
+const namespaceRevise: typeof applyDagDefinitionRevisionBatch =
+  dagTraversal.applyDagDefinitionRevisionBatch;
+const sameDiff: typeof diffDagDefinitionDeclarationsShallowly =
+  dag.diffDagDefinitionDeclarationsShallowly;
+const namespaceDiff: typeof diffDagDefinitionDeclarationsShallowly =
+  dagTraversal.diffDagDefinitionDeclarationsShallowly;
+const diff: DagDefinitionDiff<ID> = diffDagDefinitionDeclarationsShallowly(
   definition,
-  defineDag<string, ID>({
+  copyAndNormalizeDagDefinition<string, ID>({
     ...definition,
-    vertices: [{ ...definition.vertices[0]!, data: 'new' }],
+    vertexDeclarations: [{ ...definition.vertexDeclarations[0]!, data: 'new' }],
   }),
 );
 const subDiff: dag.DagDefinitionDiff<ID> = diff;
 const namespaceDiffType: dagTraversal.DagDefinitionDiff<ID> = subDiff;
-const aspect: DagDefinitionChangeAspect = 'workDependencies';
+const aspect: DagDefinitionChangeAspect = 'workWaitsForWorkOf';
 const subAspect: dag.DagDefinitionChangeAspect = aspect;
 const namespaceAspect: dagTraversal.DagDefinitionChangeAspect = subAspect;
 const change: DagDefinitionVertexChange<ID> = {
   vertexId: 'task',
-  aspects: [aspect],
+  changedDeclarationFields: [aspect],
 };
 const subChange: dag.DagDefinitionVertexChange<ID> = change;
 const namespaceChange: dagTraversal.DagDefinitionVertexChange<ID> = subChange;
 if (prepared.kind === 'valid') {
-  const result: DagRevisionResult<number, ID> = reviseDag(prepared.dag, [
-    operation,
-  ]);
+  const result: DagRevisionResult<number, ID> = applyDagDefinitionRevisionBatch(
+    prepared.validatedTopology,
+    [operation],
+  );
   const subResult: dag.DagRevisionResult<number, ID> = result;
   const namespaceResult: dagTraversal.DagRevisionResult<number, ID> = subResult;
   if (result.kind === 'valid') {
-    const id: ID | undefined = result.changes.addedIds[0];
-    result.dag.createWorkSession({ completedWork: new Set<ID>(['task']) });
+    const id: ID | undefined = result.changes.addedVertexDeclarationIds[0];
+    result.validatedTopology.createExternalWorkSession({
+      acceptedCompletedWorkVertexIds: new Set<ID>(['task']),
+    });
     void id;
   } else {
     result.issues;
     // @ts-expect-error Invalid revisions expose no executable DAG.
     result.dag;
   }
-  reviseDag(prepared.dag, [
+  applyDagDefinitionRevisionBatch(prepared.validatedTopology, [
     // @ts-expect-error Operations cannot widen the prepared identity domain.
     { kind: 'removeVertexDeclaration', vertexId: 'foreign' },
   ]);
-  reviseDag(prepared.dag, [
+  applyDagDefinitionRevisionBatch(prepared.validatedTopology, [
     {
-      kind: 'replaceVertex',
-      // @ts-expect-error Data replacement cannot widen the prepared data domain.
-      vertex: { ...definition.vertices[0]!, data: 'wrong' },
+      kind: 'replaceVertexDeclaration',
+      vertexDeclaration: {
+        ...definition.vertexDeclarations[0]!,
+        // @ts-expect-error Data replacement cannot widen the prepared data domain.
+        data: 'wrong',
+      },
     },
   ]);
   void namespaceResult;
 }
 // @ts-expect-error Diff arrays are readonly.
-diff.addedIds.push('task');
+diff.addedVertexDeclarationIds.push('task');
 // @ts-expect-error The aspect vocabulary is closed.
 const badAspect: DagDefinitionChangeAspect = 'artifacts';
 void [

@@ -1,34 +1,37 @@
 import {
   Vertex,
-  MutableRef,
-  traverseTreeDepthFirst,
+  MutableValueReference,
+  runTreeDepthFirstUntilSuspendedOrTerminal,
   type TreeVertexResolution,
-  type DagPrerequisiteResolution,
-  type VisitorDefinition,
+  type DagPrerequisiteLookupResult,
+  type VisitorRegistrationDefinition,
   type DagSettlementOutcome,
-  type VertexTypes,
-  type ResolvedGraphView,
+  type VertexDataAndChildHintTypes,
+  type LiveResolvedGraphView,
   type TraversalVisitorCommand,
 } from '../src';
 // @ts-expect-error Removed legacy sentinel.
 import { DEFER_READY } from '../src';
 // @ts-expect-error Removed legacy batching policy enum.
 import { TraversalVisitorFunctionResolutionStyle } from '../src';
-type T = VertexTypes<string, string>;
+type T = VertexDataAndChildHintTypes<string, string>;
 // @ts-expect-error Canonical content is required.
 new Vertex<T>({ $d: 'old', $c: [] });
-const vertex = new Vertex<T>({ $data: 'canonical', $childHints: [] });
+const vertex = new Vertex<T>({
+  $vertexData: 'canonical',
+  $childDiscoveryHints: [],
+});
 // @ts-expect-error Retired access alias.
 vertex.$d;
 // @ts-expect-error Retired access alias.
 vertex.$c;
 // @ts-expect-error Retired clone alias.
-vertex.clone({ $d: 'old' });
+vertex.createEditableShallowCloneWithContentOverrides({ $d: 'old' });
 // @ts-expect-error UUID getter has a single canonical name.
-new MutableRef(vertex).getId();
-declare const graph: ResolvedGraphView<T>;
+new MutableValueReference(vertex).getId();
+declare const graph: LiveResolvedGraphView<T>;
 // @ts-expect-error Removed graph forwarding alias.
-graph.getIdOf(new MutableRef(vertex));
+graph.getIdOf(new MutableValueReference(vertex));
 // @ts-expect-error Removed graph forwarding alias.
 graph.getVertexById('id');
 // @ts-expect-error Untagged source results are unsupported.
@@ -36,22 +39,22 @@ const found: TreeVertexResolution<T> = { vertexContent: vertex };
 // @ts-expect-error Untagged omission is unsupported.
 const omitted: TreeVertexResolution<T> = { vertexContent: null };
 // @ts-expect-error Missing prerequisite must be explicit.
-const missing: DagPrerequisiteResolution<T> = undefined;
-const visitor: VisitorDefinition<() => void> = {
+const missing: DagPrerequisiteLookupResult<T> = undefined;
+const visitor: VisitorRegistrationDefinition<() => void> = {
   visitor() {
     return undefined;
   },
   // @ts-expect-error Caller cannot set assigned registration indexes.
-  addedIndex: 4,
+  phaseRegistrationInsertionIndex: 4,
 };
 // @ts-expect-error Settlement requires a tagged outcome.
 const outcome: DagSettlementOutcome = { ok: true };
 const command: TraversalVisitorCommand<T> = {
   // @ts-expect-error Old hint command is removed.
   commandName: 'REWRITE_VERTEX_HINTS_ON_PRE_ORDER',
-  commandArguments: { newHints: [] },
+  commandArguments: { replacementChildHints: [] },
 };
-traverseTreeDepthFirst(
+runTreeDepthFirstUntilSuspendedOrTerminal(
   {
     resolveRoot: () => ({ kind: 'omitted' }),
     resolveChild: () => ({ kind: 'omitted' }),

@@ -1,7 +1,7 @@
 import {
-  defineDagFragment,
+  validateAndCreateDagFragment,
   mapDagFragmentIds,
-  composeDag,
+  composeAndValidateDagFragments,
   DagFragmentValidationError,
   type DagDefinitionIssue,
 } from '../src';
@@ -9,26 +9,26 @@ import * as dag from '../src/traversals/dag-traversal';
 
 const vertex = <ID>(
   vertexId: ID,
-  dependsOnWork: ID[] = [],
-  dependsOnSubgraphCompletion: ID[] = [],
+  workWaitsForWorkOf: ID[] = [],
+  workWaitsForSubgraphCompletionOf: ID[] = [],
 ) => ({
   vertexId,
   data: { task: vertexId },
-  slots: [],
-  dependsOnWork,
-  dependsOnSubgraphCompletion,
+  childDiscoverySlots: [],
+  workWaitsForWorkOf,
+  workWaitsForSubgraphCompletionOf,
 });
 
 test('two object-ID instances compose a completion wire without sharing local identities', () => {
   const start = {};
   const finish = {};
-  const fragment = defineDagFragment(
+  const fragment = validateAndCreateDagFragment(
     {
-      vertices: [vertex(start), vertex(finish, [start])],
-      omittedIds: [],
+      vertexDeclarations: [vertex(start), vertex(finish, [start])],
+      omittedVertexIds: [],
       entry: {
         kind: 'roots',
-        slots: [
+        entryDiscoverySlots: [
           { kind: 'vertex', vertexId: start },
           { kind: 'vertex', vertexId: finish },
         ],
@@ -50,12 +50,12 @@ test('two object-ID instances compose a completion wire without sharing local id
   const second = mapDagFragmentIds(fragment, {
     mapId: (id) => secondIds.get(id)!,
   });
-  const result = composeDag([first, second], {
-    dependencies: [
+  const result = composeAndValidateDagFragments([first, second], {
+    additionalWorkPrerequisites: [
       {
-        dependent: second.ports.start,
+        dependentWorkVertexId: second.vertexIdsByPortName.start,
         prerequisite: {
-          vertexId: first.ports.finish,
+          vertexId: first.vertexIdsByPortName.finish,
           milestone: 'subgraphCompletion',
         },
       },
@@ -63,50 +63,52 @@ test('two object-ID instances compose a completion wire without sharing local id
   });
   if (result.kind !== 'valid') throw new Error('Expected valid composition');
   expect(
-    result.dag.definition.vertices[2]!.dependsOnSubgraphCompletion,
+    result.validatedTopology.definition.vertexDeclarations[2]!
+      .workWaitsForSubgraphCompletionOf,
   ).toEqual([firstIds.get(finish)]);
   expect(
-    [...result.dag.createRunner().iterateEvents()].map((e) => [
-      e.vertexId.name,
-      e.kind,
-    ]),
+    [
+      ...result.validatedTopology
+        .createIndependentRunnerFromValidatedTopology()
+        .runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+    ].map((e) => [e.vertexId.name, e.eventKind]),
   ).toEqual([
-    ['first-start', 'workCompleted'],
-    ['first-finish', 'workCompleted'],
-    ['first-start', 'subgraphCompleted'],
-    ['first-finish', 'subgraphCompleted'],
-    ['second-start', 'workCompleted'],
-    ['second-finish', 'workCompleted'],
-    ['second-start', 'subgraphCompleted'],
-    ['second-finish', 'subgraphCompleted'],
+    ['first-start', 'workCompletionCommitted'],
+    ['first-finish', 'workCompletionCommitted'],
+    ['first-start', 'subgraphCompletionCommitted'],
+    ['first-finish', 'subgraphCompletionCommitted'],
+    ['second-start', 'workCompletionCommitted'],
+    ['second-finish', 'workCompletionCommitted'],
+    ['second-start', 'subgraphCompletionCommitted'],
+    ['second-finish', 'subgraphCompletionCommitted'],
   ]);
 });
 
 const single = (id = 'a') =>
-  defineDagFragment(
+  validateAndCreateDagFragment(
     {
-      vertices: [vertex(id)],
-      omittedIds: [],
+      vertexDeclarations: [vertex(id)],
+      omittedVertexIds: [],
       entry: { kind: 'root', vertexId: id },
     },
     { start: id },
   );
 
 test('maps each live and omitted identity once across entry, slots, dependencies and ports', () => {
-  const local = defineDagFragment(
+  const local = validateAndCreateDagFragment(
     {
-      vertices: [
+      vertexDeclarations: [
         {
           ...vertex<unknown>(undefined, [NaN], [null]),
-          slots: [
-            { kind: 'omitted', identity: null },
-            { kind: 'omitted', identity: { vertexId: NaN } },
+          childDiscoverySlots: [
+            { kind: 'omitted', omittedVertexIdentity: null },
+            { kind: 'omitted', omittedVertexIdentity: { vertexId: NaN } },
             { kind: 'vertex', vertexId: null },
           ],
         },
         vertex<unknown>(null),
       ],
-      omittedIds: [NaN],
+      omittedVertexIds: [NaN],
       entry: { kind: 'root', vertexId: undefined },
     },
     { ['__proto__']: undefined, finish: null },
@@ -120,182 +122,229 @@ test('maps each live and omitted identity once across entry, slots, dependencies
     },
   });
   expect(seen).toEqual([undefined, null, NaN]);
-  expect(instance.ports.__proto__).toBe(mapped[0]);
-  expect(instance.ports.finish).toBe(mapped[1]);
+  expect(instance.vertexIdsByPortName.__proto__).toBe(mapped[0]);
+  expect(instance.vertexIdsByPortName.finish).toBe(mapped[1]);
   expect(instance.definition).toEqual({
     entry: { kind: 'root', vertexId: mapped[0] },
-    omittedIds: [mapped[2]],
-    vertices: [
+    omittedVertexIds: [mapped[2]],
+    vertexDeclarations: [
       {
         ...vertex(mapped[0]!, [mapped[2]!], [mapped[1]!]),
-        data: local.definition.vertices[0]!.data,
-        slots: [
-          { kind: 'omitted', identity: null },
-          { kind: 'omitted', identity: { vertexId: mapped[2] } },
+        data: local.definition.vertexDeclarations[0]!.data,
+        childDiscoverySlots: [
+          { kind: 'omitted', omittedVertexIdentity: null },
+          { kind: 'omitted', omittedVertexIdentity: { vertexId: mapped[2] } },
           { kind: 'vertex', vertexId: mapped[1] },
         ],
       },
-      { ...vertex(mapped[1]!), data: local.definition.vertices[1]!.data },
+      {
+        ...vertex(mapped[1]!),
+        data: local.definition.vertexDeclarations[1]!.data,
+      },
     ],
   });
 });
 
 test('preserves forest order, detached prerequisites and empty-entry known omissions', () => {
-  const a = defineDagFragment(
+  const a = validateAndCreateDagFragment(
     {
-      vertices: [vertex('a', ['remote']), vertex('remote')],
-      omittedIds: ['skip'],
+      vertexDeclarations: [vertex('a', ['remote']), vertex('remote')],
+      omittedVertexIds: ['skip'],
       entry: {
         kind: 'roots',
-        slots: [
-          { kind: 'omitted', identity: { vertexId: 'skip' } },
+        entryDiscoverySlots: [
+          { kind: 'omitted', omittedVertexIdentity: { vertexId: 'skip' } },
           { kind: 'vertex', vertexId: 'a' },
         ],
       },
     },
     { start: 'a' },
   );
-  const omitted = defineDagFragment(
-    { vertices: [], omittedIds: ['empty-skip'], entry: { kind: 'empty' } },
+  const omitted = validateAndCreateDagFragment(
+    {
+      vertexDeclarations: [],
+      omittedVertexIds: ['empty-skip'],
+      entry: { kind: 'empty' },
+    },
     {},
   );
-  const empty = defineDagFragment(
-    { vertices: [], omittedIds: [], entry: { kind: 'empty' } },
+  const empty = validateAndCreateDagFragment(
+    { vertexDeclarations: [], omittedVertexIds: [], entry: { kind: 'empty' } },
     {},
   );
-  const result = composeDag([a, omitted, empty, single('b')]);
+  const result = composeAndValidateDagFragments([
+    a,
+    omitted,
+    empty,
+    single('b'),
+  ]);
   if (result.kind !== 'valid') throw new Error('Expected valid');
-  expect(result.dag.definition.entry).toEqual({
+  expect(result.validatedTopology.definition.entry).toEqual({
     kind: 'roots',
-    slots: [
-      { kind: 'omitted', identity: { vertexId: 'skip' } },
+    entryDiscoverySlots: [
+      { kind: 'omitted', omittedVertexIdentity: { vertexId: 'skip' } },
       { kind: 'vertex', vertexId: 'a' },
-      { kind: 'omitted', identity: { vertexId: 'empty-skip' } },
+      { kind: 'omitted', omittedVertexIdentity: { vertexId: 'empty-skip' } },
       { kind: 'vertex', vertexId: 'b' },
     ],
   });
-  expect(result.dag.definition.vertices.map((v) => v.vertexId)).toEqual([
-    'a',
-    'remote',
-    'b',
-  ]);
-  expect(result.dag.definition.vertices[0]!.slots).toEqual([]);
-  const runner = result.dag.createRunner({
-    completedWork: new Set(['empty-skip']),
-  });
-  runner.run();
-  expect(runner.summary().unusedCompletedWorkIds).toEqual([]);
   expect(
-    [...result.dag.createRunner().iterateEvents()]
-      .filter((e) => e.kind === 'workCompleted')
+    result.validatedTopology.definition.vertexDeclarations.map(
+      (v) => v.vertexId,
+    ),
+  ).toEqual(['a', 'remote', 'b']);
+  expect(
+    result.validatedTopology.definition.vertexDeclarations[0]!
+      .childDiscoverySlots,
+  ).toEqual([]);
+  const runner =
+    result.validatedTopology.createIndependentRunnerFromValidatedTopology({
+      acceptedCompletedWorkVertexIds: new Set(['empty-skip']),
+    });
+  runner.runUntilSuspendedOrTerminal();
+  expect(
+    runner.captureProgressSnapshot().unmatchedCompletedWorkSeedVertexIds,
+  ).toEqual([]);
+  expect(
+    [
+      ...result.validatedTopology
+        .createIndependentRunnerFromValidatedTopology()
+        .runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+    ]
+      .filter((e) => e.eventKind === 'workCompletionCommitted')
       .map((e) => e.vertexId),
   ).toEqual(['b', 'remote', 'a']);
 });
 
 test('structural links append independently of explicit work and completion wires', () => {
   const instances = [single('a'), single('b'), single('c')];
-  const result = composeDag(instances, {
-    children: [
-      { parent: 'a', child: 'c' },
-      { parent: 'a', child: 'b' },
+  const result = composeAndValidateDagFragments(instances, {
+    additionalStructuralChildLinks: [
+      { parentVertexId: 'a', childVertexId: 'c' },
+      { parentVertexId: 'a', childVertexId: 'b' },
     ],
-    dependencies: [
-      { dependent: 'b', prerequisite: { vertexId: 'a', milestone: 'work' } },
-      { dependent: 'b', prerequisite: { vertexId: 'a', milestone: 'work' } },
+    additionalWorkPrerequisites: [
       {
-        dependent: 'c',
+        dependentWorkVertexId: 'b',
+        prerequisite: { vertexId: 'a', milestone: 'workCompletion' },
+      },
+      {
+        dependentWorkVertexId: 'b',
+        prerequisite: { vertexId: 'a', milestone: 'workCompletion' },
+      },
+      {
+        dependentWorkVertexId: 'c',
         prerequisite: { vertexId: 'b', milestone: 'subgraphCompletion' },
       },
     ],
   });
   if (result.kind !== 'valid') throw new Error('Expected valid');
   expect(
-    result.dag.definition.vertices.map((v) => ({
+    result.validatedTopology.definition.vertexDeclarations.map((v) => ({
       id: v.vertexId,
-      slots: v.slots,
-      w: v.dependsOnWork,
-      c: v.dependsOnSubgraphCompletion,
+      childDiscoverySlots: v.childDiscoverySlots,
+      w: v.workWaitsForWorkOf,
+      c: v.workWaitsForSubgraphCompletionOf,
     })),
   ).toEqual([
     {
       id: 'a',
-      slots: [
+      childDiscoverySlots: [
         { kind: 'vertex', vertexId: 'c' },
         { kind: 'vertex', vertexId: 'b' },
       ],
       w: [],
       c: [],
     },
-    { id: 'b', slots: [], w: ['a'], c: [] },
-    { id: 'c', slots: [], w: [], c: ['b'] },
+    { id: 'b', childDiscoverySlots: [], w: ['a'], c: [] },
+    { id: 'c', childDiscoverySlots: [], w: [], c: ['b'] },
   ]);
-  expect(instances[0]!.definition.vertices[0]!.slots).toEqual([]);
-  const structuralOnly = composeDag(instances, {
-    children: [{ parent: 'a', child: 'b' }],
+  expect(
+    instances[0]!.definition.vertexDeclarations[0]!.childDiscoverySlots,
+  ).toEqual([]);
+  const structuralOnly = composeAndValidateDagFragments(instances, {
+    additionalStructuralChildLinks: [
+      { parentVertexId: 'a', childVertexId: 'b' },
+    ],
   });
   if (structuralOnly.kind !== 'valid') throw new Error('Expected valid');
-  expect(structuralOnly.dag.definition.vertices[1]!.dependsOnWork).toEqual([]);
+  expect(
+    structuralOnly.validatedTopology.definition.vertexDeclarations[1]!
+      .workWaitsForWorkOf,
+  ).toEqual([]);
 });
 
 test('composition validates structural and combined W/C cycles through the shared validator', () => {
   expect(
-    composeDag([single('a'), single('b')], {
-      children: [
-        { parent: 'a', child: 'b' },
-        { parent: 'b', child: 'a' },
+    composeAndValidateDagFragments([single('a'), single('b')], {
+      additionalStructuralChildLinks: [
+        { parentVertexId: 'a', childVertexId: 'b' },
+        { parentVertexId: 'b', childVertexId: 'a' },
       ],
     }),
   ).toMatchObject({
     kind: 'invalid',
-    issues: [{ kind: 'structuralCycle', componentVertexIds: ['a', 'b'] }],
+    issues: [
+      { kind: 'structuralChildCycleComponent', componentVertexIds: ['a', 'b'] },
+    ],
   });
   expect(
-    composeDag([single('a'), single('b')], {
-      children: [{ parent: 'a', child: 'b' }],
-      dependencies: [
+    composeAndValidateDagFragments([single('a'), single('b')], {
+      additionalStructuralChildLinks: [
+        { parentVertexId: 'a', childVertexId: 'b' },
+      ],
+      additionalWorkPrerequisites: [
         {
-          dependent: 'b',
+          dependentWorkVertexId: 'b',
           prerequisite: { vertexId: 'a', milestone: 'subgraphCompletion' },
         },
       ],
     }),
-  ).toMatchObject({ kind: 'invalid', issues: [{ kind: 'milestone' }] });
-  expect(composeDag([])).toMatchObject({
+  ).toMatchObject({
+    kind: 'invalid',
+    issues: [{ kind: 'milestoneDependencyStall' }],
+  });
+  expect(composeAndValidateDagFragments([])).toMatchObject({
     kind: 'valid',
-    dag: { definition: { entry: { kind: 'roots', slots: [] } } },
+    validatedTopology: {
+      definition: { entry: { kind: 'roots', entryDiscoverySlots: [] } },
+    },
   });
 });
 
 test.each([
   {
-    vertices: [vertex('a', ['outside'])],
-    omittedIds: [],
+    vertexDeclarations: [vertex('a', ['outside'])],
+    omittedVertexIds: [],
     entry: { kind: 'root' as const, vertexId: 'a' },
   },
   {
-    vertices: [vertex('a'), vertex('unreachable')],
-    omittedIds: [],
+    vertexDeclarations: [vertex('a'), vertex('outsideEntryDiscoveryClosure')],
+    omittedVertexIds: [],
     entry: { kind: 'root' as const, vertexId: 'a' },
   },
 ])('rejects non-closed fragment definitions before mapping', (definition) => {
-  expect(() => defineDagFragment(definition, { start: 'a' })).toThrow(
-    TypeError,
-  );
+  expect(() =>
+    validateAndCreateDagFragment(definition, { start: 'a' }),
+  ).toThrow(TypeError);
 });
 
 test('rejects unknown/omitted ports, malformed port maps and symbol port names', () => {
   const definition = {
-    vertices: [vertex('a')],
-    omittedIds: ['skip'],
+    vertexDeclarations: [vertex('a')],
+    omittedVertexIds: ['skip'],
     entry: {
       kind: 'roots' as const,
-      slots: [
+      entryDiscoverySlots: [
         { kind: 'vertex' as const, vertexId: 'a' },
-        { kind: 'omitted' as const, identity: { vertexId: 'skip' } },
+        {
+          kind: 'omitted' as const,
+          omittedVertexIdentity: { vertexId: 'skip' },
+        },
       ],
     },
   };
-  for (const ports of [
+  for (const vertexIdsByPortName of [
     { start: 'unknown' },
     { start: 'skip' },
     null,
@@ -303,22 +352,22 @@ test('rejects unknown/omitted ports, malformed port maps and symbol port names',
     'a',
     { [Symbol()]: 'a' },
   ]) {
-    expect(() => defineDagFragment(definition, ports as any)).toThrow(
-      TypeError,
-    );
+    expect(() =>
+      validateAndCreateDagFragment(definition, vertexIdsByPortName as any),
+    ).toThrow(TypeError);
   }
 });
 
 test('maps SameValueZero identities and rejects mapped live/omitted collisions', () => {
-  const fragment = defineDagFragment(
+  const fragment = validateAndCreateDagFragment(
     {
-      vertices: [vertex<unknown>('a')],
-      omittedIds: [undefined],
+      vertexDeclarations: [vertex<unknown>('a')],
+      omittedVertexIds: [undefined],
       entry: {
         kind: 'roots',
-        slots: [
+        entryDiscoverySlots: [
           { kind: 'vertex', vertexId: 'a' },
-          { kind: 'omitted', identity: { vertexId: undefined } },
+          { kind: 'omitted', omittedVertexIdentity: { vertexId: undefined } },
         ],
       },
     },
@@ -328,47 +377,70 @@ test('maps SameValueZero identities and rejects mapped live/omitted collisions',
     TypeError,
   );
   const result = mapDagFragmentIds(single(), { mapId: () => undefined });
-  expect(result.ports.start).toBeUndefined();
-  expect(composeDag([result]).kind).toBe('valid');
+  expect(result.vertexIdsByPortName.start).toBeUndefined();
+  expect(composeAndValidateDagFragments([result]).kind).toBe('valid');
 });
 
 test('rejects cross-instance live/omitted collisions and invalid wire endpoints or milestone kinds', () => {
-  expect(() => composeDag([single(), single()])).toThrow(TypeError);
-  const omitted = defineDagFragment(
-    { vertices: [], omittedIds: ['a'], entry: { kind: 'empty' } },
+  expect(() => composeAndValidateDagFragments([single(), single()])).toThrow(
+    TypeError,
+  );
+  const omitted = validateAndCreateDagFragment(
+    {
+      vertexDeclarations: [],
+      omittedVertexIds: ['a'],
+      entry: { kind: 'empty' },
+    },
     {},
   );
-  expect(() => composeDag([single(), omitted])).toThrow(TypeError);
+  expect(() => composeAndValidateDagFragments([single(), omitted])).toThrow(
+    TypeError,
+  );
   const instances = [single()];
   for (const options of [
-    { children: [{ parent: 'unknown', child: 'a' }] },
-    { children: [{ parent: 'a', child: 'unknown' }] },
     {
-      dependencies: [
+      additionalStructuralChildLinks: [
+        { parentVertexId: 'unknown', childVertexId: 'a' },
+      ],
+    },
+    {
+      additionalStructuralChildLinks: [
+        { parentVertexId: 'a', childVertexId: 'unknown' },
+      ],
+    },
+    {
+      additionalWorkPrerequisites: [
         {
-          dependent: 'unknown',
-          prerequisite: { vertexId: 'a', milestone: 'work' },
+          dependentWorkVertexId: 'unknown',
+          prerequisite: { vertexId: 'a', milestone: 'workCompletion' },
         },
       ],
     },
     {
-      dependencies: [
+      additionalWorkPrerequisites: [
         {
-          dependent: 'a',
-          prerequisite: { vertexId: 'unknown', milestone: 'work' },
+          dependentWorkVertexId: 'a',
+          prerequisite: { vertexId: 'unknown', milestone: 'workCompletion' },
         },
       ],
     },
     {
-      dependencies: [
-        { dependent: 'a', prerequisite: { vertexId: 'a', milestone: 'ready' } },
+      additionalWorkPrerequisites: [
+        {
+          dependentWorkVertexId: 'a',
+          prerequisite: { vertexId: 'a', milestone: 'ready' },
+        },
       ],
     },
   ])
-    expect(() => composeDag(instances, options as any)).toThrow(TypeError);
+    expect(() =>
+      composeAndValidateDagFragments(instances, options as any),
+    ).toThrow(TypeError);
   expect(() =>
-    composeDag([single(), omitted], {
-      children: [{ parent: 'a', child: 'a' }],
+    composeAndValidateDagFragments([single(), omitted], {
+      additionalStructuralChildLinks: [
+        { parentVertexId: 'a', childVertexId: 'a' },
+      ],
     }),
   ).toThrow(TypeError);
 });
@@ -385,13 +457,13 @@ test('retains caller error identity for mapping and port getters', () => {
   } catch (error) {
     expect(error).toBe(failure);
   }
-  const ports = Object.defineProperty({}, 'start', {
+  const vertexIdsByPortName = Object.defineProperty({}, 'start', {
     get: () => {
       throw failure;
     },
   });
   try {
-    defineDagFragment(single().definition, ports);
+    validateAndCreateDagFragment(single().definition, vertexIdsByPortName);
   } catch (error) {
     expect(error).toBe(failure);
   }
@@ -401,24 +473,33 @@ test('copies and freezes owned fragment topology and port wrappers without freez
   const id = { name: 'local' };
   const data = { task: 'opaque' };
   const definition = {
-    vertices: [{ ...vertex(id), data }],
-    omittedIds: [],
+    vertexDeclarations: [{ ...vertex(id), data }],
+    omittedVertexIds: [],
     entry: { kind: 'root' as const, vertexId: id },
   };
-  const ports = Object.defineProperty({}, 'entry', { value: id }) as {
+  const vertexIdsByPortName = Object.defineProperty({}, 'entry', {
+    value: id,
+  }) as {
     entry: typeof id;
   };
-  const fragment = defineDagFragment(definition, ports);
-  definition.vertices.length = 0;
-  expect(fragment.ports.entry).toBe(id);
-  expect(fragment.definition.vertices[0]!.data).toBe(data);
+  const fragment = validateAndCreateDagFragment(
+    definition,
+    vertexIdsByPortName,
+  );
+  definition.vertexDeclarations.length = 0;
+  expect(fragment.vertexIdsByPortName.entry).toBe(id);
+  expect(fragment.definition.vertexDeclarations[0]!.data).toBe(data);
   expect(Object.isFrozen(fragment)).toBe(true);
-  expect(Object.isFrozen(fragment.ports)).toBe(true);
-  expect(Object.isFrozen(fragment.definition.vertices[0]!.slots)).toBe(true);
+  expect(Object.isFrozen(fragment.vertexIdsByPortName)).toBe(true);
+  expect(
+    Object.isFrozen(
+      fragment.definition.vertexDeclarations[0]!.childDiscoverySlots,
+    ),
+  ).toBe(true);
   const mappedId = { name: 'mapped' };
   const instance = mapDagFragmentIds(fragment, { mapId: () => mappedId });
   expect(Object.isFrozen(instance)).toBe(true);
-  expect(Object.isFrozen(instance.ports)).toBe(true);
+  expect(Object.isFrozen(instance.vertexIdsByPortName)).toBe(true);
   expect(Object.isFrozen(instance.definition)).toBe(true);
   expect(Object.isFrozen(id)).toBe(false);
   expect(Object.isFrozen(mappedId)).toBe(false);
@@ -426,14 +507,14 @@ test('copies and freezes owned fragment topology and port wrappers without freez
 });
 
 test('remaps forest entry references and empty omission catalogs before composition', async () => {
-  const forest = defineDagFragment(
+  const forest = validateAndCreateDagFragment(
     {
-      vertices: [vertex('a')],
-      omittedIds: ['skip'],
+      vertexDeclarations: [vertex('a')],
+      omittedVertexIds: ['skip'],
       entry: {
         kind: 'roots',
-        slots: [
-          { kind: 'omitted', identity: { vertexId: 'skip' } },
+        entryDiscoverySlots: [
+          { kind: 'omitted', omittedVertexIdentity: { vertexId: 'skip' } },
           { kind: 'vertex', vertexId: 'a' },
         ],
       },
@@ -445,78 +526,102 @@ test('remaps forest entry references and empty omission catalogs before composit
   });
   expect(mapped.definition.entry).toEqual({
     kind: 'roots',
-    slots: [
-      { kind: 'omitted', identity: { vertexId: 2 } },
+    entryDiscoverySlots: [
+      { kind: 'omitted', omittedVertexIdentity: { vertexId: 2 } },
       { kind: 'vertex', vertexId: 1 },
     ],
   });
   const empty = mapDagFragmentIds(
-    defineDagFragment(
-      { vertices: [], omittedIds: ['root-skip'], entry: { kind: 'empty' } },
+    validateAndCreateDagFragment(
+      {
+        vertexDeclarations: [],
+        omittedVertexIds: ['root-skip'],
+        entry: { kind: 'empty' },
+      },
       {},
     ),
     { mapId: () => undefined },
   );
   expect(empty.definition).toEqual({
-    vertices: [],
-    omittedIds: [undefined],
+    vertexDeclarations: [],
+    omittedVertexIds: [undefined],
     entry: { kind: 'empty' },
   });
-  const result = composeDag<unknown, number | undefined>([mapped, empty], {
-    dependencies: [
-      {
-        dependent: 1,
-        prerequisite: { vertexId: undefined, milestone: 'work' },
-      },
-      {
-        dependent: 1,
-        prerequisite: { vertexId: undefined, milestone: 'subgraphCompletion' },
-      },
-    ],
-  });
+  const result = composeAndValidateDagFragments<unknown, number | undefined>(
+    [mapped, empty],
+    {
+      additionalWorkPrerequisites: [
+        {
+          dependentWorkVertexId: 1,
+          prerequisite: { vertexId: undefined, milestone: 'workCompletion' },
+        },
+        {
+          dependentWorkVertexId: 1,
+          prerequisite: {
+            vertexId: undefined,
+            milestone: 'subgraphCompletion',
+          },
+        },
+      ],
+    },
+  );
   if (result.kind !== 'valid') throw new Error('Expected valid');
   const events: unknown[] = [];
   for await (const event of (
-    await result.dag.createAsyncRunner()
-  ).iterateEvents())
-    events.push([event.vertexId, event.kind]);
+    await result.validatedTopology.createIndependentAsyncRunnerFromValidatedTopology()
+  ).runAndIterateObservationEventsUntilSuspendedOrTerminal())
+    events.push([event.vertexId, event.eventKind]);
   expect(events).toEqual([
-    [1, 'workCompleted'],
-    [1, 'subgraphCompleted'],
+    [1, 'workCompletionCommitted'],
+    [1, 'subgraphCompletionCommitted'],
   ]);
 });
 
 test.each([
-  { children: [{ parent: 'skip', child: 'a' }] },
-  { children: [{ parent: 'a', child: 'skip' }] },
   {
-    dependencies: [
+    additionalStructuralChildLinks: [
+      { parentVertexId: 'skip', childVertexId: 'a' },
+    ],
+  },
+  {
+    additionalStructuralChildLinks: [
+      { parentVertexId: 'a', childVertexId: 'skip' },
+    ],
+  },
+  {
+    additionalWorkPrerequisites: [
       {
-        dependent: 'skip',
-        prerequisite: { vertexId: 'a', milestone: 'work' as const },
+        dependentWorkVertexId: 'skip',
+        prerequisite: { vertexId: 'a', milestone: 'workCompletion' as const },
       },
     ],
   },
 ])(
   'omitted identities cannot be structural endpoints or wire dependents: %o',
   (options) => {
-    const omitted = defineDagFragment(
-      { vertices: [], omittedIds: ['skip'], entry: { kind: 'empty' } },
+    const omitted = validateAndCreateDagFragment(
+      {
+        vertexDeclarations: [],
+        omittedVertexIds: ['skip'],
+        entry: { kind: 'empty' },
+      },
       {},
     );
-    expect(() => composeDag([single(), omitted], options)).toThrow(TypeError);
+    expect(() =>
+      composeAndValidateDagFragments([single(), omitted], options),
+    ).toThrow(TypeError);
   },
 );
 
 test('composition retains omitted discovery positions before dependent siblings', async () => {
-  const fragment = defineDagFragment(
+  const fragment = validateAndCreateDagFragment(
     {
-      vertices: [
+      vertexDeclarations: [
         {
           ...vertex('root'),
-          slots: [
-            { kind: 'omitted', identity: null },
-            { kind: 'omitted', identity: { vertexId: 'skip' } },
+          childDiscoverySlots: [
+            { kind: 'omitted', omittedVertexIdentity: null },
+            { kind: 'omitted', omittedVertexIdentity: { vertexId: 'skip' } },
             { kind: 'vertex', vertexId: 'b' },
             { kind: 'vertex', vertexId: 'c' },
           ],
@@ -524,34 +629,37 @@ test('composition retains omitted discovery positions before dependent siblings'
         vertex('b', ['skip']),
         vertex('c'),
       ],
-      omittedIds: ['skip'],
+      omittedVertexIds: ['skip'],
       entry: { kind: 'root', vertexId: 'root' },
     },
     { root: 'root' },
   );
   const instance = mapDagFragmentIds(fragment, { mapId: (id) => id });
-  const result = composeDag([instance]);
+  const result = composeAndValidateDagFragments([instance]);
   if (result.kind !== 'valid') throw new Error('Expected valid');
-  expect(result.dag.definition.vertices[0]!.slots).toEqual([
-    { kind: 'omitted', identity: null },
-    { kind: 'omitted', identity: { vertexId: 'skip' } },
+  expect(
+    result.validatedTopology.definition.vertexDeclarations[0]!
+      .childDiscoverySlots,
+  ).toEqual([
+    { kind: 'omitted', omittedVertexIdentity: null },
+    { kind: 'omitted', omittedVertexIdentity: { vertexId: 'skip' } },
     { kind: 'vertex', vertexId: 'b' },
     { kind: 'vertex', vertexId: 'c' },
   ]);
   for (const runner of [
-    result.dag.createRunner(),
-    await result.dag.createAsyncRunner(),
+    result.validatedTopology.createIndependentRunnerFromValidatedTopology(),
+    await result.validatedTopology.createIndependentAsyncRunnerFromValidatedTopology(),
   ]) {
     const events: unknown[] = [];
-    for await (const event of runner.iterateEvents())
-      events.push([event.vertexId, event.kind]);
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+      events.push([event.vertexId, event.eventKind]);
     expect(events).toEqual([
-      ['root', 'workCompleted'],
-      ['b', 'workCompleted'],
-      ['c', 'workCompleted'],
-      ['b', 'subgraphCompleted'],
-      ['c', 'subgraphCompleted'],
-      ['root', 'subgraphCompleted'],
+      ['root', 'workCompletionCommitted'],
+      ['b', 'workCompletionCommitted'],
+      ['c', 'workCompletionCommitted'],
+      ['b', 'subgraphCompletionCommitted'],
+      ['c', 'subgraphCompletionCommitted'],
+      ['root', 'subgraphCompletionCommitted'],
     ]);
   }
 });
@@ -559,41 +667,53 @@ test('composition retains omitted discovery positions before dependent siblings'
 test('missing wire fields are malformed even when undefined is a live identity', () => {
   const instance = mapDagFragmentIds(single(), { mapId: () => undefined });
   for (const options of [
-    { children: [{}] },
-    { children: [null] },
-    { children: ['invalid'] },
-    { children: [[]] },
-    { children: [Object.create({ parent: undefined, child: undefined })] },
-    { children: [{ parent: undefined }] },
-    { children: [{ child: undefined }] },
+    { additionalStructuralChildLinks: [{}] },
+    { additionalStructuralChildLinks: [null] },
+    { additionalStructuralChildLinks: ['invalid'] },
+    { additionalStructuralChildLinks: [[]] },
     {
-      dependencies: [
-        { prerequisite: { vertexId: undefined, milestone: 'work' } },
+      additionalStructuralChildLinks: [
+        Object.create({ parentVertexId: undefined, childVertexId: undefined }),
+      ],
+    },
+    { additionalStructuralChildLinks: [{ parentVertexId: undefined }] },
+    { additionalStructuralChildLinks: [{ childVertexId: undefined }] },
+    {
+      additionalWorkPrerequisites: [
+        { prerequisite: { vertexId: undefined, milestone: 'workCompletion' } },
       ],
     },
     {
-      dependencies: [
-        { dependent: undefined, prerequisite: { milestone: 'work' } },
+      additionalWorkPrerequisites: [
+        {
+          dependentWorkVertexId: undefined,
+          prerequisite: { milestone: 'workCompletion' },
+        },
       ],
     },
     {
-      dependencies: [
-        { dependent: undefined, prerequisite: { vertexId: undefined } },
+      additionalWorkPrerequisites: [
+        {
+          dependentWorkVertexId: undefined,
+          prerequisite: { vertexId: undefined },
+        },
       ],
     },
   ])
-    expect(() => composeDag([instance], options as any)).toThrow(TypeError);
-  const valid = composeDag([instance], {
-    dependencies: [
+    expect(() =>
+      composeAndValidateDagFragments([instance], options as any),
+    ).toThrow(TypeError);
+  const valid = composeAndValidateDagFragments([instance], {
+    additionalWorkPrerequisites: [
       {
-        dependent: undefined,
-        prerequisite: { vertexId: undefined, milestone: 'work' },
+        dependentWorkVertexId: undefined,
+        prerequisite: { vertexId: undefined, milestone: 'workCompletion' },
       },
     ],
   });
   expect(valid).toMatchObject({
     kind: 'invalid',
-    issues: [{ kind: 'milestone' }],
+    issues: [{ kind: 'milestoneDependencyStall' }],
   });
 });
 
@@ -602,32 +722,32 @@ test('wire endpoint getters run once and retain exact thrown values', () => {
   expect.assertions(3);
   const instances = [single('a'), single('b')];
   try {
-    composeDag(instances, {
-      children: [
-        Object.defineProperty({ parent: 'a' }, 'child', {
+    composeAndValidateDagFragments(instances, {
+      additionalStructuralChildLinks: [
+        Object.defineProperty({ parentVertexId: 'a' }, 'childVertexId', {
           get: () => {
             throw failure;
           },
-        }) as { parent: string; child: string },
+        }) as { parentVertexId: string; childVertexId: string },
       ],
     });
   } catch (error) {
     expect(error).toBe(failure);
   }
   try {
-    composeDag(instances, {
-      dependencies: [
+    composeAndValidateDagFragments(instances, {
+      additionalWorkPrerequisites: [
         {
-          dependent: 'b',
+          dependentWorkVertexId: 'b',
           prerequisite: Object.defineProperty(
-            { milestone: 'work' as const },
+            { milestone: 'workCompletion' as const },
             'vertexId',
             {
               get: () => {
                 throw failure;
               },
             },
-          ) as { vertexId: string; milestone: 'work' },
+          ) as { vertexId: string; milestone: 'workCompletion' },
         },
       ],
     });
@@ -635,19 +755,28 @@ test('wire endpoint getters run once and retain exact thrown values', () => {
     expect(error).toBe(failure);
   }
   let reads = 0;
-  const child = Object.defineProperty({ parent: 'a' }, 'child', {
-    get: () => {
-      reads++;
-      return reads === 1 ? 'b' : 'unknown';
+  const childVertexId = Object.defineProperty(
+    { parentVertexId: 'a' },
+    'childVertexId',
+    {
+      get: () => {
+        reads++;
+        return reads === 1 ? 'b' : 'unknown';
+      },
     },
-  }) as { parent: string; child: string };
-  const result = composeDag(instances, { children: [child] });
+  ) as { parentVertexId: string; childVertexId: string };
+  const result = composeAndValidateDagFragments(instances, {
+    additionalStructuralChildLinks: [childVertexId],
+  });
   expect(result).toMatchObject({
     kind: 'valid',
-    dag: {
+    validatedTopology: {
       definition: {
-        vertices: [
-          { vertexId: 'a', slots: [{ kind: 'vertex', vertexId: 'b' }] },
+        vertexDeclarations: [
+          {
+            vertexId: 'a',
+            childDiscoverySlots: [{ kind: 'vertex', vertexId: 'b' }],
+          },
           { vertexId: 'b' },
         ],
       },
@@ -658,18 +787,18 @@ test('wire endpoint getters run once and retain exact thrown values', () => {
 test('fragment validation exposes structural issues with shallow object and undefined identities', () => {
   const id = { task: 'root' };
   const definition = {
-    vertices: [
+    vertexDeclarations: [
       {
         ...vertex<unknown>(id),
-        slots: [{ kind: 'vertex' as const, vertexId: undefined }],
+        childDiscoverySlots: [{ kind: 'vertex' as const, vertexId: undefined }],
       },
     ],
-    omittedIds: [],
+    omittedVertexIds: [],
     entry: { kind: 'root' as const, vertexId: id },
   };
   expect.assertions(8);
   try {
-    defineDagFragment(definition, { root: id });
+    validateAndCreateDagFragment(definition, { root: id });
   } catch (error) {
     expect(error).toBeInstanceOf(TypeError);
     expect(error).toBeInstanceOf(DagFragmentValidationError);
@@ -697,11 +826,11 @@ test('forged fragments expose milestone validation before any mapping', () => {
   let mappings = 0;
   const fragment = {
     definition: {
-      vertices: [vertex<unknown>(id, [undefined])],
-      omittedIds: [],
+      vertexDeclarations: [vertex<unknown>(id, [undefined])],
+      omittedVertexIds: [],
       entry: { kind: 'root' as const, vertexId: id },
     },
-    ports: { root: id },
+    vertexIdsByPortName: { root: id },
   };
   expect.assertions(6);
   try {
@@ -716,19 +845,23 @@ test('forged fragments expose milestone validation before any mapping', () => {
     if (!(error instanceof DagFragmentValidationError)) throw error;
     expect(error.issues).toMatchObject([
       {
-        kind: 'milestone',
-        diagnostics: { unknownPrerequisiteIds: [undefined] },
+        kind: 'milestoneDependencyStall',
+        diagnostics: { unresolvedPrerequisiteVertexIds: [undefined] },
       },
     ]);
     const issue = error.issues[0]!;
-    if (issue.kind !== 'milestone') throw new Error('Expected milestone issue');
-    const edge = issue.diagnostics.dependencyEdges.find(
+    if (issue.kind !== 'milestoneDependencyStall')
+      throw new Error('Expected milestone issue');
+    const edge = issue.diagnostics.originalMilestoneConstraints.find(
       (edge) => edge.reason === 'workDependency',
     )!;
-    expect(edge.waiter.vertexId).toBe(id);
-    expect(edge.prerequisite.vertexId).toBeUndefined();
+    expect(edge.waitingMilestone.vertexId).toBe(id);
+    expect(edge.prerequisiteMilestone.vertexId).toBeUndefined();
     expect(
-      Object.prototype.hasOwnProperty.call(edge.prerequisite, 'vertexId'),
+      Object.prototype.hasOwnProperty.call(
+        edge.prerequisiteMilestone,
+        'vertexId',
+      ),
     ).toBe(true);
     expect(mappings).toBe(0);
   }
@@ -737,7 +870,7 @@ test('forged fragments expose milestone validation before any mapping', () => {
 test('fragment validation errors detach their issue array while retaining issue and ID identity', () => {
   const id = {};
   const issue: DagDefinitionIssue<typeof id> = {
-    kind: 'unreachable',
+    kind: 'outsideEntryDiscoveryClosure',
     vertexIds: [id],
   };
   const issues = [issue];
@@ -751,23 +884,23 @@ test('fragment validation errors detach their issue array while retaining issue 
 test('fragment port and mapping failures retain their plain TypeError taxonomy', () => {
   const valid = single();
   for (const operation of [
-    () => defineDagFragment(valid.definition, { start: 'unknown' }),
-    () => defineDagFragment(valid.definition, null as any),
-    () => defineDagFragment(null as any, {}),
+    () => validateAndCreateDagFragment(valid.definition, { start: 'unknown' }),
+    () => validateAndCreateDagFragment(valid.definition, null as any),
+    () => validateAndCreateDagFragment(null as any, {}),
     () =>
       mapDagFragmentIds(
-        { ...valid, ports: { start: 'unknown' } },
+        { ...valid, vertexIdsByPortName: { start: 'unknown' } },
         { mapId: (id) => id },
       ),
     () =>
       mapDagFragmentIds(
-        defineDagFragment(
+        validateAndCreateDagFragment(
           {
-            vertices: [vertex('a'), vertex('b')],
-            omittedIds: [],
+            vertexDeclarations: [vertex('a'), vertex('b')],
+            omittedVertexIds: [],
             entry: {
               kind: 'roots',
-              slots: [
+              entryDiscoverySlots: [
                 { kind: 'vertex', vertexId: 'a' },
                 { kind: 'vertex', vertexId: 'b' },
               ],
@@ -783,32 +916,34 @@ test('fragment port and mapping failures retain their plain TypeError taxonomy',
   }
 });
 
-test.each(['structuralCycle', 'milestone'] as const)(
+test.each(['structuralChildCycleComponent', 'milestoneDependencyStall'] as const)(
   'closed invalid fragments preserve %s details through construction and instantiation',
   (kind) => {
     const id = { task: 'root' };
     const definition = {
-      vertices: [
+      vertexDeclarations: [
         {
           ...vertex<unknown>(id),
-          slots: [{ kind: 'vertex' as const, vertexId: undefined }],
+          childDiscoverySlots: [
+            { kind: 'vertex' as const, vertexId: undefined },
+          ],
         },
         {
-          ...vertex<unknown>(undefined, [], kind === 'milestone' ? [id] : []),
-          slots:
-            kind === 'structuralCycle'
+          ...vertex<unknown>(undefined, [], kind === 'milestoneDependencyStall' ? [id] : []),
+          childDiscoverySlots:
+            kind === 'structuralChildCycleComponent'
               ? [{ kind: 'vertex' as const, vertexId: id }]
               : [],
         },
       ],
-      omittedIds: [],
+      omittedVertexIds: [],
       entry: { kind: 'root' as const, vertexId: id },
     };
     for (const construct of [
-      () => defineDagFragment(definition, { root: id }),
+      () => validateAndCreateDagFragment(definition, { root: id }),
       () =>
         mapDagFragmentIds(
-          { definition, ports: { root: id } },
+          { definition, vertexIdsByPortName: { root: id } },
           {
             mapId: () => {
               throw new Error('Validation must precede mapping');
@@ -824,15 +959,15 @@ test.each(['structuralCycle', 'milestone'] as const)(
         expect(error.issues).toHaveLength(1);
         const issue = error.issues[0]!;
         expect(issue.kind).toBe(kind);
-        if (issue.kind === 'structuralCycle') {
+        if (issue.kind === 'structuralChildCycleComponent') {
           expect(issue.componentVertexIds).toEqual([id, undefined]);
           expect(issue.componentVertexIds[0]).toBe(id);
-        } else if (issue.kind === 'milestone') {
-          const edge = issue.diagnostics.dependencyEdges.find(
+        } else if (issue.kind === 'milestoneDependencyStall') {
+          const edge = issue.diagnostics.originalMilestoneConstraints.find(
             (edge) => edge.reason === 'subgraphCompletionDependency',
           )!;
-          expect(edge.waiter.vertexId).toBeUndefined();
-          expect(edge.prerequisite.vertexId).toBe(id);
+          expect(edge.waitingMilestone.vertexId).toBeUndefined();
+          expect(edge.prerequisiteMilestone.vertexId).toBe(id);
         }
       }
     }

@@ -1,47 +1,50 @@
 import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
 
-export type DagSettlementGeneration = symbol;
-export type DagDeferredWork<ID = unknown> = Readonly<{
-  vertexId: ID;
-  generation: DagSettlementGeneration;
+export type DagWorkSettlementToken = symbol;
+export type DagWorkAwaitingSettlement<VertexId = unknown> = Readonly<{
+  vertexId: VertexId;
+  settlementToken: DagWorkSettlementToken;
 }>;
 export type DagSettlementOutcome =
   | { kind: 'workCompleted'; ok?: never; error?: never }
   | { kind: 'traversalFailed'; error: unknown; ok?: never };
 export type DagWorkState =
-  | 'pending'
-  | 'ready'
-  | 'visiting'
-  | 'deferred'
-  | 'completed';
-export type DagVertexProgress<ID = unknown> = Readonly<{
-  vertexId: ID;
-  work: DagWorkState;
-  subgraphComplete: boolean;
-  unmetPrerequisiteIds: readonly ID[];
+  | 'waitingForPrerequisiteMilestones'
+  | 'readyForWorkVisitorAdmission'
+  | 'workVisitorChainAdmitted'
+  | 'workCompletionDeferred'
+  | 'workCompletionCommitted';
+export type DagVertexProgress<VertexId = unknown> = Readonly<{
+  vertexId: VertexId;
+  workState: DagWorkState;
+  subgraphCompletionCommitted: boolean;
+  unmetPrerequisiteVertexIds: readonly VertexId[];
   /** Exact W waits, independent of C waits even when their IDs overlap. */
-  unmetWorkPrerequisiteIds: readonly ID[];
-  unmetSubgraphPrerequisiteIds: readonly ID[];
-  generation?: DagSettlementGeneration;
+  unmetWorkMilestoneVertexIds: readonly VertexId[];
+  unmetSubgraphCompletionMilestoneVertexIds: readonly VertexId[];
+  settlementToken?: DagWorkSettlementToken;
 }>;
-export type DagSummary<ID = unknown> = Readonly<{
-  discovery: Readonly<{ mode: 'lazy' | 'eager'; complete: boolean }>;
-  counts: Readonly<{
-    discovered: number;
-    pending: number;
-    readyOrDeferred: number;
-    deferredWork: number;
-    activeVisitorVertices: number;
-    workCompleted: number;
-    subgraphCompleted: number;
+export type DagProgressSnapshot<VertexId = unknown> = Readonly<{
+  discovery: Readonly<{
+    timing: 'incrementalDuringTraversal' | 'completeBeforeAnyVisitor';
+    complete: boolean;
   }>;
-  vertices: ReadonlyMap<ID, DagVertexProgress<ID>>;
-  readyOrDeferredIds: readonly ID[];
-  deferredWorkIds: readonly ID[];
-  awaitingSettlement: readonly DagDeferredWork<ID>[];
-  activeVisitorVertexIds: readonly ID[];
-  completedWorkIds: readonly ID[];
-  completedSubgraphIds: readonly ID[];
-  unusedCompletedWorkIds: readonly ID[];
-  diagnostics: DagTraversalStallDiagnostics<ID> | null;
+  counts: Readonly<{
+    retainedLiveVertices: number;
+    verticesWaitingForPrerequisiteMilestones: number;
+    workVisitorReadyOrWorkCompletionDeferredVertices: number;
+    workCompletionDeferredVertices: number;
+    verticesWithAdmittedVisitorChains: number;
+    workCompletionCommittedVertices: number;
+    subgraphCompletionCommittedVertices: number;
+  }>;
+  progressByVertexId: ReadonlyMap<VertexId, DagVertexProgress<VertexId>>;
+  workVisitorReadyOrWorkCompletionDeferredVertexIds: readonly VertexId[];
+  workCompletionDeferredVertexIds: readonly VertexId[];
+  workAwaitingSettlement: readonly DagWorkAwaitingSettlement<VertexId>[];
+  admittedVisitorChainVertexIds: readonly VertexId[];
+  workCompletionCommittedVertexIds: readonly VertexId[];
+  subgraphCompletionCommittedVertexIds: readonly VertexId[];
+  unmatchedCompletedWorkSeedVertexIds: readonly VertexId[];
+  invalidDependencyTopologyDiagnostics: DagTraversalStallDiagnostics<VertexId> | null;
 }>;

@@ -1,95 +1,114 @@
-import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type { LiveResolvedTreeView } from '@core/ResolvedTreeView';
 import type { VertexContentInput } from '@core/Vertex';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
+import type { ChildDiscoveryContext } from '@core/ResolvedTree';
 
-export type TreeChildResolutionContext<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+export type TreeChildResolverContext<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 > = {
-  resolutionContext: VertexResolutionContext<TTP | RW_TTP>;
-  resolvedTreeView: ResolvedTreeView<TTP | RW_TTP>;
-  originalTreeView: ResolvedTreeView<TTP> | null;
+  childDiscoveryContext: ChildDiscoveryContext<
+    InputVertexTypes | RewrittenVertexTypes
+  >;
+  liveResolvedTreeView: LiveResolvedTreeView<
+    InputVertexTypes | RewrittenVertexTypes
+  >;
+  preCommandDiscoveredTreeView: LiveResolvedTreeView<InputVertexTypes> | null;
 };
 
 /** Explicit ID domains cannot use the generated-reference identity fallback. */
-type RequiredGraphVertexIdentity<ID> =
-  | { vertexId: ID }
-  | (unknown extends ID ? unknown : never);
+type RequiredGraphVertexIdentity<VertexId> =
+  | { vertexId: VertexId }
+  | (unknown extends VertexId ? unknown : never);
 
-type GraphDependencies<ID> = {
-  dependsOnWork?: readonly ID[];
-  dependsOnSubgraphCompletion?: readonly ID[];
+type GraphDependencies<VertexId> = {
+  workWaitsForWorkOf?: readonly VertexId[];
+  workWaitsForSubgraphCompletionOf?: readonly VertexId[];
 };
 
 export type MakeVertexResult<
-  TTP extends VertexTypes,
-  ID = unknown,
-> = GraphDependencies<ID> & {
-  vertexContent: VertexContentInput<TTP> | null;
-  vertexId?: ID;
-} & (RequiredGraphVertexIdentity<ID> | { vertexContent: null });
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
+> = GraphDependencies<VertexId> & {
+  vertexContent: VertexContentInput<InputVertexTypes> | null;
+  vertexId?: VertexId;
+} & (RequiredGraphVertexIdentity<VertexId> | { vertexContent: null });
 
-/** A source deliberately supplied a vertex with non-null content. */
-export type DagVertexFound<T extends VertexTypes, ID = unknown> = {
-  kind: 'found';
-  vertex: GraphDependencies<ID> &
-    RequiredGraphVertexIdentity<ID> & {
-      vertexContent: VertexContentInput<T>;
-      vertexId?: ID;
+/** A source deliberately supplied a resolvedVertexInput with non-null content. */
+export type FoundDagSourceVertex<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
+> = {
+  kind: 'vertexResolved';
+  resolvedVertexInput: GraphDependencies<VertexId> &
+    RequiredGraphVertexIdentity<VertexId> & {
+      vertexContentInput: VertexContentInput<InputVertexTypes>;
+      vertexId?: VertexId;
     };
 };
 
 /** Deliberate omission satisfies both work and completion prerequisites. */
-export type DagVertexOmitted<ID = unknown> = {
-  kind: 'omitted';
-  identity: Readonly<{ vertexId: ID }> | null;
-  satisfiesDependencies: true;
+export type OmittedDagSourceVertex<VertexId = unknown> = {
+  kind: 'vertexIntentionallyOmitted';
+  omittedVertexIdentity: Readonly<{ vertexId: VertexId }> | null;
+  satisfiesWorkAndSubgraphCompletionPrerequisites: true;
 };
 
 /** Prerequisite lookup did not find the requested identity. */
-export type PrerequisiteMissing = { kind: 'missing' };
+export type DagPrerequisiteLookupMissing = { kind: 'missing' };
 
-export type DagVertexResolution<T extends VertexTypes, ID = unknown> =
-  | DagVertexFound<T, ID>
-  | DagVertexOmitted<ID>;
+export type DagSourceVertexResolution<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
+> =
+  | FoundDagSourceVertex<InputVertexTypes, VertexId>
+  | OmittedDagSourceVertex<VertexId>;
 
-export type DagPrerequisiteResolution<T extends VertexTypes, ID = unknown> =
-  | DagVertexResolution<T, ID>
-  | PrerequisiteMissing;
+export type DagPrerequisiteLookupResult<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
+> =
+  | DagSourceVertexResolution<InputVertexTypes, VertexId>
+  | DagPrerequisiteLookupMissing;
 
 /** Graph identity and prerequisites are unsupported by tree sources. */
-type TreeMetadataRestrictions = {
+type ForbiddenGraphMetadataOnTreeResolution = {
+  omittedVertexIdentity?: never;
   identity?: never;
   vertexId?: never;
-  dependsOnWork?: never;
-  dependsOnSubgraphCompletion?: never;
+  workWaitsForWorkOf?: never;
+  workWaitsForSubgraphCompletionOf?: never;
+  satisfiesWorkAndSubgraphCompletionPrerequisites?: never;
   satisfiesDependencies?: never;
 };
 
-export type TreeVertexFound<T extends VertexTypes> =
-  TreeMetadataRestrictions & {
-    kind: 'found';
-    vertex: TreeMetadataRestrictions & { vertexContent: VertexContentInput<T> };
+export type TreeVertexResolutionFound<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = ForbiddenGraphMetadataOnTreeResolution & {
+  kind: 'vertexResolved';
+  resolvedVertexInput: ForbiddenGraphMetadataOnTreeResolution & {
+    vertexContentInput: VertexContentInput<InputVertexTypes>;
   };
-
-export type TreeVertexOmitted = TreeMetadataRestrictions & {
-  kind: 'omitted';
 };
 
-export type TreeVertexResolution<T extends VertexTypes> =
-  | TreeVertexFound<T>
-  | TreeVertexOmitted;
+export type TreeVertexResolutionOmitted =
+  ForbiddenGraphMetadataOnTreeResolution & {
+    kind: 'vertexIntentionallyOmitted';
+  };
+
+export type TreeVertexResolution<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = TreeVertexResolutionFound<InputVertexTypes> | TreeVertexResolutionOmitted;
 
 /** Input T owns discovery hints/results; callbacks must accept the full T | R live context. */
-export type TreeSource<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
+export type TreeDiscoverySource<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > = {
-  resolveRoot: () => TreeVertexResolution<TTP>;
+  resolveRootVertex: () => TreeVertexResolution<InputVertexTypes>;
 
-  resolveChild: (
-    vertexHint: TTP['VertexHint'],
-    options: TreeChildResolutionContext<TTP, RW_TTP>,
-  ) => TreeVertexResolution<TTP>;
+  resolveChildVertexFromHint: (
+    vertexHint: InputVertexTypes['ChildHint'],
+    options: TreeChildResolverContext<InputVertexTypes, RewrittenVertexTypes>,
+  ) => TreeVertexResolution<InputVertexTypes>;
 };
