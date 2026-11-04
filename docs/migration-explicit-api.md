@@ -1,14 +1,16 @@
-# Migrate from released 0.12 to the explicit API
+# Migrate from 0.12 to the 0.13 explicit API
+
+<a id="migrate-from-released-012-to-the-explicit-api"></a>
 
 [Documentation map](index.md) · [Current reference](reference.md) · [Agent workflows](agent-workflows.md) · [Public symbol index](api-index.md)
 
-**This is an unreleased breaking change.** The checkout still carries package version `0.12.0`; installing the released `0.12.0` package does not provide the API shown here. Use the [checkout instructions](../README.md#install). No release or publication is implied by the migration or verification commands.
+**0.13.0 is a breaking release.** Install `configurable-tree-traversal@^0.13.0` for the API shown here; see [installation](../README.md#install).
 
-The Previous columns below describe the released API. Current names and examples describe this checkout. There are no compatibility aliases. Update imports, type arguments, own option keys, discriminant strings, and consumers together; an old own key can reject even when its value is undefined. Earlier migration guides preserve their historical release context and are not additional steps for this change.
+The Previous columns below describe 0.12. Current names and examples describe 0.13. There are no compatibility aliases. Update imports, type arguments, own option keys, discriminant strings, and consumers together; an old own key can reject even when its value is undefined. Earlier migration guides preserve their historical release context and are not additional steps for this change.
 
 ### Updating an earlier explicit-API checkout
 
-These names also changed within the unreleased API. Apply the same replacements to async counterparts. Registration consistently uses `registerVisitorFor…`, `appendVisitorGroupFor…`, and `replaceVisitorDefinitionsFor…` across all eight builders; the suffix is `Phase` for tree/DAG and `ObservationKind` for walking.
+These names also changed during development of 0.13. Apply the same replacements to async counterparts. Registration consistently uses `registerVisitorFor…`, `appendVisitorGroupFor…`, and `replaceVisitorDefinitionsFor…` across all eight builders; the suffix is `Phase` for tree/DAG and `ObservationKind` for walking.
 
 | Earlier checkout | Current |
 | --- | --- |

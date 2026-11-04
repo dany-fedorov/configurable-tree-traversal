@@ -4,7 +4,7 @@
 
 CTT has three source families: tree sources (objects and abstract trees), DAG sources (work with dependencies), and walking sources (cyclic information graphs). Start with the [README quickstart](../README.md#quickstart-find-the-next-agent-tasks) to find ready tasks, continue with the [agent workflow guide](agent-workflows.md) to connect readiness to your executor and storage, and use the [reference](reference.md) for exact contracts. Pick a task below; each row ends when you have what the right column names.
 
-[Public symbol lookup](api-index.md) maps exported names to signatures, supported imports, owning contracts and examples. These guides describe the **unreleased breaking API in this checkout**, not the released `0.12.0` package; see the [README install instructions](../README.md#install).
+[Public symbol lookup](api-index.md) maps exported names to signatures, supported imports, owning contracts and examples. These guides describe the **0.13.0 public API**, which breaks compatibility with 0.12; see the [README install instructions](../README.md#install).
 
 ## Read by task
 
@@ -68,7 +68,7 @@ The npm package includes these guides and the reference. Examples, contributor i
 
 ### Upgrading from 0.11.0
 
-For this unreleased checkout, start with the [explicit API migration](migration-explicit-api.md). The [0.11-to-0.12 checklist](migration-api-distinctions.md) and its linked guides preserve historical release context; their names and snippets do not describe this checkout.
+For 0.13, start with the [explicit API migration](migration-explicit-api.md). The [0.11-to-0.12 checklist](migration-api-distinctions.md) and its linked guides preserve historical release context; their names and snippets do not define the 0.13 API.
 
 - [Changelog](../CHANGELOG.md): changes and release history.
 - [Testing](testing.md): commands, coverage requirements, package/runtime checks.

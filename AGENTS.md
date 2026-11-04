@@ -6,7 +6,7 @@
 - **Finding a public contract:** [API reference](docs/reference.md), or [symbol index](docs/api-index.md) for exact supported names/signatures. [Documentation map](docs/index.md) links runnable examples.
 - **Changing this repository:** use the source/test map below and [testing guide](docs/testing.md).
 
-This checkout contains an **unreleased breaking API**; the unchanged `0.12.0` package version does not describe the new public names. Use the [explicit API migration](docs/migration-explicit-api.md) for released 0.12 to this checkout. Earlier migration guides are historical release context. Keep decision history in git and pull requests, not research notes, design plans, ADRs, or review packets. Establish behavior from source and behavioral tests and update the current guide when changing behavior.
+The current public API is **0.13.0**, a breaking release. Use the [explicit API migration](docs/migration-explicit-api.md) to upgrade from 0.12 to 0.13. Earlier migration guides are historical release context. Keep decision history in git and pull requests, not research notes, design plans, ADRs, or review packets. Establish behavior from source and behavioral tests and update the current guide when changing behavior.
 
 ## Scope and boundaries
 

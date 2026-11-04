@@ -383,7 +383,7 @@ for (const [name, location, contract, label, example] of semanticCases) {
   });
 }
 
-test('the header promises an example only where one exists and names the current checkout', () => {
+test('the header promises an example only where one exists and names the package release', () => {
   const text = render(
     { exports: entries, bindings: [], declarations: [] },
     stubSources(),
@@ -392,11 +392,17 @@ test('the header promises an example only where one exists and names the current
     text,
     /follow its owning contract and, where one exists, a runnable or related example\./,
   );
-  assert.match(
-    text,
-    /describe the unreleased explicit API in this source checkout\./,
+  const version = require('../package.json').version;
+  assert(
+    text.includes(
+      `These declarations describe the explicit API in CTT \`${version}\`.`,
+    ),
   );
-  assert.match(text, /released `0\.12\.0` API differs/);
+  assert.doesNotMatch(
+    text,
+    /unreleased|package version remains|checkout installation/,
+  );
+  assert.match(text, /0\.12-to-0\.13 migration/);
   assert.match(text, /migration-explicit-api\.md/);
 });
 

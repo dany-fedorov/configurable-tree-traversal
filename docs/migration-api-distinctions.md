@@ -1,6 +1,6 @@
 # Client API distinctions migration
 
-> Historical release guide: the tables and examples below describe the released 0.12 API and its earlier migration. They are not the API of this unreleased checkout. Start with the [explicit API migration](migration-explicit-api.md) to move from released 0.12 to this checkout; use the [current reference](reference.md) for the implemented contracts.
+> Historical release guide: the tables and examples below describe the released 0.12 API and its earlier migration. They are not the 0.13 API. Start with the [explicit API migration](migration-explicit-api.md) to move from 0.12 to 0.13; use the [current reference](reference.md) for the implemented contracts.
 
 [Documentation index](index.md) · [API reference](reference.md) · [Agent workflows](agent-workflows.md)
 
