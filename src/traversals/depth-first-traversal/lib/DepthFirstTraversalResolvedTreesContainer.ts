@@ -2,7 +2,7 @@ import { MutableValueReference } from '@core/CTTRef';
 import {
   MutableResolvedTreeStore,
   MutableTreeVertexTopologyRecord,
-  InternalChildDiscoveryContext,
+  MutableTreeChildDiscoveryContext,
 } from '@core/ResolvedTree';
 import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
@@ -24,7 +24,7 @@ export class DepthFirstTraversalResolvedTreesContainer<
   resolvedTree: MutableResolvedTreeStore<
     InputVertexTypes | RewrittenVertexTypes
   >;
-  preCommandDiscoveredTreeView: MutableResolvedTreeStore<InputVertexTypes> | null;
+  livePreCommandDiscoveredTreeView: MutableResolvedTreeStore<InputVertexTypes> | null;
   originalTreeRefsMap: OriginalTreeRefsMap<
     InputVertexTypes,
     RewrittenVertexTypes
@@ -52,11 +52,11 @@ export class DepthFirstTraversalResolvedTreesContainer<
         : new MutableResolvedTreeStore<
             InputVertexTypes | RewrittenVertexTypes
           >();
-    this.preCommandDiscoveredTreeView =
+    this.livePreCommandDiscoveredTreeView =
       cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
-        ?.preCommandDiscoveredTreeView != null
+        ?.livePreCommandDiscoveredTreeView != null
         ? cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
-            .preCommandDiscoveredTreeView
+            .livePreCommandDiscoveredTreeView
         : cfg.retainDiscoveredTreeBeforeVisitorCommands
         ? new MutableResolvedTreeStore<InputVertexTypes>()
         : null;
@@ -81,7 +81,7 @@ export class DepthFirstTraversalResolvedTreesContainer<
     const childDiscoveryContext =
       vertexResolved.getMutableChildDiscoveryContextOrNull();
     this.validateSavedResolutionContext(childDiscoveryContext);
-    if (this.preCommandDiscoveredTreeView && this.originalTreeRefsMap) {
+    if (this.livePreCommandDiscoveredTreeView && this.originalTreeRefsMap) {
       const vertex = (
         vertexHandle as MutableValueReference<Vertex<InputVertexTypes>>
       ).getReferencedValue();
@@ -115,18 +115,18 @@ export class DepthFirstTraversalResolvedTreesContainer<
         notMutatedVertexResolved.replaceChildDiscoveryContext(null);
       } else {
         const notMutatedVertexParentRef = this.originalTreeRefsMap.get(
-          childDiscoveryContext.parentVertexHandle,
+          childDiscoveryContext.parentVertexReference,
         )!;
         notMutatedVertexResolved.replaceChildDiscoveryContext({
           ...childDiscoveryContext,
-          parentVertexHandle: notMutatedVertexParentRef,
+          parentVertexReference: notMutatedVertexParentRef,
           parentVertexAtChildResolution:
             notMutatedVertexParentRef.getReferencedValue(),
         });
       }
       this.resolvedTree.setVertexRecord(vertexHandle, vertexResolved);
       this.originalTreeRefsMap.set(vertexHandle, notMutatedRef);
-      this.preCommandDiscoveredTreeView.setVertexRecord(
+      this.livePreCommandDiscoveredTreeView.setVertexRecord(
         notMutatedRef,
         notMutatedVertexResolved as MutableTreeVertexTopologyRecord<InputVertexTypes>,
       );
@@ -136,19 +136,19 @@ export class DepthFirstTraversalResolvedTreesContainer<
   }
 
   validateSavedResolutionContext(
-    childDiscoveryContext: InternalChildDiscoveryContext<
+    childDiscoveryContext: MutableTreeChildDiscoveryContext<
       InputVertexTypes | RewrittenVertexTypes
     > | null,
   ): void {
     if (
-      this.preCommandDiscoveredTreeView !== null &&
+      this.livePreCommandDiscoveredTreeView !== null &&
       this.originalTreeRefsMap !== null &&
       childDiscoveryContext !== null &&
-      !this.originalTreeRefsMap.has(childDiscoveryContext.parentVertexHandle)
+      !this.originalTreeRefsMap.has(childDiscoveryContext.parentVertexReference)
     ) {
       throw new Error(
         `Could not find not mutated parent ref - ${jsonStringifySafe(
-          childDiscoveryContext.parentVertexHandle,
+          childDiscoveryContext.parentVertexReference,
         )}`,
       );
     }
@@ -158,7 +158,7 @@ export class DepthFirstTraversalResolvedTreesContainer<
     vertexHandle: MutableValueReference<
       Vertex<InputVertexTypes | RewrittenVertexTypes>
     >,
-    vertexResolutionContext: InternalChildDiscoveryContext<
+    vertexResolutionContext: MutableTreeChildDiscoveryContext<
       InputVertexTypes | RewrittenVertexTypes
     > | null,
   ): void {
@@ -181,8 +181,8 @@ export class DepthFirstTraversalResolvedTreesContainer<
     this.resolvedTree.setRootVertexReference(vertexHandle);
     this.setWithResolutionContext(vertexHandle, null);
     const notMutatedRootRef = this.originalTreeRefsMap?.get(vertexHandle);
-    if (this.preCommandDiscoveredTreeView && notMutatedRootRef) {
-      this.preCommandDiscoveredTreeView.setRootVertexReference(
+    if (this.livePreCommandDiscoveredTreeView && notMutatedRootRef) {
+      this.livePreCommandDiscoveredTreeView.setRootVertexReference(
         notMutatedRootRef,
       );
     }
@@ -204,7 +204,7 @@ export class DepthFirstTraversalResolvedTreesContainer<
       Vertex<InputVertexTypes | RewrittenVertexTypes>
     >[],
   ): void {
-    if (this.preCommandDiscoveredTreeView && this.originalTreeRefsMap) {
+    if (this.livePreCommandDiscoveredTreeView && this.originalTreeRefsMap) {
       const nmParentVertexRef = this.originalTreeRefsMap?.get(parentVertexRef);
       if (nmParentVertexRef == null) {
         throw new Error(
@@ -214,7 +214,7 @@ export class DepthFirstTraversalResolvedTreesContainer<
         );
       }
       const nmParentVertexResolved =
-        this.preCommandDiscoveredTreeView.getMutableVertexRecordOrNull(
+        this.livePreCommandDiscoveredTreeView.getMutableVertexRecordOrNull(
           nmParentVertexRef,
         );
       if (nmParentVertexResolved == null) {

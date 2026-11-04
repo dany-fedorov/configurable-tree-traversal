@@ -68,13 +68,13 @@ for (const syntheticRoot of [false, true]) {
       const hiddenId = Symbol('root');
       container.acceptRoot(root, hiddenId);
       container.acceptVertex(child, id, [], {
-        parentVertexHandle: root,
+        parentVertexReference: root,
         parentVertexAtChildResolution: root.getReferencedValue(),
         discoveryDepthInEdges: 1,
         parentChildHintIndex: 0,
         childDiscoveryHint: 'child',
       });
-      const saved = container.preCommandDiscoveredGraphView!;
+      const saved = container.livePreCommandDiscoveredGraphView!;
       const savedChild = container.originalGraphRefsMap!.get(child)!;
       for (const [graph, expectedRef] of [
         [container.publicResolvedGraph, createVertexHandleFacet(child)],

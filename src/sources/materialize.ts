@@ -3,7 +3,7 @@ import {
   assertOptionalCallbacks,
   captureOptionFields,
 } from '@core/assertPublicOptions';
-import type { FoundDagSourceVertex } from '@core/TraversableTree';
+import type { ResolvedDagSourceVertex } from '@core/TraversableTree';
 import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
 import type {
@@ -35,7 +35,7 @@ export function materializedSource<Item, VertexId>(
   type SourceVertexTypes = VertexDataAndChildHintTypes<Item, VertexId>;
   const vertexResolved = (
     record: MaterializedRecord<Item, VertexId>,
-  ): FoundDagSourceVertex<SourceVertexTypes, VertexId> => ({
+  ): ResolvedDagSourceVertex<SourceVertexTypes, VertexId> => ({
     kind: 'vertexResolved',
     resolvedVertexInput: {
       vertexId: record.id,
@@ -62,7 +62,7 @@ export function materializedSource<Item, VertexId>(
           workWaitsForWorkOf: [],
           workWaitsForSubgraphCompletionOf: [],
         }),
-      resolveChildHint: (id: VertexId) => {
+      resolveChildVertexFromHint: (id: VertexId) => {
         const record = records.get(id);
         if (record === undefined)
           throw new TypeError('Structural child is absent from the collection');

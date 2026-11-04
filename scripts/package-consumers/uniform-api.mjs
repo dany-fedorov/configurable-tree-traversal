@@ -69,7 +69,7 @@ for (const [api, other] of [
   };
   const graphTree = {
     resolveRootVertex: () => found('root', ['leaf']),
-    resolveChildHint: (id) => found(id),
+    resolveChildVertexFromHint: (id) => found(id),
   };
   const families = [
     [
@@ -197,7 +197,7 @@ for (const [api, other] of [
       dagDiscoverySource: {
         resolveRootVertex: () =>
           found('root', [], { workWaitsForWorkOf: ['absent'] }),
-        resolveChildHint: (id) => found(id),
+        resolveChildVertexFromHint: (id) => found(id),
       },
     }).createIndependentRunnerFromCurrentOptions();
     if (asyncMode)
@@ -211,11 +211,11 @@ for (const [api, other] of [
         api.DagTraversalStallError,
       );
     const ignored = new TreeTraversal({
-      rootWorkPrerequisitePolicy: 'ignore',
+      rootWorkToWorkPrerequisitePolicy: 'ignore',
       dagDiscoverySource: {
         resolveRootVertex: () =>
           found('root', [], { workWaitsForWorkOf: ['absent'] }),
-        resolveChildHint: (id) => found(id),
+        resolveChildVertexFromHint: (id) => found(id),
       },
     }).createIndependentRunnerFromCurrentOptions();
     await ignored.runUntilSuspendedOrTerminal();
@@ -223,12 +223,12 @@ for (const [api, other] of [
 
     for (const inherit of [false, true]) {
       const traversal = new TreeTraversal({
-        undeclaredWorkPrerequisitePolicy: inherit
+        undeclaredWorkToWorkPrerequisitePolicy: inherit
           ? 'waitForDiscoveringParentWork'
           : 'none',
         dagDiscoverySource: graphTree,
       });
-      traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+      traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => ({
         commands: [
           {
             commandName:
@@ -286,7 +286,7 @@ for (const [api, other] of [
       const input = {
         dagDiscoverySource: {
           resolveRootVertex: () => found('owned'),
-          resolveChildHint: (id) => found(id),
+          resolveChildVertexFromHint: (id) => found(id),
         },
         get workCompletionPolicy() {
           return ++reads === 1
@@ -321,7 +321,7 @@ for (const [api, other] of [
       retainDiscoveredGraphBeforeVisitorCommands: true,
       dagDiscoverySource: {
         resolveRootVertex: () => found(undefined),
-        resolveChildHint: (id) => found(id),
+        resolveChildVertexFromHint: (id) => found(id),
       },
     }).createIndependentRunnerFromCurrentOptions();
     const deferredEvents = [];
@@ -346,7 +346,7 @@ for (const [api, other] of [
     assert.equal(graph.requireVertexId(ref), undefined);
     assert.equal('getIdOf' in graph, false);
     assert.equal('getVertexById' in graph, false);
-    const saved = external.preCommandDiscoveredGraphView;
+    const saved = external.livePreCommandDiscoveredGraphView;
     const savedRef = saved.getVertexHandleByIdOrNull(undefined);
     assert.equal(saved.requireVertexId(savedRef), undefined);
     assert.equal(savedRef, saved.getVertexHandleByIdOrNull(undefined));
@@ -400,17 +400,17 @@ for (const [api, other] of [
     const batched = new TreeTraversal({
       dagDiscoverySource: {
         resolveRootVertex: () => found('root'),
-        resolveChildHint: (id) => found(id),
+        resolveChildVertexFromHint: (id) => found(id),
       },
     });
-    batched.registerVisitorCallbackForPhase(
+    batched.registerVisitorForPhase(
       Order.ON_WORK_READY,
       (vertex) => {
         events.push(vertex.getVertexData());
       },
       { descendingExecutionPriorityWithinGroup: 1000 },
     );
-    batched.registerVisitorCallbackForPhase(
+    batched.registerVisitorForPhase(
       Order.ON_WORK_READY,
       () => {
         events.push('group');
@@ -428,7 +428,7 @@ for (const [api, other] of [
         descendingExecutionPriorityWithinGroup: 1,
       },
     );
-    batched.registerVisitorCallbackForPhase(
+    batched.registerVisitorForPhase(
       Order.ON_WORK_READY,
       (vertex) => {
         events.push(vertex.getVertexData());
@@ -485,10 +485,10 @@ for (const [api, other] of [
     const fatal = new TreeTraversal({
       dagDiscoverySource: {
         resolveRootVertex: () => found('fatal'),
-        resolveChildHint: (id) => found(id),
+        resolveChildVertexFromHint: (id) => found(id),
       },
     });
-    fatal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+    fatal.registerVisitorForPhase(Order.ON_WORK_READY, () => ({
       commands: [
         {
           commandName:
@@ -531,7 +531,7 @@ for (const [api, other] of [
             workWaitsForWorkOf: ['optional'],
             workWaitsForSubgraphCompletionOf: ['optional'],
           }),
-        resolveChildHint: (id) => found(id),
+        resolveChildVertexFromHint: (id) => found(id),
         resolvePrerequisiteByVertexId: () => ({
           omittedVertexIdentity: null,
           kind: 'vertexIntentionallyOmitted',
@@ -653,7 +653,7 @@ for (const api of [cjs, esm]) {
     resolveChildVertexFromHint: () => ({ kind: 'vertexIntentionallyOmitted' }),
   };
   const dag = new api.DagTraversalBuilder({ treeDiscoverySource: tree });
-  dag.registerVisitorCallbackForPhase(
+  dag.registerVisitorForPhase(
     api.DagVisitorPhase.ON_WORK_READY,
     () => ({
       commands: [
@@ -677,14 +677,14 @@ for (const api of [cjs, esm]) {
     () =>
       new api.DagTraversalBuilder({
         treeDiscoverySource: tree,
-        undeclaredWorkPrerequisitePolicy: 'none',
+        undeclaredWorkToWorkPrerequisitePolicy: 'none',
       }),
     /graph discovery source/,
   );
   const wrong = new api.DepthFirstTreeTraversalBuilder({
     treeDiscoverySource: tree,
   });
-  wrong.registerVisitorCallbackForPhase(
+  wrong.registerVisitorForPhase(
     api.DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
     () => ({
       commands: [

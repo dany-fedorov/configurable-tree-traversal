@@ -2,7 +2,7 @@ import {
   Vertex,
   MutableValueReference,
   runTreeDepthFirstUntilSuspendedOrTerminal,
-  type TreeVertexResolution,
+  type TreeSourceVertexResolution,
   type DagPrerequisiteLookupResult,
   type VisitorRegistrationDefinition,
   type DagSettlementOutcome,
@@ -35,9 +35,9 @@ graph.getIdOf(new MutableValueReference(vertex));
 // @ts-expect-error Removed graph forwarding alias.
 graph.getVertexById('id');
 // @ts-expect-error Untagged source results are unsupported.
-const found: TreeVertexResolution<T> = { vertexContent: vertex };
+const found: TreeSourceVertexResolution<T> = { vertexContent: vertex };
 // @ts-expect-error Untagged omission is unsupported.
-const omitted: TreeVertexResolution<T> = { vertexContent: null };
+const omitted: TreeSourceVertexResolution<T> = { vertexContent: null };
 // @ts-expect-error Missing prerequisite must be explicit.
 const missing: DagPrerequisiteLookupResult<T> = undefined;
 const visitor: VisitorRegistrationDefinition<() => void> = {

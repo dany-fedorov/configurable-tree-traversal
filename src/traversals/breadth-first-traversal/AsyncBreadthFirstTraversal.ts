@@ -84,7 +84,7 @@ export class AsyncBreadthFirstTreeTraversalBuilder<
     return this;
   }
 
-  registerVisitorCallbackForPhase<Phase extends BreadthFirstTreeVisitPhase>(
+  registerVisitorForPhase<Phase extends BreadthFirstTreeVisitPhase>(
     phase: Phase,
     visitor: AsyncTreeVertexPhaseVisitorCallback<
       InputVertexTypes,

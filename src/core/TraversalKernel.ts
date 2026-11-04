@@ -1,4 +1,4 @@
-import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext } from '@core/ResolvedTree';
 import {
   BreadthFirstPolicy,
   type BreadthFirstPolicyState,
@@ -171,7 +171,7 @@ export class TraversalKernel<
     DepthFirstFrame<T | R>
   >();
   private breadthPendingContext:
-    | import('@core/ResolvedTree').InternalChildDiscoveryContext<T | R>
+    | import('@core/ResolvedTree').MutableTreeChildDiscoveryContext<T | R>
     | null = null;
   private nextRequestId = 1;
   private nextOwnerId = 2;
@@ -199,8 +199,8 @@ export class TraversalKernel<
       options.container,
       options.acceptedCompletedWorkVertexIds,
       options.discoveryTiming === 'completeBeforeAnyVisitor',
-      options.rootWorkPrerequisitePolicy,
-      options.undeclaredWorkPrerequisitePolicy,
+      options.rootWorkToWorkPrerequisitePolicy,
+      options.undeclaredWorkToWorkPrerequisitePolicy,
     );
     this.prerequisites =
       options.hasPrerequisiteResolver === true
@@ -725,7 +725,7 @@ export class TraversalKernel<
             MAKE_VERTEX:
               this.options.sourceMode === 'tree'
                 ? ('resolveChildVertexFromHint' as const)
-                : ('resolveChildHint' as const),
+                : ('resolveChildVertexFromHint' as const),
             RESOLVE_PREREQUISITE: 'resolvePrerequisiteByVertexId' as const,
             SORT_HINTS: 'transformChildHintsBeforeResolution' as const,
             HINT_ID: 'tryGetVertexIdentityFromHint' as const,
@@ -832,7 +832,7 @@ export class TraversalKernel<
         )
         .map(({ ref, unmet, unmetComplete }) => ({
           vertexId: graph.requireVertexId(ref),
-          prerequisiteVertexIdsInReport: Array.from(
+          unmetPrerequisiteVertexIds: Array.from(
             new Set([...unmet, ...unmetComplete]),
           ),
         }));
@@ -1152,7 +1152,7 @@ export class TraversalKernel<
           this.scheduling.acceptVertex(completed.context, value);
           if (completed.closeParent) {
             this.scheduling.closeExpansion(
-              completed.context.parentVertexHandle,
+              completed.context.parentVertexReference,
             );
           }
           return;
@@ -1505,7 +1505,7 @@ export class TraversalKernel<
                 transportFrame.hintIds.get(index)!,
               );
               const slot = this.options.container.store.getTraversalSlots(
-                context.parentVertexHandle,
+                context.parentVertexReference,
               )?.[index];
               resolved = slot?.kind === 'linked';
               child = null;
@@ -1582,8 +1582,8 @@ export class TraversalKernel<
         if (this.options.execution === 'async') {
           return this.advanceDepthFirst(mode);
         }
-        const context: InternalChildDiscoveryContext<T | R> = {
-          parentVertexHandle: work.frame.vertexHandle,
+        const context: MutableTreeChildDiscoveryContext<T | R> = {
+          parentVertexReference: work.frame.vertexHandle,
           parentVertexAtChildResolution:
             work.frame.vertexHandle.getReferencedValue(),
           discoveryDepthInEdges: work.frame.depth + 1,
@@ -1626,7 +1626,7 @@ export class TraversalKernel<
       if (this.breadthPendingContext !== null) {
         const context = this.breadthPendingContext;
         const frame = Array.from(this.frames.values()).find(
-          (candidate) => candidate.ref === context.parentVertexHandle,
+          (candidate) => candidate.ref === context.parentVertexReference,
         )!;
         const outcome = frame.outcomes.get(context.parentChildHintIndex);
         if (outcome === undefined) return null;
@@ -1644,7 +1644,7 @@ export class TraversalKernel<
           this.frames.delete(frame.owner.runnerLocalOwnerId);
         }
         if (completed.closeParent) {
-          this.scheduling.closeExpansion(completed.context.parentVertexHandle);
+          this.scheduling.closeExpansion(completed.context.parentVertexReference);
         }
         return 'PROGRESSED';
       }
@@ -1703,7 +1703,7 @@ export class TraversalKernel<
       case 'MAKE_VERTEX': {
         if (this.options.execution === 'async') {
           const frame = Array.from(this.frames.values()).find(
-            (candidate) => candidate.ref === work.context.parentVertexHandle,
+            (candidate) => candidate.ref === work.context.parentVertexReference,
           )!;
           policy.startResolution(frame.owner, work.context);
           this.breadthPendingContext = work.context;
@@ -1807,11 +1807,11 @@ export class TraversalKernel<
       while (frame.nextConsumeIndex < frame.hints.length) {
         if (this.hasPendingFor(frame.owner)) return null;
         const index = frame.nextConsumeIndex;
-        const context: InternalChildDiscoveryContext<T | R> = {
+        const context: MutableTreeChildDiscoveryContext<T | R> = {
           discoveryDepthInEdges:
             this.options.container.store.getDiscoveryDepth(frame.ref) + 1,
           parentVertexAtChildResolution: frame.ref.getReferencedValue(),
-          parentVertexHandle: frame.ref,
+          parentVertexReference: frame.ref,
           parentChildHintIndex: index,
           childDiscoveryHint: frame.hints[index]!,
         };
@@ -1872,11 +1872,11 @@ export class TraversalKernel<
         )
           return null;
         frame.nextAdmissionIndex += 1;
-        const context: InternalChildDiscoveryContext<T | R> = {
+        const context: MutableTreeChildDiscoveryContext<T | R> = {
           discoveryDepthInEdges:
             this.options.container.store.getDiscoveryDepth(frame.ref) + 1,
           parentVertexAtChildResolution: frame.ref.getReferencedValue(),
-          parentVertexHandle: frame.ref,
+          parentVertexReference: frame.ref,
           parentChildHintIndex: index,
           childDiscoveryHint: frame.hints[index]!,
         };
@@ -1947,7 +1947,7 @@ export class TraversalKernel<
       frame.contexts.set(index, {
         discoveryDepthInEdges: frame.depth + 1,
         parentVertexAtChildResolution: parentVertex,
-        parentVertexHandle: frame.ref,
+        parentVertexReference: frame.ref,
         parentChildHintIndex: index,
         childDiscoveryHint: frame.hints[index]!,
       });

@@ -5,7 +5,7 @@ import type {
   GraphWalkEventForObservationKind,
 } from './GraphWalkEvent';
 import type { GraphWalkObservationKind } from './GraphWalkPhase';
-import type { GraphWalkInspection } from './lib/GraphWalkInspection';
+import type { GraphWalkExecutionSnapshot } from './lib/GraphWalkExecutionSnapshot';
 import type { GraphWalkProgressSnapshot } from './lib/GraphWalkSummary';
 import type { GraphWalkResolvedOptions } from './lib/normalizeWalkOptions';
 import { SyncWalkSession } from './lib/SyncWalkSession';
@@ -15,7 +15,7 @@ export interface GraphWalkRunner<VertexData, EdgeData, VertexId>
   extends SyncTraversalExecution<
     GraphWalkObservationKind,
     GraphWalkEvent<VertexData, EdgeData, VertexId>,
-    GraphWalkInspection,
+    GraphWalkExecutionSnapshot,
     `${GraphWalkObservationKind}`
   > {
   runAndIterateObservationEventsUntilSuspendedOrTerminal: {

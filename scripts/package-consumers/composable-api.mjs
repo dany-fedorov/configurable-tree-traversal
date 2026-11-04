@@ -227,7 +227,7 @@ for (const api of [cjs, esm]) {
         ? {
             dagDiscoverySource: {
               resolveRootVertex: () => found('root'),
-              resolveChildHint: () => found('unused'),
+              resolveChildVertexFromHint: () => found('unused'),
             },
           }
         : { treeDiscoverySource: tree },
@@ -294,7 +294,7 @@ for (const api of [cjs, esm]) {
           ? {
               dagDiscoverySource: {
                 resolveRootVertex: resolveRootVertex,
-                resolveChildHint: () => found('unused'),
+                resolveChildVertexFromHint: () => found('unused'),
               },
             }
           : {
@@ -395,7 +395,7 @@ for (const api of [cjs, esm]) {
           : {
               dagDiscoverySource: {
                 resolveRootVertex: () => found('root'),
-                resolveChildHint: () => found('unused'),
+                resolveChildVertexFromHint: () => found('unused'),
               },
             };
       const fresh = new TreeTraversal(
@@ -439,7 +439,7 @@ for (const api of [cjs, esm]) {
           kind: 'vertexIntentionallyOmitted',
           satisfiesWorkAndSubgraphCompletionPrerequisites: true,
         }),
-        resolveChildHint: () => found('unused'),
+        resolveChildVertexFromHint: () => found('unused'),
       },
     }).createIndependentRunnerFromCurrentOptions();
     await empty.discoverValidateAndFreezeTopology();
@@ -450,7 +450,7 @@ for (const api of [cjs, esm]) {
       acceptedCompletedWorkVertexIds: new Set(['root']),
       dagDiscoverySource: {
         resolveRootVertex: () => found('root'),
-        resolveChildHint: () => found('unused'),
+        resolveChildVertexFromHint: () => found('unused'),
       },
     }).createIndependentRunnerFromCurrentOptions();
     await seeded.discoverValidateAndFreezeTopology();
@@ -485,7 +485,7 @@ for (const api of [cjs, esm]) {
                       ? { workWaitsForWorkOf: [42] }
                       : {},
                   ),
-            resolveChildHint: inherited,
+            resolveChildVertexFromHint: inherited,
             resolvePrerequisiteByVertexId: inherited,
           },
         }).createIndependentRunnerFromCurrentOptions();
@@ -505,7 +505,7 @@ for (const api of [cjs, esm]) {
               vertexContentInput: instance.vertexContentInput,
             },
           }),
-          resolveChildHint: () => found('unused'),
+          resolveChildVertexFromHint: () => found('unused'),
         },
       }).createIndependentRunnerFromCurrentOptions();
       await own.runUntilSuspendedOrTerminal();
@@ -526,7 +526,7 @@ for (const api of [cjs, esm]) {
               vertexContentInput: { $vertexData: '', $childDiscoveryHints: [] },
             },
           }),
-          resolveChildHint: () => found('unused'),
+          resolveChildVertexFromHint: () => found('unused'),
         },
       }).createIndependentRunnerFromCurrentOptions();
       await exactThrow(
@@ -548,7 +548,7 @@ for (const api of [cjs, esm]) {
               : new Inherited();
           },
         }),
-        resolveChildHint: () => found('unused'),
+        resolveChildVertexFromHint: () => found('unused'),
       },
     }).createIndependentRunnerFromCurrentOptions();
     await captured.runUntilSuspendedOrTerminal();
@@ -570,7 +570,7 @@ for (const api of [cjs, esm]) {
             workWaitsForWorkOf: [missing],
             workWaitsForSubgraphCompletionOf: [missingCompletion],
           }),
-        resolveChildHint: (hint) => found(hint),
+        resolveChildVertexFromHint: (hint) => found(hint),
       },
     }).createIndependentRunnerFromCurrentOptions();
     let failure;
@@ -654,7 +654,7 @@ for (const api of [cjs, esm]) {
         await gate;
         return found('root');
       },
-      resolveChildHint: () => found('unused'),
+      resolveChildVertexFromHint: () => found('unused'),
     },
   }).createIndependentRunnerFromCurrentOptions();
   let preparationSettled = false;

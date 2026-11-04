@@ -115,21 +115,21 @@ describe('breadth-first traversal', () => {
   test('orders visitors by priority and preserves them across configure', () => {
     const { traversal } = setup(node('root'));
     const visits: string[] = [];
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       () => {
         visits.push('low');
       },
       { descendingExecutionPriorityWithinGroup: 1 },
     );
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       () => {
         visits.push('high-first');
       },
       { descendingExecutionPriorityWithinGroup: 2 },
     );
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       () => {
         visits.push('high-second');
@@ -140,7 +140,7 @@ describe('breadth-first traversal', () => {
       transformChildHintsBeforeResolution: null,
     });
     const runner = traversal.createIndependentRunnerFromCurrentOptions();
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       () => {
         visits.push('late');
@@ -152,7 +152,7 @@ describe('breadth-first traversal', () => {
 
   test('rewrites hints before children are scheduled', () => {
     const { traversal } = setup(node('root', node('old'), node('sibling')));
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       (vertex) =>
         vertex.getVertexData() === 'root'
@@ -180,7 +180,7 @@ describe('breadth-first traversal', () => {
       const { traversal } = setup(
         node('root', node('branch', node('hidden')), node('sibling')),
       );
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         Order.AT_LEVEL_ORDER_VERTEX,
         (vertex) =>
           vertex.getVertexData() === 'branch'
@@ -214,7 +214,7 @@ describe('breadth-first traversal', () => {
 
   test('deleting the root skips all child resolution and clears the resolved root', () => {
     const { traversal, calls } = setup(node('root', node('hidden')));
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       () => ({
         commands: [
@@ -238,7 +238,7 @@ describe('breadth-first traversal', () => {
   test('halts with no yielded orders and resumes the remaining visitor chain', () => {
     const { traversal } = setup(node('root', node('child')));
     const visits: string[] = [];
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       (vertex) => {
         visits.push(`first:${vertex.getVertexData()}`);
@@ -254,7 +254,7 @@ describe('breadth-first traversal', () => {
           : undefined;
       },
     );
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       (vertex) => {
         visits.push(`second:${vertex.getVertexData()}`);
@@ -278,7 +278,7 @@ describe('breadth-first traversal', () => {
     const { traversal } = setup(node('root'));
     const visits: number[] = [];
     for (let index = 0; index < 3; index++) {
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         Order.AT_LEVEL_ORDER_VERTEX,
         () => {
           visits.push(index);
@@ -306,7 +306,7 @@ describe('breadth-first traversal', () => {
   test('applies new iterable filters after a consumer break', () => {
     const { traversal } = setup(node('root', node('child')));
     const visits: string[] = [];
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       (vertex) => {
         visits.push(vertex.getVertexData());
@@ -337,7 +337,7 @@ describe('breadth-first traversal', () => {
   test('shares concurrent snapshots and sequential chain state semantics', () => {
     const { traversal } = setup(node('root'));
     const seen: unknown[] = [];
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       (vertex) => {
         seen.push(vertex.getVertexData());
@@ -352,14 +352,14 @@ describe('breadth-first traversal', () => {
       },
       { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
     );
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       (vertex) => {
         seen.push(vertex.getVertexData());
       },
       { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
     );
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       (vertex) => {
         seen.push(vertex.getVertexData());
@@ -373,7 +373,7 @@ describe('breadth-first traversal', () => {
         };
       },
     );
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       (_vertex, options) => {
         seen.push(options.currentVertexPhaseChainState);
@@ -391,7 +391,7 @@ describe('breadth-first traversal', () => {
     traversal.patchOptionsForFutureRunners({
       retainDiscoveredTreeBeforeVisitorCommands: true,
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       (vertex, options) => {
         if (vertex.getVertexData() === 'root') {
@@ -414,7 +414,7 @@ describe('breadth-first traversal', () => {
             ],
           };
         }
-        const saved = options.preCommandDiscoveredTreeView;
+        const saved = options.livePreCommandDiscoveredTreeView;
         const savedRoot = saved?.getRootVertexHandleOrNull();
         savedLabels = savedRoot
           ? [
@@ -451,7 +451,7 @@ describe('breadth-first traversal', () => {
     first.return?.(undefined);
 
     const { traversal } = setup(node('root'));
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       () => {
         throw new Error('visitor failed');
@@ -488,7 +488,7 @@ describe('breadth-first traversal', () => {
     );
     const { traversal } = setup(root);
     let count = 0;
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.AT_LEVEL_ORDER_VERTEX,
       () => {
         count++;

@@ -67,7 +67,7 @@ void [sameFunction, sameResult];
 const typedStall: dag.DagTraversalStallError<ID> =
   new DagTraversalStallError<ID>({
     blockedVertexPrerequisiteReports: [
-      { vertexId: 'review', prerequisiteVertexIdsInReport: ['build'] },
+      { vertexId: 'review', unmetPrerequisiteVertexIds: ['build'] },
     ],
     unresolvedPrerequisiteVertexIds: [],
     milestoneCycleVertexIdComponents: [],
@@ -101,7 +101,7 @@ const heterogeneousStall = new DagTraversalStallError({
   blockedVertexPrerequisiteReports: [
     {
       vertexId: { task: 'root' },
-      prerequisiteVertexIdsInReport: [undefined, null, NaN],
+      unmetPrerequisiteVertexIds: [undefined, null, NaN],
     },
   ],
   unresolvedPrerequisiteVertexIds: [undefined, null, NaN],

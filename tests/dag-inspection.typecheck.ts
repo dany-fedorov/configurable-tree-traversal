@@ -203,7 +203,7 @@ void declaredExplanation;
 const typedStall: dag.DagTraversalStallError<ID> =
   new core.DagTraversalStallError<ID>({
     blockedVertexPrerequisiteReports: [
-      { vertexId: 'review', prerequisiteVertexIdsInReport: ['work'] },
+      { vertexId: 'review', unmetPrerequisiteVertexIds: ['work'] },
     ],
     unresolvedPrerequisiteVertexIds: [],
     milestoneCycleVertexIdComponents: [],
@@ -214,7 +214,7 @@ const stallId: ID =
   typedStall.diagnostics.blockedVertexPrerequisiteReports[0]!.vertexId;
 const stallWait: ID =
   typedStall.diagnostics.blockedVertexPrerequisiteReports[0]!
-    .prerequisiteVertexIdsInReport[0]!;
+    .unmetPrerequisiteVertexIds[0]!;
 const stallEdgeId: ID | undefined =
   typedStall.diagnostics.originalMilestoneConstraints[0]?.prerequisiteMilestone
     .vertexId;
@@ -227,7 +227,7 @@ const wrongStall: DagTraversalStallError<'other'> = typedStall;
 const invalidStall = new DagTraversalStallError<ID>({
   blockedVertexPrerequisiteReports: [
     // @ts-expect-error Constructor diagnostics retain the chosen ID domain.
-    { vertexId: 'other', prerequisiteVertexIdsInReport: [] },
+    { vertexId: 'other', unmetPrerequisiteVertexIds: [] },
   ],
   unresolvedPrerequisiteVertexIds: [],
   milestoneCycleVertexIdComponents: [],
@@ -255,7 +255,7 @@ const heterogeneousStall = new DagTraversalStallError({
   blockedVertexPrerequisiteReports: [
     {
       vertexId: { task: 'root' },
-      prerequisiteVertexIdsInReport: [undefined, null, NaN],
+      unmetPrerequisiteVertexIds: [undefined, null, NaN],
     },
   ],
   unresolvedPrerequisiteVertexIds: [undefined, null, NaN],

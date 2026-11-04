@@ -1,7 +1,7 @@
 import {
   AsyncDagTraversalBuilder,
   DagVisitorPhase as Order,
-  type FoundDagSourceVertex,
+  type ResolvedDagSourceVertex,
   type VertexDataAndChildHintTypes,
 } from '../src';
 import assert from 'node:assert/strict';
@@ -19,7 +19,7 @@ const moduleRegistry = {
     return modules.get(id);
   },
 };
-const generatedStep = (id: string): FoundDagSourceVertex<ModuleGraph> => ({
+const generatedStep = (id: string): ResolvedDagSourceVertex<ModuleGraph> => ({
   kind: 'vertexResolved' as const,
   resolvedVertexInput: {
     vertexId: id,
@@ -41,7 +41,7 @@ async function main() {
           vertexContentInput: { $vertexData: 'app', $childDiscoveryHints: [] },
         },
       }),
-      resolveChildHint: generatedStep,
+      resolveChildVertexFromHint: generatedStep,
       resolvePrerequisiteByVertexId: async (id) => {
         if (typeof id !== 'string') return { kind: 'missing' };
         const definition = await moduleRegistry.find(id);
@@ -61,7 +61,7 @@ async function main() {
       },
     },
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
     events.push(vertex.getVertexData());
   });
   const runner = traversal.createIndependentRunnerFromCurrentOptions();

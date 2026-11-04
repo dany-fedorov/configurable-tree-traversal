@@ -395,7 +395,7 @@ export class GraphStore<InputVertexTypes extends VertexDataAndChildHintTypes>
     if (context === undefined || context === null) return [];
     return [
       {
-        parentRef: context.parentVertexHandle,
+        parentRef: context.parentVertexReference,
         childRef: ref,
         hintIndex: context.parentChildHintIndex,
         hint: context.childDiscoveryHint,

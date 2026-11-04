@@ -1,7 +1,7 @@
 import type { VertexHandle } from '@core/CTTRef';
 import type {
   LiveResolvedGraphView,
-  PreCommandDiscoveredGraphView,
+  LivePreCommandDiscoveredGraphView,
 } from '@core/ResolvedGraphView';
 import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { VertexView } from '@core/Vertex';
@@ -22,7 +22,7 @@ export type DagVisitorContext<
     SourceVertexTypes | RewrittenVertexTypes,
     VertexId
   >;
-  preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<
+  livePreCommandDiscoveredGraphView: LivePreCommandDiscoveredGraphView<
     SourceVertexTypes,
     VertexId
   > | null;

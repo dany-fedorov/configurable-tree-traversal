@@ -4,7 +4,7 @@ import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
 import { dependencyMilestones } from './dependencyMilestones';
 import { MutableValueReference } from '@core/CTTRef';
-import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext } from '@core/ResolvedTree';
 import type { MakeVertexResult } from '@core/TraversableTree';
 import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import { Vertex } from '@core/Vertex';
@@ -74,8 +74,8 @@ export class GraphScheduling<
     >,
     acceptedCompletedWorkVertexIds?: ReadonlySet<VertexId>,
     private eager = false,
-    private readonly rootWorkPrerequisitePolicy: 'honor' | 'ignore' = 'honor',
-    private readonly undeclaredWorkPrerequisitePolicy:
+    private readonly rootWorkToWorkPrerequisitePolicy: 'honor' | 'ignore' = 'honor',
+    private readonly undeclaredWorkToWorkPrerequisitePolicy:
       | 'none'
       | 'waitForDiscoveringParentWork' = 'none',
   ) {
@@ -405,7 +405,7 @@ export class GraphScheduling<
         : this.makeUniqueRef(result.vertexContent);
     const blockedVertexPrerequisiteReports =
       this.container.sourceMode === 'graph' &&
-      this.rootWorkPrerequisitePolicy === 'honor' &&
+      this.rootWorkToWorkPrerequisitePolicy === 'honor' &&
       !this.container.syntheticRoot
         ? Array.from(new Set(result.workWaitsForWorkOf))
         : [];
@@ -436,7 +436,7 @@ export class GraphScheduling<
   }
 
   acceptVertex(
-    context: InternalChildDiscoveryContext<
+    context: MutableTreeChildDiscoveryContext<
       InputVertexTypes | RewrittenVertexTypes
     >,
     result: MakeVertexResult<InputVertexTypes>,
@@ -459,13 +459,13 @@ export class GraphScheduling<
         : this.findExistingTreeChild(context);
     if (existingTreeChild !== null) {
       this.container.acceptEdge(
-        context.parentVertexHandle,
+        context.parentVertexReference,
         context.parentChildHintIndex,
         existingTreeChild,
         true,
       );
       this.noteLinkedSlot(
-        context.parentVertexHandle,
+        context.parentVertexReference,
         context.parentChildHintIndex,
       );
       this.enrollExisting(existingTreeChild);
@@ -478,7 +478,7 @@ export class GraphScheduling<
       : hintHasId
       ? hintIdentity.vertexId
       : undefined;
-    if (context.parentVertexHandle === this.container.syntheticRootRef) {
+    if (context.parentVertexReference === this.container.syntheticRootRef) {
       if (!hasSuppliedId)
         throw new TypeError('Catalog entries require explicit vertex IDs');
       const previous = this.catalogIds.get(suppliedId);
@@ -493,7 +493,7 @@ export class GraphScheduling<
 
     if (known?.kind === 'deleted') {
       this.closeSlot(
-        context.parentVertexHandle,
+        context.parentVertexReference,
         context.parentChildHintIndex,
         'deleted',
       );
@@ -501,7 +501,7 @@ export class GraphScheduling<
     }
     if (known?.kind === 'omitted') {
       this.closeSlot(
-        context.parentVertexHandle,
+        context.parentVertexReference,
         context.parentChildHintIndex,
         'omitted',
         {
@@ -512,12 +512,12 @@ export class GraphScheduling<
     }
     if (known?.kind === 'live') {
       this.container.acceptEdge(
-        context.parentVertexHandle,
+        context.parentVertexReference,
         context.parentChildHintIndex,
         known.ref,
       );
       this.noteLinkedSlot(
-        context.parentVertexHandle,
+        context.parentVertexReference,
         context.parentChildHintIndex,
       );
       return known.ref;
@@ -527,7 +527,7 @@ export class GraphScheduling<
         this.acceptOmission(suppliedId);
       }
       this.closeSlot(
-        context.parentVertexHandle,
+        context.parentVertexReference,
         context.parentChildHintIndex,
         'omitted',
         hasSuppliedId ? { vertexId: suppliedId } : undefined,
@@ -557,7 +557,7 @@ export class GraphScheduling<
     ) {
       this.container.store.markDeleted(accepted.id);
       this.closeSlot(
-        context.parentVertexHandle,
+        context.parentVertexReference,
         context.parentChildHintIndex,
         'deleted',
       );
@@ -572,12 +572,12 @@ export class GraphScheduling<
       completeDependencies,
     );
     this.container.acceptEdge(
-      context.parentVertexHandle,
+      context.parentVertexReference,
       context.parentChildHintIndex,
       accepted.ref,
     );
     this.noteLinkedSlot(
-      context.parentVertexHandle,
+      context.parentVertexReference,
       context.parentChildHintIndex,
     );
     this.register(
@@ -657,7 +657,7 @@ export class GraphScheduling<
   }
 
   acceptKnownHint(
-    context: InternalChildDiscoveryContext<
+    context: MutableTreeChildDiscoveryContext<
       InputVertexTypes | RewrittenVertexTypes
     >,
     hintIdentity: ChildHintVertexIdentity,
@@ -705,27 +705,27 @@ export class GraphScheduling<
   }
 
   restoreConsumedTreeSlot(
-    context: InternalChildDiscoveryContext<
+    context: MutableTreeChildDiscoveryContext<
       InputVertexTypes | RewrittenVertexTypes
     >,
   ): void {
     const child = this.findExistingTreeChild(context);
     if (child === null) {
       this.closeSlot(
-        context.parentVertexHandle,
+        context.parentVertexReference,
         context.parentChildHintIndex,
         'omitted',
       );
       return;
     }
     this.container.acceptEdge(
-      context.parentVertexHandle,
+      context.parentVertexReference,
       context.parentChildHintIndex,
       child,
       true,
     );
     this.noteLinkedSlot(
-      context.parentVertexHandle,
+      context.parentVertexReference,
       context.parentChildHintIndex,
     );
     this.container.store.setVisitStage(child, 'COMPLETION_VISIT_COMMITTED');
@@ -981,14 +981,14 @@ export class GraphScheduling<
     const blockedVertexPrerequisiteReports = stall.dependencies.map(
       ({ id, missing }) => ({
         vertexId: id,
-        prerequisiteVertexIdsInReport: missing.slice(),
+        unmetPrerequisiteVertexIds: missing.slice(),
       }),
     );
     const unknown = new Set<VertexId>();
     for (const {
-      prerequisiteVertexIdsInReport,
+      unmetPrerequisiteVertexIds,
     } of blockedVertexPrerequisiteReports) {
-      for (const dependency of prerequisiteVertexIdsInReport) {
+      for (const dependency of unmetPrerequisiteVertexIds) {
         if (this.container.store.getIdState(dependency) === undefined)
           unknown.add(dependency);
       }
@@ -1084,7 +1084,7 @@ export class GraphScheduling<
   }
 
   private getDependencies(
-    context: InternalChildDiscoveryContext<
+    context: MutableTreeChildDiscoveryContext<
       InputVertexTypes | RewrittenVertexTypes
     >,
     result: MakeVertexResult<InputVertexTypes>,
@@ -1092,29 +1092,29 @@ export class GraphScheduling<
     const declared = result.workWaitsForWorkOf;
     if (declared !== undefined) return Array.from(new Set(declared));
     return (this.container.sourceMode === 'graph' &&
-      this.undeclaredWorkPrerequisitePolicy === 'none') ||
-      context.parentVertexHandle === this.container.syntheticRootRef
+      this.undeclaredWorkToWorkPrerequisitePolicy === 'none') ||
+      context.parentVertexReference === this.container.syntheticRootRef
       ? []
       : [
           this.container.liveResolvedGraphView.requireVertexId(
-            context.parentVertexHandle,
+            context.parentVertexReference,
           ),
         ];
   }
 
   private findExistingTreeChild(
-    context: InternalChildDiscoveryContext<
+    context: MutableTreeChildDiscoveryContext<
       InputVertexTypes | RewrittenVertexTypes
     >,
   ): InternalVertexRef<InputVertexTypes | RewrittenVertexTypes> | null {
     const candidates = this.reusableTreeChildren.get(
-      context.parentVertexHandle,
+      context.parentVertexReference,
     );
     const candidate = candidates?.get(context.parentChildHintIndex);
     if (candidate === undefined) return null;
     candidates!.delete(context.parentChildHintIndex);
     if (candidates!.size === 0) {
-      this.reusableTreeChildren.delete(context.parentVertexHandle);
+      this.reusableTreeChildren.delete(context.parentVertexReference);
     }
     return sameVertexId(candidate.hint, context.childDiscoveryHint)
       ? candidate.ref
@@ -1136,7 +1136,7 @@ export class GraphScheduling<
     for (const child of tree.getDetachedChildReferenceListOrNull(parent)!) {
       const context = tree.getDetachedChildDiscoveryContextOrNull(child);
       if (
-        context?.parentVertexHandle === parent &&
+        context?.parentVertexReference === parent &&
         !candidates.has(context.parentChildHintIndex)
       ) {
         candidates.set(context.parentChildHintIndex, {

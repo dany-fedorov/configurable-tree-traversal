@@ -23,8 +23,8 @@ export function prepareDagSource<
   assertPreparedOptions(input, [
     'dagDiscoverySource',
     'sourceRootIsHiddenEntryHolder',
-    'rootWorkPrerequisitePolicy',
-    'undeclaredWorkPrerequisitePolicy',
+    'rootWorkToWorkPrerequisitePolicy',
+    'undeclaredWorkToWorkPrerequisitePolicy',
   ]);
   const captured = capturePreparedSource<SourceVertexTypes, VertexId>(
     input.dagDiscoverySource,
@@ -63,7 +63,7 @@ export function prepareDagSource<
         VertexId
       >,
       captured.candidates,
-      input.rootWorkPrerequisitePolicy ?? 'honor',
+      input.rootWorkToWorkPrerequisitePolicy ?? 'honor',
       authoredDefinition,
     ),
   };

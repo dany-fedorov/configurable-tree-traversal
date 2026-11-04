@@ -51,7 +51,7 @@ for (const revisit of [
   assert.deepEqual(
     outcome,
     revisit === 'allVertexSimpleRoutePrefixes'
-      ? { kind: 'sourceRoutesExhausted' }
+      ? { kind: 'explorationExhausted' }
       : { kind: 'traversalLimitsReached', reachedLimits: ['maxRouteHopDepth'] },
   );
   console.log(

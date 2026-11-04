@@ -7,7 +7,7 @@ import {
   type DagRevisionResult,
   type DagDefinitionChangeAspect,
   type DagDefinitionDiff,
-  type DagDefinitionVertexChange,
+  type DagVertexDeclarationChange,
 } from '../src';
 import {
   diffDagDefinitionDeclarationsShallowly as subpathDiff,
@@ -48,7 +48,7 @@ const diff: DagDefinitionDiff<ID> = diffDagDefinitionDeclarationsShallowly(
 );
 const inferredId: ID = diffDagDefinitionDeclarationsShallowly(before, after)
   .changedVertexDeclarations[0]!.vertexId;
-const changed: DagDefinitionVertexChange<ID> =
+const changed: DagVertexDeclarationChange<ID> =
   diff.changedVertexDeclarations[0]!;
 const aspect: DagDefinitionChangeAspect = changed.changedDeclarationFields[0]!;
 // @ts-expect-error Diff identities retain the caller's domain.
@@ -154,11 +154,11 @@ if (prepared.kind === 'valid') {
     { kind: 'replaceOmittedVertexIds', omittedVertexIds: ['wrong'] },
   ]);
   if (revision.kind === 'valid') {
-    const revisedID: ID = revision.changes.addedVertexDeclarationIds[0]!;
+    const revisedID: ID = revision.declarationDiff.addedVertexDeclarationIds[0]!;
     const data: number =
       revision.validatedTopology.definition.vertexDeclarations[0]!.data;
     // @ts-expect-error Inferred result IDs retain the prepared domain.
-    const wrongID: string = revision.changes.removedVertexDeclarationIds[0]!;
+    const wrongID: string = revision.declarationDiff.removedVertexDeclarationIds[0]!;
     // @ts-expect-error Fresh empty batches retain the data domain too.
     const wrongData: string =
       emptyRevision.kind === 'valid'

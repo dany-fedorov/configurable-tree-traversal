@@ -58,10 +58,10 @@ for (const create of [
 ])
   test('tree live and original path option bags are strict and detached', async () => {
     const traversal = create();
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
       (_vertex, context) => {
-        const view = context.preCommandDiscoveredTreeView!;
+        const view = context.livePreCommandDiscoveredTreeView!;
         verifyQuery((options) =>
           view.requireStructuralAncestorPathTo(
             view.getRootVertexHandleOrNull()!,
@@ -95,7 +95,7 @@ const graph = {
       vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] },
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     omittedVertexIdentity: null,
     kind: 'vertexIntentionallyOmitted' as const,
     satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -118,7 +118,7 @@ for (const create of [
     await runner.runUntilSuspendedOrTerminal();
     for (const view of [
       runner.getLiveResolvedGraphView(),
-      runner.preCommandDiscoveredGraphView!,
+      runner.livePreCommandDiscoveredGraphView!,
     ]) {
       const root = view.getDesignatedRootHandleOrNull()!;
       verifyQuery((options) =>
@@ -183,7 +183,7 @@ test('graph query controls read accessors once across multiple paths', () => {
     retainDiscoveredGraphBeforeVisitorCommands: true,
     dagDiscoverySource: {
       resolveRootVertex: () => found('root'),
-      resolveChildHint: (hint) => found(hint),
+      resolveChildVertexFromHint: (hint) => found(hint),
       tryGetVertexIdentityFromHint: (vertexId) => ({ vertexId }),
     },
   })
@@ -191,7 +191,7 @@ test('graph query controls read accessors once across multiple paths', () => {
     .runUntilSuspendedOrTerminal();
   for (const view of [
     runner.getLiveResolvedGraphView(),
-    runner.preCommandDiscoveredGraphView!,
+    runner.livePreCommandDiscoveredGraphView!,
   ]) {
     const leaf = view.getVertexHandleByIdOrNull('leaf')!;
     let rootReads = 0;

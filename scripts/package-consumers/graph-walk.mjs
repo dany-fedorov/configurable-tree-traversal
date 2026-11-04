@@ -97,7 +97,7 @@ for (const entry of entries)
   );
 assert.equal(
   sync.captureProgressSnapshot().terminalOutcome.kind,
-  'sourceRoutesExhausted',
+  'explorationExhausted',
 );
 assert.equal(
   sync.captureProgressSnapshot().counts.resolvedFoundVertexIdCount,
@@ -411,7 +411,7 @@ assert.deepEqual(relations, [
 ]);
 assert.equal(
   dagWalk.captureProgressSnapshot().terminalOutcome.kind,
-  'sourceRoutesExhausted',
+  'explorationExhausted',
 );
 const syncDagWalk = cjsWalking.createAndRunGraphWalkUntilSuspendedOrTerminal({
   graphWalkDiscoverySource: projected,

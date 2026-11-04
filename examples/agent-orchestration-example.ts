@@ -32,7 +32,7 @@ function reconstruct() {
           },
         };
       },
-      resolveChildHint: (id) => {
+      resolveChildVertexFromHint: (id) => {
         sourceCalls += 1;
         return {
           kind: 'vertexResolved',

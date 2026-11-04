@@ -1,6 +1,6 @@
 import type {
   LiveResolvedGraphView,
-  PreCommandDiscoveredGraphView,
+  LivePreCommandDiscoveredGraphView,
 } from '@core/ResolvedGraphView';
 import type { ChildDiscoveryContext } from '@core/ResolvedTree';
 import type {
@@ -31,7 +31,7 @@ export type DagChildResolutionContext<
     SourceVertexTypes | RewrittenVertexTypes,
     VertexId
   >;
-  preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<
+  livePreCommandDiscoveredGraphView: LivePreCommandDiscoveredGraphView<
     SourceVertexTypes,
     VertexId
   > | null;
@@ -50,7 +50,7 @@ export interface DagDiscoverySource<
     SourceVertexTypes,
     VertexId
   >;
-  resolveChildHint: (
+  resolveChildVertexFromHint: (
     hint: SourceVertexTypes['ChildHint'],
     context: DagChildResolutionContext<
       SourceVertexTypes,
@@ -74,7 +74,7 @@ export interface AsyncDagDiscoverySource<
   resolveRootVertex: () => MaybePromise<
     DagSourceVertexResolution<SourceVertexTypes, VertexId>
   >;
-  resolveChildHint: (
+  resolveChildVertexFromHint: (
     hint: SourceVertexTypes['ChildHint'],
     context: DagChildResolutionContext<
       SourceVertexTypes,

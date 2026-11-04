@@ -106,7 +106,7 @@ for (const factory of ['records', 'roots', 'asyncRecords', 'asyncRoots']) {
       expect(visited).toEqual([root, child]);
       expect(visited[0]).toBe(root);
       expect(visited[1]).toBe(child);
-      const original = runner.preCommandDiscoveredGraphView!;
+      const original = runner.livePreCommandDiscoveredGraphView!;
       expect(
         original
           .getVertexHandleByIdOrNull(rootId)!

@@ -137,10 +137,10 @@ test('depth-first visitor listing reflects priority sorting', () => {
   const lowerPriority = () => undefined;
   const higherPriority = () => undefined;
 
-  traversal.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, lowerPriority, {
+  traversal.registerVisitorForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, lowerPriority, {
     descendingExecutionPriorityWithinGroup: 10,
   });
-  traversal.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, higherPriority, {
+  traversal.registerVisitorForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, higherPriority, {
     descendingExecutionPriorityWithinGroup: 20,
   });
 
@@ -160,7 +160,7 @@ test.each(['depth-first', 'breadth-first'] as const)(
       const traversal = new DepthFirstTreeTraversalBuilder<Tree>({
         treeDiscoverySource: adapter(root),
       });
-      traversal.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, () => ({
+      traversal.registerVisitorForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, () => ({
         commands: [{ commandName: TraversalVisitorCommandName.NO_OPERATION }],
       }));
       for (const event of traversal.createIndependentRunnerFromCurrentOptions().runAndIterateObservationEventsUntilSuspendedOrTerminal({
@@ -171,7 +171,7 @@ test.each(['depth-first', 'breadth-first'] as const)(
       const traversal = new BreadthFirstTreeTraversalBuilder<Tree>({
         treeDiscoverySource: adapter(root),
       });
-      traversal.registerVisitorCallbackForPhase(BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX, () => ({
+      traversal.registerVisitorForPhase(BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX, () => ({
         commands: [{ commandName: TraversalVisitorCommandName.NO_OPERATION }],
       }));
       for (const event of traversal.createIndependentRunnerFromCurrentOptions().runAndIterateObservationEventsUntilSuspendedOrTerminal())
@@ -220,7 +220,7 @@ test('depth-first hint rewrites outside pre-order fail the runner', () => {
   const traversal = new DepthFirstTreeTraversalBuilder<Tree>({
     treeDiscoverySource: adapter(node('root')),
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
     () =>
       ({
@@ -244,7 +244,7 @@ test('an enable list runs only named depth-first visitors while iteration filter
   });
   const visits: DepthFirstTreeVisitPhase[] = [];
   for (const order of Object.values(DepthFirstTreeVisitPhase)) {
-    traversal.registerVisitorCallbackForPhase(order, (_vertex, options) => {
+    traversal.registerVisitorForPhase(order, (_vertex, options) => {
       visits.push(options.visitorPhase);
     });
   }
@@ -304,11 +304,11 @@ test.each(['depth-first', 'breadth-first'] as const)(
             treeDiscoverySource: adapter(node('unused')),
           });
     if (traversal instanceof DepthFirstTreeTraversalBuilder) {
-      traversal.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, () => {
+      traversal.registerVisitorForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, () => {
         visitorCalls++;
       });
     } else {
-      traversal.registerVisitorCallbackForPhase(BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX, () => {
+      traversal.registerVisitorForPhase(BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX, () => {
         visitorCalls++;
       });
     }
@@ -339,7 +339,7 @@ test.each(['missing', 'disabled'] as const)(
           discoveryDepthInEdges: 1,
           parentChildHintIndex: 0,
           parentVertexAtChildResolution: parentRef.getReferencedValue(),
-          parentVertexHandle: parentRef,
+          parentVertexReference: parentRef,
           childDiscoveryHint: node('queued'),
         },
       ],

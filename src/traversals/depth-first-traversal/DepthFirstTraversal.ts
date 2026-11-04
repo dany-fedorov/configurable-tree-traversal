@@ -87,7 +87,7 @@ export class DepthFirstTreeTraversalBuilder<
     return this;
   }
 
-  registerVisitorCallbackForPhase<Phase extends DepthFirstTreeVisitPhase>(
+  registerVisitorForPhase<Phase extends DepthFirstTreeVisitPhase>(
     phase: Phase,
     visitor: TreeVertexPhaseVisitorCallback<
       InputVertexTypes,

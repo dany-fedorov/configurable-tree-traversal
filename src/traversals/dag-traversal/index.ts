@@ -41,7 +41,7 @@ export type {
   DagDefinition,
   DagDefinitionIssue,
   DagStructuralDiscoverySlot,
-  DagDefinitionVertex,
+  DagVertexDeclaration,
   DagTopologyValidationResult,
 } from './lib/DagDefinition';
 export type { DagCompositionOptions, DagFragment } from './lib/DagFragment';
@@ -65,7 +65,7 @@ export type {
 export type {
   DagDefinitionChangeAspect,
   DagDefinitionDiff,
-  DagDefinitionVertexChange,
+  DagVertexDeclarationChange,
   DagRevisionOperation,
   DagRevisionResult,
 } from './lib/DagRevision';

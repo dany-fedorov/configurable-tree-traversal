@@ -24,8 +24,8 @@ export type DagSchedulingOptions = {
     | 'incrementalDuringTraversal'
     | 'completeBeforeAnyVisitor'
     | undefined;
-  rootWorkPrerequisitePolicy?: 'honor' | 'ignore' | undefined;
-  undeclaredWorkPrerequisitePolicy?:
+  rootWorkToWorkPrerequisitePolicy?: 'honor' | 'ignore' | undefined;
+  undeclaredWorkToWorkPrerequisitePolicy?:
     | 'none'
     | 'waitForDiscoveringParentWork'
     | undefined;
@@ -133,8 +133,8 @@ export type DagTraversalBuilderOptions<
         >;
       }
     | {
-        rootWorkPrerequisitePolicy?: never;
-        undeclaredWorkPrerequisitePolicy?: never;
+        rootWorkToWorkPrerequisitePolicy?: never;
+        undeclaredWorkToWorkPrerequisitePolicy?: never;
       }
   );
 
@@ -159,8 +159,8 @@ export type DagTraversalBuilderOptionsPatch<
         treeDiscoverySource?: undefined;
       }
     | {
-        rootWorkPrerequisitePolicy?: never;
-        undeclaredWorkPrerequisitePolicy?: never;
+        rootWorkToWorkPrerequisitePolicy?: never;
+        undeclaredWorkToWorkPrerequisitePolicy?: never;
         treeDiscoverySource?:
           | (unknown extends VertexId
               ? TreeDiscoverySource<SourceVertexTypes, RewrittenVertexTypes>
@@ -251,25 +251,25 @@ export function assertDagDependencyPolicies(
 ): void {
   if (
     !graphSource &&
-    ('rootWorkPrerequisitePolicy' in originalInput ||
-      'undeclaredWorkPrerequisitePolicy' in originalInput)
+    ('rootWorkToWorkPrerequisitePolicy' in originalInput ||
+      'undeclaredWorkToWorkPrerequisitePolicy' in originalInput)
   ) {
     throw new TypeError('Dependency policies require a graph discovery source');
   }
   if (
-    input.rootWorkPrerequisitePolicy !== undefined &&
-    input.rootWorkPrerequisitePolicy !== 'honor' &&
-    input.rootWorkPrerequisitePolicy !== 'ignore'
+    input.rootWorkToWorkPrerequisitePolicy !== undefined &&
+    input.rootWorkToWorkPrerequisitePolicy !== 'honor' &&
+    input.rootWorkToWorkPrerequisitePolicy !== 'ignore'
   ) {
-    throw new TypeError('rootWorkPrerequisitePolicy must be honor or ignore');
+    throw new TypeError('rootWorkToWorkPrerequisitePolicy must be honor or ignore');
   }
   if (
-    input.undeclaredWorkPrerequisitePolicy !== undefined &&
-    input.undeclaredWorkPrerequisitePolicy !== 'none' &&
-    input.undeclaredWorkPrerequisitePolicy !== 'waitForDiscoveringParentWork'
+    input.undeclaredWorkToWorkPrerequisitePolicy !== undefined &&
+    input.undeclaredWorkToWorkPrerequisitePolicy !== 'none' &&
+    input.undeclaredWorkToWorkPrerequisitePolicy !== 'waitForDiscoveringParentWork'
   ) {
     throw new TypeError(
-      'undeclaredWorkPrerequisitePolicy must be none or waitForDiscoveringParentWork',
+      'undeclaredWorkToWorkPrerequisitePolicy must be none or waitForDiscoveringParentWork',
     );
   }
 }

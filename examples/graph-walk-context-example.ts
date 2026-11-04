@@ -59,13 +59,13 @@ const source: GraphWalkDiscoverySource<Context, Relation, string> = {
 const vertices: string[] = [];
 const relationships: string[] = [];
 const runner = new GraphWalkBuilder({ graphWalkDiscoverySource: source })
-  .addVisitorForObservationKind(
+  .registerVisitorForObservationKind(
     GraphWalkObservationKind.VERTEX_OCCURRENCE,
     ({ vertex }) => {
       vertices.push(vertex.vertexId);
     },
   )
-  .addVisitorForObservationKind(
+  .registerVisitorForObservationKind(
     GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE,
     ({ edge, targetResolution: target }) => {
       assert.equal(target.kind, 'found');
@@ -95,7 +95,7 @@ assert.deepEqual(relationships, [
 assert.deepEqual(resolved, ['C', 'D']);
 assert.equal(observations.length, 11);
 assert.deepEqual(runner.captureProgressSnapshot().terminalOutcome, {
-  kind: 'sourceRoutesExhausted',
+  kind: 'explorationExhausted',
 });
 console.log(
   'Context:',

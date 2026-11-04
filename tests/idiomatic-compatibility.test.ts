@@ -107,7 +107,7 @@ test('rejects retired registration policy atomically', () => {
     treeDiscoverySource: source,
   });
   expect(() =>
-    traversal.registerVisitorCallbackForPhase(F.BEFORE_CHILD_EXPANSION, {
+    traversal.registerVisitorForPhase(F.BEFORE_CHILD_EXPANSION, {
       visitor: () => undefined,
       resolutionStyle: 'CONCURRENT',
     } as never),
@@ -286,7 +286,7 @@ test('grouped phase inputs reject retired policy before replacing registrations'
     treeDiscoverySource: source,
   });
   const visitor = () => undefined;
-  traversal.registerVisitorCallbackForPhase(F.BEFORE_CHILD_EXPANSION, visitor);
+  traversal.registerVisitorForPhase(F.BEFORE_CHILD_EXPANSION, visitor);
   expect(() =>
     traversal.replaceVisitorDefinitionsForPhase(F.BEFORE_CHILD_EXPANSION, {
       groups: [],

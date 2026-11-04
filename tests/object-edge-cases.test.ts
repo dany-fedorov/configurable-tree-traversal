@@ -267,7 +267,7 @@ describe('object traversal and rewriting edge cases', () => {
             if (propertyKey === 'remove')
               return { kind: 'deletePropertySubtree' };
             if (options.isTreeRoot) {
-              const originalTree = options.preCommandDiscoveredTreeView!;
+              const originalTree = options.livePreCommandDiscoveredTreeView!;
               const originalRoot = originalTree.getRootVertexHandleOrNull()!;
               const currentRoot =
                 options.liveResolvedTreeView.getRootVertexHandleOrNull()!;
@@ -557,7 +557,7 @@ describe('object traversal and rewriting edge cases', () => {
       const traversal = new DepthFirstTreeTraversalBuilder({
         treeDiscoverySource: tree,
       });
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
         (vertex, { isTreeRoot }) => {
           if (!isTreeRoot) keys.push(vertex.getVertexData().propertyKey);

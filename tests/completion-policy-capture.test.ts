@@ -20,7 +20,7 @@ const graph = {
       vertexContentInput: { $vertexData: 'A', $childDiscoveryHints: ['B'] },
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     kind: 'vertexResolved' as const,
     resolvedVertexInput: {
       vertexId: 'B',
@@ -107,7 +107,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           dagDiscoverySource: graph,
           workCompletionPolicy: 'requireExternalWorkSettlement',
         });
-        traversal.registerVisitorCallbackForPhase(
+        traversal.registerVisitorForPhase(
           DagVisitorPhase.ON_WORK_READY,
           () => undefined,
         );

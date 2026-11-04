@@ -153,7 +153,7 @@ const fragment = c.validateAndCreateDagFragment(definition, { start: 'a' }),
 assert.deepEqual(mapped.vertexIdsByPortName.start, { id: 'a' });
 const error = new c.DagTraversalStallError({
   blockedVertexPrerequisiteReports: [
-    { vertexId: 'a', prerequisiteVertexIdsInReport: ['b'] },
+    { vertexId: 'a', unmetPrerequisiteVertexIds: ['b'] },
   ],
   unresolvedPrerequisiteVertexIds: ['b'],
   milestoneCycleVertexIdComponents: [],
@@ -161,7 +161,7 @@ const error = new c.DagTraversalStallError({
   incompleteVertexIdsWithoutUnmetPrerequisites: [],
 });
 assert.deepEqual(error.diagnostics.blockedVertexPrerequisiteReports, [
-  { vertexId: 'a', prerequisiteVertexIdsInReport: ['b'] },
+  { vertexId: 'a', unmetPrerequisiteVertexIds: ['b'] },
 ]);
 const cycle = new c.DagStructuralDiscoveryCycleError(['a', 'a']);
 assert.deepEqual(cycle.cycleWitnessVertexIds, ['a', 'a']);

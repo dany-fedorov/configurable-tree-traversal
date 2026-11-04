@@ -452,7 +452,7 @@ const child: walking.GraphWalkDagDeclarationRelation = {
 const namespaceRelation: graphWalk.GraphWalkDagDeclarationRelation = child;
 new GraphWalkBuilder({
   graphWalkDiscoverySource: dag,
-}).addVisitorForObservationKind(Phase.ADMITTED_EDGE_OCCURRENCE, (event) => {
+}).registerVisitorForObservationKind(Phase.ADMITTED_EDGE_OCCURRENCE, (event) => {
   if (event.edge.edgeData.kind === 'structuralChildSlot') {
     const index: number = event.edge.edgeData.childSlotIndex;
     void index;
@@ -515,7 +515,7 @@ const walkingCounts: {
 } = result.captureProgressSnapshot().counts;
 new GraphWalkBuilder({
   graphWalkDiscoverySource: source,
-}).addVisitorForObservationKind(
+}).registerVisitorForObservationKind(
   Phase.ADMITTED_EDGE_OCCURRENCE,
   (event, context) => {
     const coordinates: number[] = [

@@ -16,7 +16,7 @@ export type GraphWalkProgressCounts = Readonly<{
   >;
 }>;
 export type GraphWalkTerminalOutcome =
-  | { readonly kind: 'sourceRoutesExhausted' | 'permanentlyClosedByCaller' }
+  | { readonly kind: 'explorationExhausted' | 'permanentlyClosedByCaller' }
   | {
       readonly kind: 'traversalLimitsReached';
       readonly reachedLimits: readonly (

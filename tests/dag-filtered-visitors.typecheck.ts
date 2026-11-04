@@ -29,7 +29,7 @@ const isTask = (data: Data): data is Task => data.kind === 'task';
 declare const traversal: DagTraversalBuilder<T, R, ID>;
 declare const asyncTraversal: AsyncDagTraversalBuilder<T, R, ID>;
 
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   Order.ON_WORK_READY,
   createConditionalDagDataVisitor(isTask, (data, options) => {
     const task: Task = data;
@@ -95,7 +95,7 @@ const standalone = createConditionalDagDataVisitor(isTask, (data) => {
   void label;
 });
 
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   Order.ON_WORK_READY,
   createConditionalDagDataVisitor(
     (data: Data): boolean => data.kind === 'task',
@@ -108,7 +108,7 @@ traversal.registerVisitorCallbackForPhase(
   ),
 );
 
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   Order.ON_SUBGRAPH_COMPLETION_READY,
   // @ts-expect-error Narrowed input does not change the output rewrite type.
   createConditionalDagDataVisitor(isTask, (data, options) => {
@@ -125,7 +125,7 @@ traversal.registerVisitorCallbackForPhase(
   }),
 );
 
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   Order.ON_SUBGRAPH_COMPLETION_READY,
   createConditionalDagDataVisitor(isTask, () => ({
     commands: [
@@ -137,7 +137,7 @@ traversal.registerVisitorCallbackForPhase(
     ],
   })),
 );
-asyncTraversal.registerVisitorCallbackForPhase(
+asyncTraversal.registerVisitorForPhase(
   Order.ON_SUBGRAPH_COMPLETION_READY,
   createConditionalAsyncDagDataVisitor(
     isTask,
@@ -170,7 +170,7 @@ const mixed: DagVisitor<T, R, Order, ID> = createConditionalDagDataVisitor(
     ],
   }),
 );
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   Order.ON_WORK_READY,
   // @ts-expect-error A predicate must accept rewritten output data too.
   createConditionalDagDataVisitor(
@@ -178,7 +178,7 @@ traversal.registerVisitorCallbackForPhase(
     () => undefined,
   ),
 );
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   Order.ON_SUBGRAPH_COMPLETION_READY,
   // @ts-expect-error Completion visitors cannot rewrite child hints.
   createConditionalDagDataVisitor(isTask, () => ({
@@ -191,7 +191,7 @@ traversal.registerVisitorCallbackForPhase(
   })),
 );
 
-asyncTraversal.registerVisitorCallbackForPhase(
+asyncTraversal.registerVisitorForPhase(
   Order.ON_WORK_READY,
   createConditionalAsyncDagDataVisitor(isTask, async (data, options) => {
     const context: DagVisitorContext<T, R, Order.ON_WORK_READY, ID> = options;
@@ -208,7 +208,7 @@ asyncTraversal.registerVisitorCallbackForPhase(
     };
   }),
 );
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   Order.ON_WORK_READY,
   // @ts-expect-error Sync filtering cannot admit an async callback.
   createConditionalDagDataVisitor(isTask, async () => undefined),

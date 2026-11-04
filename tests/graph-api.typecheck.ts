@@ -43,11 +43,11 @@ const graph: DagDiscoverySource<Input, Output> = {
       workWaitsForWorkOf: [null, NaN],
     },
   }),
-  resolveChildHint: (hint, options) => {
+  resolveChildVertexFromHint: (hint, options) => {
     const resolved: LiveResolvedGraphView<Input | Output> =
       options.liveResolvedGraphView;
     const input: string = hint;
-    void [resolved, input, options.preCommandDiscoveredGraphView];
+    void [resolved, input, options.livePreCommandDiscoveredGraphView];
     // @ts-expect-error Graph callbacks do not receive the tree facade.
     options.liveResolvedTreeView;
     return {
@@ -165,7 +165,7 @@ const asyncGraphTraversal = new AsyncDagTraversalBuilder<Input, Output>({
   maxConcurrentCallbackInvocations: 2,
   transformChildHintsBeforeResolution: async (hints) => hints.reverse(),
 });
-asyncGraphTraversal.registerVisitorCallbackForPhase(
+asyncGraphTraversal.registerVisitorForPhase(
   'ON_WORK_READY' as DagVisitorPhase,
   async (vertex, options) => {
     const data:
@@ -181,7 +181,7 @@ asyncGraphTraversal.registerVisitorCallbackForPhase(
       data,
       metadata,
       options.liveResolvedGraphView,
-      options.preCommandDiscoveredGraphView,
+      options.livePreCommandDiscoveredGraphView,
     ];
     return {
       commands: [

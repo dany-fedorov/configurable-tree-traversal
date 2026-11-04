@@ -373,7 +373,7 @@ Retired JS configuration keys reject before mutation/discovery where applicable,
 
 ## Inspection, queries and output lifetime
 
-Generic `TraversalExecutionState`, `SyncTraversalExecution` and `AsyncTraversalExecution` default to `ExecutionInspection`; execution emission defaults to `EmissionKind<Phase>`. Concrete tree/DAG runners use `TreeDagExecutionInspection<Phase>`, walkers use `GraphWalkInspection`. Family phases and genuine sync/async differences remain intact. Graph ID generics stay after input/rewrite types (after phase for visitors); arbitrary ID identity and inference are preserved.
+Generic `TraversalExecutionState`, `SyncTraversalExecution` and `AsyncTraversalExecution` default to `ExecutionInspection`; execution emission defaults to `EmissionKind<Phase>`. Concrete tree/DAG runners use `TreeDagExecutionInspection<Phase>`, walkers use `GraphWalkExecutionSnapshot`. Family phases and genuine sync/async differences remain intact. Graph ID generics stay after input/rewrite types (after phase for visitors); arbitrary ID identity and inference are preserved.
 
 Ready visits and chains expose callback `phase`; chains separately expose `state: 'running' | 'paused' | 'done' | 'invalid'`, `visitorIndex`, `executionOptions` and `commandCommitMode`. Pending `operation` names are `resolveRoot`, `resolveChild`, `resolvePrerequisite`, `transformChildHints`, `getVertexIdFromHint`, and `visit`; private engine effect keys are absent. DFS/BFS frame `stage` keeps its mechanical meaning.
 

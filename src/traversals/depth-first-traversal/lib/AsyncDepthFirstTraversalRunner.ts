@@ -70,7 +70,7 @@ export interface AsyncDepthFirstTreeRunner<
   isTreeRootVertex(
     ref: VertexHandle<InputVertexTypes | RewrittenVertexTypes>,
   ): boolean;
-  hasSkippedPendingChildDiscovery(
+  isPendingChildDiscoveryDisabled(
     ref: VertexHandle<InputVertexTypes | RewrittenVertexTypes>,
   ): boolean;
 }
@@ -168,8 +168,8 @@ export class InternalAsyncDepthFirstTreeRunner<
                       .previousCommittedVisitVertexHandleForSamePhase,
                   ),
                 liveResolvedTreeView: this.getLiveResolvedTreeView(),
-                preCommandDiscoveredTreeView:
-                  this.resolvedTreesContainer.preCommandDiscoveredTreeView?.getLiveReadOnlyTreeView() ??
+                livePreCommandDiscoveredTreeView:
+                  this.resolvedTreesContainer.livePreCommandDiscoveredTreeView?.getLiveReadOnlyTreeView() ??
                   null,
                 isTreeRoot: this.isTreeRootVertex(
                   createVertexHandleFacet(call.ref),
@@ -279,7 +279,7 @@ export class InternalAsyncDepthFirstTreeRunner<
     );
   }
 
-  hasSkippedPendingChildDiscovery(
+  isPendingChildDiscoveryDisabled(
     ref: VertexHandle<InputVertexTypes | RewrittenVertexTypes>,
   ): boolean {
     return this.state.subtreeTraversalDisabledRefs.has(internalRef(ref));

@@ -55,7 +55,7 @@ test('owned and composed object sources resolve explicitly declared union hints 
         discovered.push(vertex.getVertexData());
         expect(
           context
-            .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+            .livePreCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
             .getCurrentVertexView()
             .getVertexData(),
         ).toEqual({ propertyKey: 'input', propertyValue: 0 });
@@ -186,7 +186,7 @@ for (const asyncMode of [false, true]) {
           );
           originalParents.push(
             context
-              .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+              .livePreCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
               .getCurrentVertexView()
               .getVertexData(),
           );
@@ -210,7 +210,7 @@ for (const asyncMode of [false, true]) {
         tryGetVertexIdentityFromHint: (hint) => ({
           vertexId: hint === 'lookup' ? undefined : inlineId,
         }),
-        resolveChildHint: (hint, context) => {
+        resolveChildVertexFromHint: (hint, context) => {
           currentParents.push(
             context.structuralChildResolution
               .parentVertexHandle!.getCurrentVertexView()
@@ -218,7 +218,7 @@ for (const asyncMode of [false, true]) {
           );
           originalParents.push(
             context
-              .preCommandDiscoveredGraphView!.getVertexHandleByIdOrNull(rootId)!
+              .livePreCommandDiscoveredGraphView!.getVertexHandleByIdOrNull(rootId)!
               .getCurrentVertexView()
               .getVertexData(),
           );
@@ -241,9 +241,9 @@ for (const asyncMode of [false, true]) {
       const asyncGraph = {
         ...graph,
         resolveRootVertex: async () => graph.resolveRootVertex(),
-        resolveChildHint: async (
-          ...args: Parameters<typeof graph.resolveChildHint>
-        ) => graph.resolveChildHint(...args),
+        resolveChildVertexFromHint: async (
+          ...args: Parameters<typeof graph.resolveChildVertexFromHint>
+        ) => graph.resolveChildVertexFromHint(...args),
       };
       const treeOptions = {
         treeDiscoverySource: tree,

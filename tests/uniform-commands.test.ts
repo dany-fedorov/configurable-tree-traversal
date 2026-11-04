@@ -25,7 +25,7 @@ const source = {
       },
     },
   }),
-  resolveChildHint: (id: string) => ({
+  resolveChildVertexFromHint: (id: string) => ({
     kind: 'vertexResolved' as const,
     resolvedVertexInput: {
       vertexId: id,
@@ -44,7 +44,7 @@ for (const Constructor of [
     `${Constructor.name} %s deferral discards group effects and resumes external work`,
     async (form) => {
       const traversal = new Constructor({ dagDiscoverySource: source });
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         DagOrder.ON_WORK_READY,
         () => ({
           commands: [
@@ -59,7 +59,7 @@ for (const Constructor of [
           descendingExecutionPriorityWithinGroup: 200,
         },
       );
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         DagOrder.ON_WORK_READY,
         () =>
           form === 'symbol'
@@ -81,7 +81,7 @@ for (const Constructor of [
               },
         { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
       );
-      traversal.registerVisitorCallbackForPhase(DagOrder.ON_WORK_READY, () => {
+      traversal.registerVisitorForPhase(DagOrder.ON_WORK_READY, () => {
         throw new Error('must skip');
       });
       const runner = traversal.createIndependentRunnerFromCurrentOptions();
@@ -113,7 +113,7 @@ for (const Constructor of [
 
   test(`${Constructor.name} rejects a mixed deferral before mutation`, async () => {
     const traversal = new Constructor({ dagDiscoverySource: source });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DagOrder.ON_WORK_READY,
       () =>
         ({
@@ -182,7 +182,7 @@ for (const [Constructor, order, sourceKey] of [
                 kind: 'vertexResolved' as const,
                 resolvedVertexInput: {
                   vertexContentInput:
-                    source.resolveChildHint(id).resolvedVertexInput
+                    source.resolveChildVertexFromHint(id).resolvedVertexInput
                       .vertexContentInput,
                 },
               }),
@@ -192,9 +192,9 @@ for (const [Constructor, order, sourceKey] of [
   test(`${Constructor.name} rewrites actual child hints in its initial phase`, async () => {
     const traversal = make();
     const seen: string[] = [];
-    const add = traversal.registerVisitorCallbackForPhase.bind(
+    const add = traversal.registerVisitorForPhase.bind(
       traversal,
-    ) as DepthFirstTreeTraversalBuilder<G>['registerVisitorCallbackForPhase'];
+    ) as DepthFirstTreeTraversalBuilder<G>['registerVisitorForPhase'];
     add(order as DfsOrder.BEFORE_CHILD_EXPANSION, (vertex) => {
       seen.push(vertex.$vertexData);
       if (vertex.$vertexData === 'root')
@@ -293,7 +293,7 @@ for (const [Constructor, order, sourceKey] of [
                 kind: 'vertexResolved' as const,
                 resolvedVertexInput: {
                   vertexContentInput:
-                    source.resolveChildHint(id).resolvedVertexInput
+                    source.resolveChildVertexFromHint(id).resolvedVertexInput
                       .vertexContentInput,
                 },
               }),
@@ -301,9 +301,9 @@ for (const [Constructor, order, sourceKey] of [
           : source,
     } as never);
     const seen: string[] = [];
-    const add = traversal.registerVisitorCallbackForPhase.bind(
+    const add = traversal.registerVisitorForPhase.bind(
       traversal,
-    ) as DepthFirstTreeTraversalBuilder<G>['registerVisitorCallbackForPhase'];
+    ) as DepthFirstTreeTraversalBuilder<G>['registerVisitorForPhase'];
     add(
       order as DfsOrder,
       (vertex) => {
@@ -362,7 +362,7 @@ for (const Constructor of [
 ]) {
   test(`${Constructor.name} preserves committed effects before deferral and validates generations`, async () => {
     const traversal = new Constructor({ dagDiscoverySource: source });
-    traversal.registerVisitorCallbackForPhase(DagOrder.ON_WORK_READY, () => ({
+    traversal.registerVisitorForPhase(DagOrder.ON_WORK_READY, () => ({
       commands: [
         {
           commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
@@ -370,7 +370,7 @@ for (const Constructor of [
         },
       ],
     }));
-    traversal.registerVisitorCallbackForPhase(DagOrder.ON_WORK_READY, () => ({
+    traversal.registerVisitorForPhase(DagOrder.ON_WORK_READY, () => ({
       commands: [
         {
           commandName: Command.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION,
@@ -419,7 +419,7 @@ for (const Constructor of [
         ],
       });
       const completion = new Constructor({ dagDiscoverySource: source });
-      completion.registerVisitorCallbackForPhase(
+      completion.registerVisitorForPhase(
         DagOrder.ON_SUBGRAPH_COMPLETION_READY,
         rewrite as never,
       );
@@ -432,7 +432,7 @@ for (const Constructor of [
         dagDiscoverySource: source,
         discoveryTiming: 'completeBeforeAnyVisitor',
       });
-      eager.registerVisitorCallbackForPhase(DagOrder.ON_WORK_READY, rewrite);
+      eager.registerVisitorForPhase(DagOrder.ON_WORK_READY, rewrite);
       await expect(async () => {
         await eager
           .createIndependentRunnerFromCurrentOptions()
@@ -443,7 +443,7 @@ for (const Constructor of [
 
   test(`${Constructor.name} rejects command deferral during completion`, async () => {
     const traversal = new Constructor({ dagDiscoverySource: source });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DagOrder.ON_SUBGRAPH_COMPLETION_READY,
       () =>
         ({
@@ -478,17 +478,17 @@ test('async command deferral releases callback capacity while work prerequisites
           },
         },
       }),
-      resolveChildHint: (id) => ({
+      resolveChildVertexFromHint: (id) => ({
         kind: 'vertexResolved',
         resolvedVertexInput: {
-          ...source.resolveChildHint(id).resolvedVertexInput,
+          ...source.resolveChildVertexFromHint(id).resolvedVertexInput,
           workWaitsForWorkOf: id === 'c' ? ['a'] : [],
         },
       }),
     },
   });
   const seen: string[] = [];
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DagOrder.ON_WORK_READY,
     async (vertex) => {
       seen.push(vertex.$vertexData);
@@ -524,7 +524,7 @@ test('async command deferral releases callback capacity while work prerequisites
 test('rejects an unknown canonical commit mode without registering the callback', () => {
   const traversal = new DagTraversalBuilder<G>({ dagDiscoverySource: source });
   expect(() =>
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DagOrder.ON_WORK_READY,
       () => undefined,
       {
@@ -549,7 +549,7 @@ test.each(['afterContiguousVisitorBatch', 'afterEachVisitorCallback'] as const)(
     const traversal = new AsyncDagTraversalBuilder<G>({
       dagDiscoverySource: source,
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DagOrder.ON_WORK_READY,
       () => pending.promise,
       {

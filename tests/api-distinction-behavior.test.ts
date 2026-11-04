@@ -54,9 +54,9 @@ test('explicitly skipped expansion remains distinct from retained children and a
     const view = runner.getLiveResolvedTreeView(),
       root = view.getRootVertexHandleOrNull()!;
     expect(view.getChildVertexHandlesOrNull(root)).toHaveLength(1);
-    expect(runner.hasSkippedPendingChildDiscovery(root)).toBe(true);
+    expect(runner.isPendingChildDiscoveryDisabled(root)).toBe(true);
     expect(
-      runner.hasSkippedPendingChildDiscovery(
+      runner.isPendingChildDiscoveryDisabled(
         view.getChildVertexHandlesOrNull(root)![0]!,
       ),
     ).toBe(false);
@@ -76,7 +76,7 @@ test('explicitly skipped expansion remains distinct from retained children and a
       ),
     ).toEqual([]);
     expect(
-      empty.hasSkippedPendingChildDiscovery(
+      empty.isPendingChildDiscoveryDisabled(
         emptyView.getRootVertexHandleOrNull()!,
       ),
     ).toBe(false);
@@ -149,7 +149,7 @@ test('prepared summaries drop omission slots while faithful definitions retain i
           },
         },
       }),
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         kind: 'vertexIntentionallyOmitted',
         omittedVertexIdentity: { vertexId: undefined },
         satisfiesWorkAndSubgraphCompletionPrerequisites: true,

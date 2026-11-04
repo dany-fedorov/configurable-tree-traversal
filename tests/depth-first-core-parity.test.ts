@@ -58,7 +58,7 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
   });
 
   for (const order of Object.values(DepthFirstTreeVisitPhase)) {
-    traversal.registerVisitorCallbackForPhase(order, (vertex, options) => {
+    traversal.registerVisitorForPhase(order, (vertex, options) => {
       trace.push(
         `visitor:${order}:${vertex.getVertexData()}:visit=${
           options.phaseVisitorChainIndex
@@ -161,7 +161,7 @@ test('DFS inspection during a visitor halt preserves the next visitor', () => {
       }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
     () => ({
       commands: [
@@ -172,7 +172,7 @@ test('DFS inspection during a visitor halt preserves the next visitor', () => {
       ],
     }),
   );
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
     (vertex) => {
       visits.push(vertex.getVertexData());
@@ -312,7 +312,7 @@ test('deleting the current vertex still advances visitor metadata for its siblin
       }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
     (vertex, options) => {
       if (vertex.getVertexData() === 'deleted') {
@@ -364,7 +364,7 @@ test('hint rewrites clone the command payload before a later visitor mutates it'
       }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
     (vertex) =>
       vertex.getVertexData() === 'root'
@@ -379,7 +379,7 @@ test('hint rewrites clone the command payload before a later visitor mutates it'
           }
         : undefined,
   );
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
     (vertex) => {
       if (vertex.getVertexData() === 'root') hints.push('late');
@@ -428,7 +428,7 @@ test('disabled visitor execution leaves injected per-order state unchanged', () 
     previousCommittedVisitVertexHandleForSamePhase: previous,
   };
   let visitorCalls = 0;
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
     () => {
       visitorCalls += 1;
@@ -506,7 +506,7 @@ test.each(['sorter', 'resolver', 'visitor'] as const)(
           : null,
     });
     if (failureAt === 'visitor') {
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
         () => {
           throw failure;

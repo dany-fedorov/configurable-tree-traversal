@@ -102,7 +102,7 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
     state,
     getOptions: (registration, currentVertexPhaseChainState) => ({
       liveResolvedTreeView: null as never,
-      preCommandDiscoveredTreeView: null,
+      livePreCommandDiscoveredTreeView: null,
       phaseVisitorChainIndex: state.phaseVisitorChainIndex,
       visitorCallbackIndexInPhaseChain: state.visitorCallbackIndexInPhaseChain,
       previousCommittedVisitVertexHandleForSamePhase:

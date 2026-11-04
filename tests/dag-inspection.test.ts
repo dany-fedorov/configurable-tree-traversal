@@ -671,7 +671,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           };
         },
-        resolveChildHint: () => {
+        resolveChildVertexFromHint: () => {
           calls++;
           return {
             omittedVertexIdentity: null,
@@ -751,7 +751,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           };
         },
-        resolveChildHint: (hint) => {
+        resolveChildVertexFromHint: (hint) => {
           calls++;
           return {
             kind: 'vertexResolved' as const,
@@ -772,7 +772,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       workCompletionPolicy: 'requireExternalWorkSettlement',
     });
     let paused = false;
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => {
       if (paused) return undefined;
       paused = true;
       return {
@@ -881,7 +881,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         selectVertexId: (item) => item.id,
       }),
     );
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => ({
       commands: [
         {
           commandName:
@@ -1004,7 +1004,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           omittedVertexIdentity: { vertexId: undefined },
           satisfiesWorkAndSubgraphCompletionPrerequisites: true,
         }),
-        resolveChildHint: () => {
+        resolveChildVertexFromHint: () => {
           throw new Error('Unexpected child resolution');
         },
       },
@@ -1047,7 +1047,7 @@ test('inspection of a native async source does not interfere with a pending sour
           },
         };
       },
-      resolveChildHint: async () => {
+      resolveChildVertexFromHint: async () => {
         throw new Error('Unexpected child resolution');
       },
     },
@@ -1134,7 +1134,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           omittedVertexIdentity: { vertexId: 'catalog' },
           satisfiesWorkAndSubgraphCompletionPrerequisites: true,
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           kind: 'vertexIntentionallyOmitted',
           satisfiesWorkAndSubgraphCompletionPrerequisites: true,
@@ -1170,7 +1170,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted',
@@ -1217,12 +1217,12 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           };
         },
-        resolveChildHint: () => {
+        resolveChildVertexFromHint: () => {
           throw new Error('Unexpected child resolution');
         },
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => {
       visitors++;
     });
     const runner = traversal.createIndependentRunnerFromCurrentOptions();
@@ -1316,7 +1316,7 @@ test('async runner inspection stays synchronous while a source callback is pendi
           },
         };
       },
-      resolveChildHint: () => {
+      resolveChildVertexFromHint: () => {
         throw new Error('Unexpected child resolution');
       },
     },

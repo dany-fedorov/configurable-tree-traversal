@@ -17,7 +17,7 @@ function sourceRejectingEnumeration() {
       kind: 'vertexResolved',
       resolvedVertexInput: resolve('root'),
     }),
-    resolveChildHint: () => ({
+    resolveChildVertexFromHint: () => ({
       kind: 'vertexResolved',
       resolvedVertexInput: resolve('child'),
     }),

@@ -177,7 +177,7 @@ export function definitionSource<Data, VertexId>(
               satisfiesWorkAndSubgraphCompletionPrerequisites: true,
             };
       },
-      resolveChildHint: resolve,
+      resolveChildVertexFromHint: resolve,
       resolvePrerequisiteByVertexId: (id) =>
         byId.has(id) || omitted.has(id) ? resolve(id) : { kind: 'missing' },
       tryGetVertexIdentityFromHint: (vertexId) => ({ vertexId }),

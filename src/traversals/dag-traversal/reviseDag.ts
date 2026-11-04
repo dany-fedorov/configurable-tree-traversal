@@ -1,6 +1,6 @@
 import { copyAndNormalizeDagDefinition } from './defineDag';
 import { diffDagDefinitionDeclarationsShallowly } from './diffDagDefinitions';
-import type { DagDefinition, DagDefinitionVertex } from './lib/DagDefinition';
+import type { DagDefinition, DagVertexDeclaration } from './lib/DagDefinition';
 import type {
   DagRevisionOperation,
   DagRevisionResult,
@@ -54,7 +54,7 @@ export function applyDagDefinitionRevisionBatch<Data, VertexId = unknown>(
       case 'replaceVertexDeclaration': {
         const vertex = copyAndNormalizeDagDefinition<Data, VertexId>({
           vertexDeclarations: [
-            own(operation, 'vertexDeclaration') as DagDefinitionVertex<
+            own(operation, 'vertexDeclaration') as DagVertexDeclaration<
               Data,
               VertexId
             >,
@@ -112,7 +112,7 @@ export function applyDagDefinitionRevisionBatch<Data, VertexId = unknown>(
     : {
         kind: 'valid',
         validatedTopology: result.validatedTopology,
-        changes: diffDagDefinitionDeclarationsShallowly(
+        declarationDiff: diffDagDefinitionDeclarationsShallowly(
           before,
           result.validatedTopology.definition,
         ),

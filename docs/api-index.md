@@ -4,7 +4,7 @@
 
 These declarations describe the unreleased explicit API in this source checkout. The package version remains `0.12.0`; the released `0.12.0` API differs. See [checkout installation](../README.md#install) and the [migration guide](migration-explicit-api.md). Look up a current exported name below, then follow its owning contract and, where one exists, a runnable or related example. Public import routes are exhaustive for each symbol; declaration-module paths are not consumer imports.
 
-Generated from the supported declaration census: **271 public symbols**, **540 export bindings**, **9 runtime entry points**. Run `npm run docs:api` to regenerate; package verification rejects stale output.
+Generated from the supported declaration census: **272 public symbols**, **542 export bindings**, **9 runtime entry points**. Run `npm run docs:api` to regenerate; package verification rejects stale output.
 
 Declaration excerpts preserve overloads and public members; referenced support types can be declaration-local and are not additional importable exports. Inline declaration-relative type imports are displayed by type name. These are declaration excerpts, not standalone programs; the linked guide examples are compiled and executed against the packed package. A runnable example or executable snippet names the symbol; a related example exercises the feature that produces or consumes it without naming it. Runtime failures/defaults belong to the linked behavior contract.
 
@@ -61,8 +61,6 @@ Declaration excerpts preserve overloads and public members; referenced support t
 | [DagDefinitionChangeAspect](#symbol-DagDefinitionChangeAspect) | Type-only | [Behavior](reference.md#validated-dag-revisions) |
 | [DagDefinitionDiff](#symbol-DagDefinitionDiff) | Type-only | [Behavior](reference.md#validated-dag-revisions) |
 | [DagDefinitionIssue](#symbol-DagDefinitionIssue) | Type-only | [Behavior](reference.md#materialized-dag-definitions) |
-| [DagDefinitionVertex](#symbol-DagDefinitionVertex) | Type-only | [Behavior](reference.md#materialized-dag-definitions) |
-| [DagDefinitionVertexChange](#symbol-DagDefinitionVertexChange) | Type-only | [Behavior](reference.md#validated-dag-revisions) |
 | [DagDiscoverySource](#symbol-DagDiscoverySource) | Type-only | [Behavior](reference.md#source-callback-contexts) |
 | [DagExternalWorkRunBoundary](#symbol-DagExternalWorkRunBoundary) | Type-only | [Behavior](reference.md#ticket-coordination) |
 | [DagExternalWorkSession](#symbol-DagExternalWorkSession) | Type-only | [Behavior](reference.md#ticket-coordination) |
@@ -100,6 +98,8 @@ Declaration excerpts preserve overloads and public members; referenced support t
 | [DagTraversalRunner](#symbol-DagTraversalRunner) | Type-only | [Behavior](reference.md#dag-traversal) |
 | [DagTraversalStallDiagnostics](#symbol-DagTraversalStallDiagnostics) | Type-only | [Behavior](reference.md#validation-results-and-failures) |
 | [DagTraversalStallError](#symbol-DagTraversalStallError) | Runtime value and type surface | [Behavior](reference.md#validation-results-and-failures) |
+| [DagVertexDeclaration](#symbol-DagVertexDeclaration) | Type-only | [Behavior](reference.md#materialized-dag-definitions) |
+| [DagVertexDeclarationChange](#symbol-DagVertexDeclarationChange) | Type-only | [Behavior](reference.md#validated-dag-revisions) |
 | [DagVertexProgress](#symbol-DagVertexProgress) | Type-only | [Behavior](reference.md#dag-summary-schema) |
 | [DagVisitor](#symbol-DagVisitor) | Type-only | [Behavior](reference.md#visitors-and-commands) |
 | [DagVisitorContext](#symbol-DagVisitorContext) | Type-only | [Behavior](reference.md#visitors-and-commands) |
@@ -114,7 +114,6 @@ Declaration excerpts preserve overloads and public members; referenced support t
 | [DepthFirstTreeTraversalBuilderOptions](#symbol-DepthFirstTreeTraversalBuilderOptions) | Type-only | [Behavior](reference.md#options-and-defaults) |
 | [DepthFirstTreeTraversalBuilderOptionsPatch](#symbol-DepthFirstTreeTraversalBuilderOptionsPatch) | Type-only | [Behavior](reference.md#options-and-defaults) |
 | [DepthFirstTreeVisitPhase](#symbol-DepthFirstTreeVisitPhase) | Runtime value and type surface | [Behavior](reference.md#traversal-orders) |
-| [FoundDagSourceVertex](#symbol-FoundDagSourceVertex) | Type-only | [Behavior](reference.md#discovery-and-completed-work) |
 | [GraphWalkBuilder](#symbol-GraphWalkBuilder) | Runtime value and type surface | [Behavior](reference.md#general-graph-walking) |
 | [GraphWalkBuilderOptions](#symbol-GraphWalkBuilderOptions) | Type-only | [Behavior](reference.md#options-and-defaults) |
 | [GraphWalkBuilderOptionsPatch](#symbol-GraphWalkBuilderOptionsPatch) | Type-only | [Behavior](reference.md#options-and-defaults) |
@@ -124,9 +123,9 @@ Declaration excerpts preserve overloads and public members; referenced support t
 | [GraphWalkEdge](#symbol-GraphWalkEdge) | Type-only | [Behavior](reference.md#general-graph-walking) |
 | [GraphWalkEvent](#symbol-GraphWalkEvent) | Type-only | [Behavior](reference.md#general-graph-walking) |
 | [GraphWalkEventForObservationKind](#symbol-GraphWalkEventForObservationKind) | Type-only | [Behavior](reference.md#general-graph-walking) |
+| [GraphWalkExecutionSnapshot](#symbol-GraphWalkExecutionSnapshot) | Type-only | [Behavior](reference.md#general-graph-walking) |
 | [GraphWalkExpansionOrder](#symbol-GraphWalkExpansionOrder) | Type-only | [Behavior](reference.md#general-graph-walking) |
 | [GraphWalkExplorationLimits](#symbol-GraphWalkExplorationLimits) | Type-only | [Behavior](reference.md#options-and-defaults) |
-| [GraphWalkInspection](#symbol-GraphWalkInspection) | Type-only | [Behavior](reference.md#general-graph-walking) |
 | [GraphWalkLinkTargetAdmissionContext](#symbol-GraphWalkLinkTargetAdmissionContext) | Type-only | [Behavior](reference.md#general-graph-walking) |
 | [GraphWalkLinkTargetAdmissionPredicate](#symbol-GraphWalkLinkTargetAdmissionPredicate) | Type-only | [Behavior](reference.md#general-graph-walking) |
 | [GraphWalkObservationKind](#symbol-GraphWalkObservationKind) | Runtime value and type surface | [Behavior](reference.md#general-graph-walking) |
@@ -151,11 +150,13 @@ Declaration excerpts preserve overloads and public members; referenced support t
 | [GraphWalkVisitorContext](#symbol-GraphWalkVisitorContext) | Type-only | [Behavior](reference.md#general-graph-walking) |
 | [GraphWalkVisitorResult](#symbol-GraphWalkVisitorResult) | Type-only | [Behavior](reference.md#general-graph-walking) |
 | [LiveObjectPropertyVertexTypes](#symbol-LiveObjectPropertyVertexTypes) | Type-only | [Behavior](reference.md#rewrite-objects) |
+| [LivePreCommandDiscoveredGraphView](#symbol-LivePreCommandDiscoveredGraphView) | Type-only | [Behavior](reference.md#views-handles-identity-and-paths) |
 | [LiveResolvedGraphView](#symbol-LiveResolvedGraphView) | Type-only | [Behavior](reference.md#views-handles-identity-and-paths) |
 | [LiveResolvedTreeView](#symbol-LiveResolvedTreeView) | Type-only | [Behavior](reference.md#views-handles-identity-and-paths) |
 | [MaterializedDagTraversalInput](#symbol-MaterializedDagTraversalInput) | Type-only | [Behavior](reference.md#collection-and-forest-sources) |
 | [MaybePromise](#symbol-MaybePromise) | Type-only | [Behavior](reference.md#async-traversal) |
 | [MutableResolvedTreeStore](#symbol-MutableResolvedTreeStore) | Runtime value and type surface | [Behavior](reference.md#views-handles-identity-and-paths) |
+| [MutableTreeChildDiscoveryContext](#symbol-MutableTreeChildDiscoveryContext) | Type-only | [Behavior](reference.md#views-handles-identity-and-paths) |
 | [MutableTreeVertexRecordMap](#symbol-MutableTreeVertexRecordMap) | Type-only | [Behavior](reference.md#views-handles-identity-and-paths) |
 | [MutableTreeVertexTopologyRecord](#symbol-MutableTreeVertexTopologyRecord) | Runtime value and type surface | [Behavior](reference.md#views-handles-identity-and-paths) |
 | [MutableValueReference](#symbol-MutableValueReference) | Runtime value and type surface | [Behavior](reference.md#views-handles-identity-and-paths) |
@@ -181,9 +182,11 @@ Declaration excerpts preserve overloads and public members; referenced support t
 | [ObjectPropertyTreeVertexTypes](#symbol-ObjectPropertyTreeVertexTypes) | Type-only | [Behavior](reference.md#traverse-an-object) |
 | [ObjectRewriteOutputResult](#symbol-ObjectRewriteOutputResult) | Type-only | [Behavior](reference.md#rewrite-objects) |
 | [OmittedDagSourceVertex](#symbol-OmittedDagSourceVertex) | Type-only | [Behavior](reference.md#discovery-and-completed-work) |
-| [PreCommandDiscoveredGraphView](#symbol-PreCommandDiscoveredGraphView) | Type-only | [Behavior](reference.md#views-handles-identity-and-paths) |
+| [OmittedTreeSourceVertex](#symbol-OmittedTreeSourceVertex) | Type-only | [Behavior](reference.md#abstract-trees) |
 | [PresentRootOutputConverter](#symbol-PresentRootOutputConverter) | Type-only | [Behavior](reference.md#rewrite-objects) |
+| [ResolvedDagSourceVertex](#symbol-ResolvedDagSourceVertex) | Type-only | [Behavior](reference.md#discovery-and-completed-work) |
 | [ResolvedGraphVertexSnapshot](#symbol-ResolvedGraphVertexSnapshot) | Type-only | [Behavior](reference.md#views-handles-identity-and-paths) |
+| [ResolvedTreeSourceVertex](#symbol-ResolvedTreeSourceVertex) | Type-only | [Behavior](reference.md#abstract-trees) |
 | [StoredTreeReferenceVertexTypes](#symbol-StoredTreeReferenceVertexTypes) | Type-only | [Behavior](reference.md#views-handles-identity-and-paths) |
 | [StructuralAncestorPathOptions](#symbol-StructuralAncestorPathOptions) | Type-only | [Behavior](reference.md#views-handles-identity-and-paths) |
 | [StructuralChildEdge](#symbol-StructuralChildEdge) | Type-only | [Behavior](reference.md#views-handles-identity-and-paths) |
@@ -205,12 +208,10 @@ Declaration excerpts preserve overloads and public members; referenced support t
 | [TreeOrDagCallbackOperation](#symbol-TreeOrDagCallbackOperation) | Type-only | [Behavior](reference.md#inspection-and-execution) |
 | [TreeOrDagExecutionSnapshot](#symbol-TreeOrDagExecutionSnapshot) | Type-only | [Behavior](reference.md#inspection-and-execution) |
 | [TreePhaseVisitorRegistrationRecord](#symbol-TreePhaseVisitorRegistrationRecord) | Type-only | [Behavior](reference.md#visitors-and-commands) |
+| [TreeSourceVertexResolution](#symbol-TreeSourceVertexResolution) | Type-only | [Behavior](reference.md#abstract-trees) |
 | [TreeTraversalEvent](#symbol-TreeTraversalEvent) | Type-only | [Behavior](reference.md#traversal-orders) |
 | [TreeVertexDiscoveryMetadata](#symbol-TreeVertexDiscoveryMetadata) | Type-only | [Behavior](reference.md#views-handles-identity-and-paths) |
 | [TreeVertexPhaseVisitorCallback](#symbol-TreeVertexPhaseVisitorCallback) | Type-only | [Behavior](reference.md#visitors-and-commands) |
-| [TreeVertexResolution](#symbol-TreeVertexResolution) | Type-only | [Behavior](reference.md#abstract-trees) |
-| [TreeVertexResolutionFound](#symbol-TreeVertexResolutionFound) | Type-only | [Behavior](reference.md#abstract-trees) |
-| [TreeVertexResolutionOmitted](#symbol-TreeVertexResolutionOmitted) | Type-only | [Behavior](reference.md#abstract-trees) |
 | [TreeVertexTopologyRecordInput](#symbol-TreeVertexTopologyRecordInput) | Type-only | [Behavior](reference.md#views-handles-identity-and-paths) |
 | [TreeVisitorContext](#symbol-TreeVisitorContext) | Type-only | [Behavior](reference.md#visitors-and-commands) |
 | [TreeVisitorVertexDataMutationToolsBinder](#symbol-TreeVisitorVertexDataMutationToolsBinder) | Type-only | [Behavior](reference.md#rewrite-objects) |
@@ -332,7 +333,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 export declare class AsyncBreadthFirstTreeTraversalBuilder<InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes> {
 constructor(icfgInput: AsyncBreadthFirstTreeTraversalBuilderOptions<InputVertexTypes, RewrittenVertexTypes>);
 patchOptionsForFutureRunners(icfgInput: AsyncBreadthFirstTreeTraversalBuilderOptionsPatch<InputVertexTypes, RewrittenVertexTypes>): this;
-registerVisitorCallbackForPhase<Phase extends BreadthFirstTreeVisitPhase>(phase: Phase, visitor: AsyncTreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>, options?: Partial<VisitorRegistrationOptions>): this;
+registerVisitorForPhase<Phase extends BreadthFirstTreeVisitPhase>(phase: Phase, visitor: AsyncTreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>, options?: Partial<VisitorRegistrationOptions>): this;
 appendVisitorGroupForPhase<Phase extends BreadthFirstTreeVisitPhase>(phase: Phase, group: VisitorGroupDefinition<AsyncTreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>>): this;
 getDetachedVisitorRegistrationRecordsForPhase<Phase extends BreadthFirstTreeVisitPhase>(phase: Phase): AsyncBreadthFirstTreeVisitorRegistrationsByPhase<InputVertexTypes, RewrittenVertexTypes>[Phase];
 replaceVisitorDefinitionsForPhase<Phase extends BreadthFirstTreeVisitPhase>(phase: Phase, input: VisitorDefinitionsForPhase<AsyncTreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>>): this;
@@ -349,7 +350,7 @@ createIndependentRunnerFromCurrentOptions(): AsyncBreadthFirstTreeRunner<InputVe
 | `createIndependentRunnerFromCurrentOptions` | <code>() =&gt; AsyncBreadthFirstTreeRunner&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
 | `getDetachedVisitorRegistrationRecordsForPhase` | <code>&lt;Phase extends BreadthFirstTreeVisitPhase&gt;(phase: Phase) =&gt; AsyncBreadthFirstTreeVisitorRegistrationsByPhase&lt;InputVertexTypes, RewrittenVertexTypes&gt;[Phase]</code> |
 | `patchOptionsForFutureRunners` | <code>(icfgInput: AsyncBreadthFirstTreeTraversalBuilderOptionsPatch&lt;InputVertexTypes, RewrittenVertexTypes&gt;) =&gt; AsyncBreadthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
-| `registerVisitorCallbackForPhase` | <code>&lt;Phase extends BreadthFirstTreeVisitPhase&gt;(phase: Phase, visitor: AsyncTreeVertexPhaseVisitorCallback&lt;InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; AsyncBreadthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
+| `registerVisitorForPhase` | <code>&lt;Phase extends BreadthFirstTreeVisitPhase&gt;(phase: Phase, visitor: AsyncTreeVertexPhaseVisitorCallback&lt;InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; AsyncBreadthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
 | `replaceVisitorDefinitionsForPhase` | <code>&lt;Phase extends BreadthFirstTreeVisitPhase&gt;(phase: Phase, input: VisitorDefinitionsForPhase&lt;AsyncTreeVertexPhaseVisitorCallback&lt;InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;&gt;&gt;) =&gt; AsyncBreadthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
 
 </details>
@@ -436,7 +437,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/c
 export interface AsyncDagDiscoverySource<SourceVertexTypes extends VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes, VertexId = unknown> {
 resolvePrerequisiteByVertexId?: (vertexId: VertexId) => MaybePromise<DagPrerequisiteLookupResult<SourceVertexTypes, VertexId>>;
 resolveRootVertex: () => MaybePromise<DagSourceVertexResolution<SourceVertexTypes, VertexId>>;
-resolveChildHint: (hint: SourceVertexTypes['ChildHint'], context: DagChildResolutionContext<SourceVertexTypes, RewrittenVertexTypes, VertexId>) => MaybePromise<DagSourceVertexResolution<SourceVertexTypes, VertexId>>;
+resolveChildVertexFromHint: (hint: SourceVertexTypes['ChildHint'], context: DagChildResolutionContext<SourceVertexTypes, RewrittenVertexTypes, VertexId>) => MaybePromise<DagSourceVertexResolution<SourceVertexTypes, VertexId>>;
 tryGetVertexIdentityFromHint?: (hint: SourceVertexTypes['ChildHint']) => MaybePromise<ChildHintVertexIdentity<VertexId> | undefined>;
 }
 ```
@@ -446,7 +447,7 @@ tryGetVertexIdentityFromHint?: (hint: SourceVertexTypes['ChildHint']) => MaybePr
 
 | Member | Type |
 | --- | --- |
-| `resolveChildHint` | <code>(hint: SourceVertexTypes["ChildHint"], context: DagChildResolutionContext&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;) =&gt; MaybePromise&lt;DagSourceVertexResolution&lt;SourceVertexTypes, VertexId&gt;&gt;</code> |
+| `resolveChildVertexFromHint` | <code>(hint: SourceVertexTypes["ChildHint"], context: DagChildResolutionContext&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;) =&gt; MaybePromise&lt;DagSourceVertexResolution&lt;SourceVertexTypes, VertexId&gt;&gt;</code> |
 | `resolvePrerequisiteByVertexId` | <code>((vertexId: VertexId) =&gt; MaybePromise&lt;DagPrerequisiteLookupResult&lt;SourceVertexTypes, VertexId&gt;&gt;) &#124; undefined</code> |
 | `resolveRootVertex` | <code>() =&gt; MaybePromise&lt;DagSourceVertexResolution&lt;SourceVertexTypes, VertexId&gt;&gt;</code> |
 | `tryGetVertexIdentityFromHint` | <code>((hint: SourceVertexTypes["ChildHint"]) =&gt; MaybePromise&lt;ChildHintVertexIdentity&lt;VertexId&gt; &#124; undefined&gt;) &#124; undefined</code> |
@@ -509,12 +510,12 @@ export type AsyncDagExternalWorkSessionOptions<VertexId> = DagExternalWorkSessio
 | `discoveryTiming` | <code>undefined</code> |
 | `maxConcurrentCallbackInvocations` | <code>number &#124; undefined</code> |
 | `retainDiscoveredGraphBeforeVisitorCommands` | <code>undefined</code> |
-| `rootWorkPrerequisitePolicy` | <code>undefined</code> |
+| `rootWorkToWorkPrerequisitePolicy` | <code>undefined</code> |
 | `sourceRootIsHiddenEntryHolder` | <code>undefined</code> |
 | `transformChildHintsBeforeResolution` | <code>undefined</code> |
 | `traversalRunnerInternalObjects` | <code>undefined</code> |
 | `treeDiscoverySource` | <code>undefined</code> |
-| `undeclaredWorkPrerequisitePolicy` | <code>undefined</code> |
+| `undeclaredWorkToWorkPrerequisitePolicy` | <code>undefined</code> |
 | `visitors` | <code>undefined</code> |
 | `workCompletionPolicy` | <code>undefined</code> |
 
@@ -600,12 +601,12 @@ export type AsyncDagTopologyDiscoveryInput<SourceVertexTypes extends VertexDataA
 | `discoveryTiming` | <code>undefined</code> |
 | `maxConcurrentCallbackInvocations` | <code>number &#124; undefined</code> |
 | `retainDiscoveredGraphBeforeVisitorCommands` | <code>undefined</code> |
-| `rootWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
+| `rootWorkToWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
 | `sourceRootIsHiddenEntryHolder` | <code>boolean &#124; undefined</code> |
 | `transformChildHintsBeforeResolution` | <code>undefined</code> |
 | `traversalRunnerInternalObjects` | <code>undefined</code> |
 | `treeDiscoverySource` | <code>undefined</code> |
-| `undeclaredWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
+| `undeclaredWorkToWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
 | `visitors` | <code>undefined</code> |
 | `workCompletionPolicy` | <code>undefined</code> |
 
@@ -625,14 +626,14 @@ constructor(input: Omit<AsyncDagTraversalBuilderOptions<SourceVertexTypes, Rewri
         dagDiscoverySource: DagDiscoverySource<SourceVertexTypes, RewrittenVertexTypes, VertexId>;
         treeDiscoverySource?: undefined;
     } | {
-        rootWorkPrerequisitePolicy?: never;
-        undeclaredWorkPrerequisitePolicy?: never;
+        rootWorkToWorkPrerequisitePolicy?: never;
+        undeclaredWorkToWorkPrerequisitePolicy?: never;
         treeDiscoverySource: unknown extends VertexId ? AsyncTreeDiscoverySource<SourceVertexTypes, RewrittenVertexTypes> : never;
         dagDiscoverySource?: undefined;
     }));
 constructor(input: AsyncDagTraversalBuilderOptions<SourceVertexTypes, RewrittenVertexTypes, VertexId>);
 patchOptionsForFutureRunners(input: AsyncDagTraversalBuilderOptionsPatch<SourceVertexTypes, RewrittenVertexTypes, VertexId>): this;
-registerVisitorCallbackForPhase<Phase extends DagVisitorPhase>(order: Phase, visitor: AsyncDagVisitor<SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>, VertexId>, options?: Partial<VisitorRegistrationOptions>): this;
+registerVisitorForPhase<Phase extends DagVisitorPhase>(order: Phase, visitor: AsyncDagVisitor<SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>, VertexId>, options?: Partial<VisitorRegistrationOptions>): this;
 appendVisitorGroupForPhase<Phase extends DagVisitorPhase>(order: Phase, group: VisitorGroupDefinition<AsyncDagVisitor<SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>, VertexId>>): this;
 getDetachedVisitorRegistrationRecordsForPhase<Phase extends DagVisitorPhase>(order: Phase): AsyncDagTraversalVisitors<SourceVertexTypes, RewrittenVertexTypes, VertexId>[Phase];
 replaceVisitorDefinitionsForPhase<Phase extends DagVisitorPhase>(order: Phase, input: VisitorDefinitionsForPhase<AsyncDagVisitor<SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>, VertexId>>): this;
@@ -649,7 +650,7 @@ createIndependentRunnerFromCurrentOptions(): AsyncDagTraversalRunner<SourceVerte
 | `createIndependentRunnerFromCurrentOptions` | <code>() =&gt; AsyncDagTraversalRunner&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;</code> |
 | `getDetachedVisitorRegistrationRecordsForPhase` | <code>&lt;Phase extends DagVisitorPhase&gt;(order: Phase) =&gt; AsyncDagTraversalVisitors&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;[Phase]</code> |
 | `patchOptionsForFutureRunners` | <code>(input: AsyncDagTraversalBuilderOptionsPatch&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;) =&gt; AsyncDagTraversalBuilder&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;</code> |
-| `registerVisitorCallbackForPhase` | <code>&lt;Phase extends DagVisitorPhase&gt;(order: Phase, visitor: AsyncDagVisitor&lt;SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;, VertexId&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; AsyncDagTraversalBuilder&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;</code> |
+| `registerVisitorForPhase` | <code>&lt;Phase extends DagVisitorPhase&gt;(order: Phase, visitor: AsyncDagVisitor&lt;SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;, VertexId&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; AsyncDagTraversalBuilder&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;</code> |
 | `replaceVisitorDefinitionsForPhase` | <code>&lt;Phase extends DagVisitorPhase&gt;(order: Phase, input: VisitorDefinitionsForPhase&lt;AsyncDagVisitor&lt;SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;, VertexId&gt;&gt;) =&gt; AsyncDagTraversalBuilder&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;</code> |
 
 </details>
@@ -666,8 +667,8 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 export type AsyncDagTraversalBuilderOptions<SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes, VertexId = unknown> = AsyncDagSource<SourceVertexTypes, RewrittenVertexTypes, VertexId> & AsyncDagTraversalOptionsInput<SourceVertexTypes, RewrittenVertexTypes, VertexId> & ({
     dagDiscoverySource: AsyncDagDiscoverySource<SourceVertexTypes, RewrittenVertexTypes, VertexId>;
 } | {
-    rootWorkPrerequisitePolicy?: never;
-    undeclaredWorkPrerequisitePolicy?: never;
+    rootWorkToWorkPrerequisitePolicy?: never;
+    undeclaredWorkToWorkPrerequisitePolicy?: never;
 });
 ```
 
@@ -681,11 +682,11 @@ export type AsyncDagTraversalBuilderOptions<SourceVertexTypes extends VertexData
 | `discoveryTiming` | <code>"incrementalDuringTraversal" &#124; "completeBeforeAnyVisitor" &#124; undefined</code> |
 | `maxConcurrentCallbackInvocations` | <code>number &#124; undefined</code> |
 | `retainDiscoveredGraphBeforeVisitorCommands` | <code>boolean &#124; undefined</code> |
-| `rootWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
+| `rootWorkToWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
 | `sourceRootIsHiddenEntryHolder` | <code>boolean &#124; undefined</code> |
 | `transformChildHintsBeforeResolution` | <code>AsyncChildHintsListTransformer&lt;SourceVertexTypes&gt; &#124; null &#124; undefined</code> |
 | `treeDiscoverySource` | <code>(unknown extends VertexId ? AsyncTreeDiscoverySource&lt;SourceVertexTypes, RewrittenVertexTypes&gt; : never) &#124; undefined</code> |
-| `undeclaredWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
+| `undeclaredWorkToWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
 | `visitors` | <code>VisitorDefinitionsByPhase&lt;AsyncDagTraversalVisitors&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;&gt; &#124; undefined</code> |
 | `workCompletionPolicy` | <code>"afterWorkReadyVisitorChain" &#124; "requireExternalWorkSettlement" &#124; undefined</code> |
 
@@ -704,8 +705,8 @@ export type AsyncDagTraversalBuilderOptionsPatch<SourceVertexTypes extends Verte
     dagDiscoverySource?: AsyncDagDiscoverySource<SourceVertexTypes, RewrittenVertexTypes, VertexId> | undefined;
     treeDiscoverySource?: undefined;
 } | {
-    rootWorkPrerequisitePolicy?: never;
-    undeclaredWorkPrerequisitePolicy?: never;
+    rootWorkToWorkPrerequisitePolicy?: never;
+    undeclaredWorkToWorkPrerequisitePolicy?: never;
     treeDiscoverySource?: (unknown extends VertexId ? AsyncTreeDiscoverySource<SourceVertexTypes, RewrittenVertexTypes> : never) | undefined;
     dagDiscoverySource?: undefined;
 });
@@ -721,11 +722,11 @@ export type AsyncDagTraversalBuilderOptionsPatch<SourceVertexTypes extends Verte
 | `discoveryTiming` | <code>"incrementalDuringTraversal" &#124; "completeBeforeAnyVisitor" &#124; undefined</code> |
 | `maxConcurrentCallbackInvocations` | <code>number &#124; undefined</code> |
 | `retainDiscoveredGraphBeforeVisitorCommands` | <code>boolean &#124; undefined</code> |
-| `rootWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
+| `rootWorkToWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
 | `sourceRootIsHiddenEntryHolder` | <code>boolean &#124; undefined</code> |
 | `transformChildHintsBeforeResolution` | <code>AsyncChildHintsListTransformer&lt;SourceVertexTypes&gt; &#124; null &#124; undefined</code> |
 | `treeDiscoverySource` | <code>(unknown extends VertexId ? AsyncTreeDiscoverySource&lt;SourceVertexTypes, RewrittenVertexTypes&gt; : never) &#124; undefined</code> |
-| `undeclaredWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
+| `undeclaredWorkToWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
 | `visitors` | <code>VisitorDefinitionsByPhase&lt;AsyncDagTraversalVisitors&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;&gt; &#124; undefined</code> |
 | `workCompletionPolicy` | <code>"afterWorkReadyVisitorChain" &#124; "requireExternalWorkSettlement" &#124; undefined</code> |
 
@@ -741,7 +742,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 
 ```ts
 export interface AsyncDagTraversalRunner<SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes, VertexId = unknown> extends AsyncTraversalExecution<DagVisitorPhase, DagCommittedMilestoneEvent<SourceVertexTypes | RewrittenVertexTypes, VertexId>, TreeOrDagExecutionSnapshot<DagVisitorPhase>, 'workCompletionCommitted' | 'subgraphCompletionCommitted'> {
-readonly preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<SourceVertexTypes, VertexId> | null;
+readonly livePreCommandDiscoveredGraphView: LivePreCommandDiscoveredGraphView<SourceVertexTypes, VertexId> | null;
 discoverValidateAndFreezeTopology(): Promise<this>;
 captureMilestoneSnapshot(): DagMilestoneSnapshot<VertexId>;
 captureProgressSnapshot(): DagProgressSnapshot<VertexId>;
@@ -767,7 +768,7 @@ isVisibleSourceRootVertex(vertexHandle: VertexHandle<SourceVertexTypes | Rewritt
 | `getTraversalStopReason` | <code>() =&gt; TraversalStopReason &#124; null</code> |
 | `isSuspended` | <code>() =&gt; boolean</code> |
 | `isVisibleSourceRootVertex` | <code>(vertexHandle: VertexHandle&lt;SourceVertexTypes &#124; RewrittenVertexTypes&gt;) =&gt; boolean</code> |
-| `preCommandDiscoveredGraphView` | <code>PreCommandDiscoveredGraphView&lt;SourceVertexTypes, VertexId&gt; &#124; null</code> |
+| `livePreCommandDiscoveredGraphView` | <code>LivePreCommandDiscoveredGraphView&lt;SourceVertexTypes, VertexId&gt; &#124; null</code> |
 | `requestPauseAfterAdmittedCallbacksDrain` | <code>() =&gt; boolean</code> |
 | `runAndIterateObservationEventsUntilSuspendedOrTerminal` | <code>{ (): AsyncGenerator&lt;DagCommittedMilestoneEvent&lt;SourceVertexTypes &#124; RewrittenVertexTypes, VertexId&gt;, void, unknown&gt;; &lt;Kind extends "workCompletionCommitted" &#124; "subgraphCompletionCommitted"&gt;(config: TraversalExecutionSelectionPatch&lt;DagVisitorPhase, Kind&gt; &amp; { deliveredEventKinds: readonly Kind[]; }): AsyncGenerator&lt;TraversalEventNarrowedToSelectedKinds&lt;DagCommittedMilestoneEvent&lt;SourceVertexTypes &#124; RewrittenVertexTypes, VertexId&gt;, Kind&gt;, void, unknown&gt;; (config?: TraversalExecutionSelectionPatch&lt;DagVisitorPhase, "workCompletionCommitted" &#124; "subgraphCompletionCommitted"&gt; &#124; undefined): AsyncGenerator&lt;DagCommittedMilestoneEvent&lt;SourceVertexTypes &#124; RewrittenVertexTypes, VertexId&gt;, void, unknown&gt;; }</code> |
 | `runUntilSuspendedOrTerminal` | <code>(config?: TraversalExecutionSelectionPatch&lt;DagVisitorPhase, "workCompletionCommitted" &#124; "subgraphCompletionCommitted"&gt; &#124; undefined) =&gt; Promise&lt;AsyncDagTraversalRunner&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;&gt;</code> |
@@ -800,7 +801,7 @@ export interface AsyncDepthFirstTreeRunner<InputVertexTypes extends VertexDataAn
 getLiveResolvedTreeView(): LiveResolvedTreeView<InputVertexTypes | RewrittenVertexTypes>;
 getLiveResolvedGraphView(): LiveResolvedGraphView<InputVertexTypes | RewrittenVertexTypes>;
 isTreeRootVertex(ref: VertexHandle<InputVertexTypes | RewrittenVertexTypes>): boolean;
-hasSkippedPendingChildDiscovery(ref: VertexHandle<InputVertexTypes | RewrittenVertexTypes>): boolean;
+isPendingChildDiscoveryDisabled(ref: VertexHandle<InputVertexTypes | RewrittenVertexTypes>): boolean;
 }
 ```
 
@@ -814,7 +815,7 @@ hasSkippedPendingChildDiscovery(ref: VertexHandle<InputVertexTypes | RewrittenVe
 | `getLiveResolvedTreeView` | <code>() =&gt; LiveResolvedTreeView&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt;</code> |
 | `getTraversalLifecycleStatus` | <code>() =&gt; TraversalRunnerStatus</code> |
 | `getTraversalStopReason` | <code>() =&gt; TraversalStopReason &#124; null</code> |
-| `hasSkippedPendingChildDiscovery` | <code>(ref: VertexHandle&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt;) =&gt; boolean</code> |
+| `isPendingChildDiscoveryDisabled` | <code>(ref: VertexHandle&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt;) =&gt; boolean</code> |
 | `isSuspended` | <code>() =&gt; boolean</code> |
 | `isTreeRootVertex` | <code>(ref: VertexHandle&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt;) =&gt; boolean</code> |
 | `requestPauseAfterAdmittedCallbacksDrain` | <code>() =&gt; boolean</code> |
@@ -835,7 +836,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 export declare class AsyncDepthFirstTreeTraversalBuilder<InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes> {
 constructor(icfgInput: AsyncDepthFirstTreeTraversalBuilderOptions<InputVertexTypes, RewrittenVertexTypes>);
 patchOptionsForFutureRunners(icfgInput: AsyncDepthFirstTreeTraversalBuilderOptionsPatch<InputVertexTypes, RewrittenVertexTypes>): this;
-registerVisitorCallbackForPhase<Phase extends DepthFirstTreeVisitPhase>(phase: Phase, visitor: AsyncTreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>, options?: Partial<VisitorRegistrationOptions>): this;
+registerVisitorForPhase<Phase extends DepthFirstTreeVisitPhase>(phase: Phase, visitor: AsyncTreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>, options?: Partial<VisitorRegistrationOptions>): this;
 appendVisitorGroupForPhase<Phase extends DepthFirstTreeVisitPhase>(phase: Phase, group: VisitorGroupDefinition<AsyncTreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>>): this;
 getDetachedVisitorRegistrationRecordsForPhase<Phase extends DepthFirstTreeVisitPhase>(phase: Phase): AsyncDepthFirstTreeVisitorRegistrationsByPhase<InputVertexTypes, RewrittenVertexTypes>[Phase];
 replaceVisitorDefinitionsForPhase<Phase extends DepthFirstTreeVisitPhase>(phase: Phase, input: VisitorDefinitionsForPhase<AsyncTreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>>): this;
@@ -852,7 +853,7 @@ createIndependentRunnerFromCurrentOptions(): AsyncDepthFirstTreeRunner<InputVert
 | `createIndependentRunnerFromCurrentOptions` | <code>() =&gt; AsyncDepthFirstTreeRunner&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
 | `getDetachedVisitorRegistrationRecordsForPhase` | <code>&lt;Phase extends DepthFirstTreeVisitPhase&gt;(phase: Phase) =&gt; AsyncDepthFirstTreeVisitorRegistrationsByPhase&lt;InputVertexTypes, RewrittenVertexTypes&gt;[Phase]</code> |
 | `patchOptionsForFutureRunners` | <code>(icfgInput: AsyncDepthFirstTreeTraversalBuilderOptionsPatch&lt;InputVertexTypes, RewrittenVertexTypes&gt;) =&gt; AsyncDepthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
-| `registerVisitorCallbackForPhase` | <code>&lt;Phase extends DepthFirstTreeVisitPhase&gt;(phase: Phase, visitor: AsyncTreeVertexPhaseVisitorCallback&lt;InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; AsyncDepthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
+| `registerVisitorForPhase` | <code>&lt;Phase extends DepthFirstTreeVisitPhase&gt;(phase: Phase, visitor: AsyncTreeVertexPhaseVisitorCallback&lt;InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; AsyncDepthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
 | `replaceVisitorDefinitionsForPhase` | <code>&lt;Phase extends DepthFirstTreeVisitPhase&gt;(phase: Phase, input: VisitorDefinitionsForPhase&lt;AsyncTreeVertexPhaseVisitorCallback&lt;InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;&gt;&gt;) =&gt; AsyncDepthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
 
 </details>
@@ -930,9 +931,9 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 export declare class AsyncGraphWalkBuilder<VertexData, EdgeData, VertexId> {
 constructor(options: AsyncGraphWalkBuilderOptions<VertexData, EdgeData, VertexId>);
 patchOptionsForFutureRunners(patch: AsyncGraphWalkBuilderOptionsPatch<VertexData, EdgeData, VertexId>): this;
-addVisitorForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind, visitor: AsyncGraphWalkVisitor<VertexData, EdgeData, PreventVisitorReturnFromWideningPhase<ObservationKind>, VertexId>, options?: Partial<VisitorRegistrationOptions>): this;
-addVisitorGroupForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind, group: VisitorGroupDefinition<AsyncGraphWalkVisitor<VertexData, EdgeData, PreventVisitorReturnFromWideningPhase<ObservationKind>, VertexId>>): this;
-replaceVisitorsForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind, input: VisitorDefinitionsForPhase<AsyncGraphWalkVisitor<VertexData, EdgeData, PreventVisitorReturnFromWideningPhase<ObservationKind>, VertexId>>): this;
+registerVisitorForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind, visitor: AsyncGraphWalkVisitor<VertexData, EdgeData, PreventVisitorReturnFromWideningPhase<ObservationKind>, VertexId>, options?: Partial<VisitorRegistrationOptions>): this;
+appendVisitorGroupForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind, group: VisitorGroupDefinition<AsyncGraphWalkVisitor<VertexData, EdgeData, PreventVisitorReturnFromWideningPhase<ObservationKind>, VertexId>>): this;
+replaceVisitorDefinitionsForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind, input: VisitorDefinitionsForPhase<AsyncGraphWalkVisitor<VertexData, EdgeData, PreventVisitorReturnFromWideningPhase<ObservationKind>, VertexId>>): this;
 listVisitorRegistrationsForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind): VisitorRecord<AsyncGraphWalkVisitor<VertexData, EdgeData, ObservationKind, VertexId>>[];
 createIndependentRunnerFromCurrentOptions(): AsyncGraphWalkRunner<VertexData, EdgeData, VertexId>;
 }
@@ -943,12 +944,12 @@ createIndependentRunnerFromCurrentOptions(): AsyncGraphWalkRunner<VertexData, Ed
 
 | Member | Type |
 | --- | --- |
-| `addVisitorForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind, visitor: AsyncGraphWalkVisitor&lt;VertexData, EdgeData, PreventVisitorReturnFromWideningPhase&lt;ObservationKind&gt;, VertexId&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; AsyncGraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
-| `addVisitorGroupForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind, group: VisitorGroupDefinition&lt;AsyncGraphWalkVisitor&lt;VertexData, EdgeData, PreventVisitorReturnFromWideningPhase&lt;ObservationKind&gt;, VertexId&gt;&gt;) =&gt; AsyncGraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
+| `appendVisitorGroupForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind, group: VisitorGroupDefinition&lt;AsyncGraphWalkVisitor&lt;VertexData, EdgeData, PreventVisitorReturnFromWideningPhase&lt;ObservationKind&gt;, VertexId&gt;&gt;) =&gt; AsyncGraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
 | `createIndependentRunnerFromCurrentOptions` | <code>() =&gt; AsyncGraphWalkRunner&lt;VertexData, EdgeData, VertexId&gt;</code> |
 | `listVisitorRegistrationsForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind) =&gt; VisitorRecord&lt;AsyncGraphWalkVisitor&lt;VertexData, EdgeData, ObservationKind, VertexId&gt;&gt;[]</code> |
 | `patchOptionsForFutureRunners` | <code>(patch: AsyncGraphWalkBuilderOptionsPatch&lt;VertexData, EdgeData, VertexId&gt;) =&gt; AsyncGraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
-| `replaceVisitorsForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind, input: VisitorDefinitionsForPhase&lt;AsyncGraphWalkVisitor&lt;VertexData, EdgeData, PreventVisitorReturnFromWideningPhase&lt;ObservationKind&gt;, VertexId&gt;&gt;) =&gt; AsyncGraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
+| `registerVisitorForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind, visitor: AsyncGraphWalkVisitor&lt;VertexData, EdgeData, PreventVisitorReturnFromWideningPhase&lt;ObservationKind&gt;, VertexId&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; AsyncGraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
+| `replaceVisitorDefinitionsForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind, input: VisitorDefinitionsForPhase&lt;AsyncGraphWalkVisitor&lt;VertexData, EdgeData, PreventVisitorReturnFromWideningPhase&lt;ObservationKind&gt;, VertexId&gt;&gt;) =&gt; AsyncGraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
 
 </details>
 
@@ -1091,7 +1092,7 @@ Type-only; no runtime constructor/value. [Owning contract](reference.md#general-
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
 ```ts
-export interface AsyncGraphWalkRunner<VertexData, EdgeData, VertexId> extends AsyncTraversalExecution<GraphWalkObservationKind, GraphWalkEvent<VertexData, EdgeData, VertexId>, GraphWalkInspection, `${GraphWalkObservationKind}`> {
+export interface AsyncGraphWalkRunner<VertexData, EdgeData, VertexId> extends AsyncTraversalExecution<GraphWalkObservationKind, GraphWalkEvent<VertexData, EdgeData, VertexId>, GraphWalkExecutionSnapshot, `${GraphWalkObservationKind}`> {
 runAndIterateObservationEventsUntilSuspendedOrTerminal: {
         (): AsyncGenerator<GraphWalkEvent<VertexData, EdgeData, VertexId>, void, unknown>;
         <ObservationKind extends `${GraphWalkObservationKind}`>(executionOptionsPatch: TraversalExecutionSelectionPatch<GraphWalkObservationKind, ObservationKind> & {
@@ -1110,7 +1111,7 @@ captureProgressSnapshot(): GraphWalkProgressSnapshot;
 
 | Member | Type |
 | --- | --- |
-| `captureExecutionSnapshot` | <code>() =&gt; GraphWalkInspection</code> |
+| `captureExecutionSnapshot` | <code>() =&gt; GraphWalkExecutionSnapshot</code> |
 | `captureProgressSnapshot` | <code>() =&gt; Readonly&lt;{ status: TraversalRunnerStatus; counts: Readonly&lt;{ rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: number; admittedRootOrLinkTargetOccurrences: number; resolvedFoundVertexIdCount: number; resolvedOmittedVertexIdCount: number; freshSourceOutgoingLinkCount: number; acknowledgedObservationCountsByKind: Readonly&lt;Record&lt;GraphWalkObservationKind, number&gt;&gt;; }&gt;; terminalOutcome: GraphWalkTerminalOutcome &#124; null; }&gt;</code> |
 | `closePermanentlyAndDisposeSourceIterators` | <code>() =&gt; Promise&lt;void&gt;</code> |
 | `getTraversalLifecycleStatus` | <code>() =&gt; TraversalRunnerStatus</code> |
@@ -1192,8 +1193,8 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/c
 
 ```ts
 export interface AsyncTreeDiscoverySource<InputVertexTypes extends VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes> {
-resolveRootVertex: () => MaybePromise<TreeVertexResolution<InputVertexTypes>>;
-resolveChildVertexFromHint: (hint: InputVertexTypes['ChildHint'], options: TreeChildResolverContext<InputVertexTypes, RewrittenVertexTypes>) => MaybePromise<TreeVertexResolution<InputVertexTypes>>;
+resolveRootVertex: () => MaybePromise<TreeSourceVertexResolution<InputVertexTypes>>;
+resolveChildVertexFromHint: (hint: InputVertexTypes['ChildHint'], options: TreeChildResolverContext<InputVertexTypes, RewrittenVertexTypes>) => MaybePromise<TreeSourceVertexResolution<InputVertexTypes>>;
 }
 ```
 
@@ -1202,8 +1203,8 @@ resolveChildVertexFromHint: (hint: InputVertexTypes['ChildHint'], options: TreeC
 
 | Member | Type |
 | --- | --- |
-| `resolveChildVertexFromHint` | <code>(hint: InputVertexTypes["ChildHint"], options: TreeChildResolverContext&lt;InputVertexTypes, RewrittenVertexTypes&gt;) =&gt; MaybePromise&lt;TreeVertexResolution&lt;InputVertexTypes&gt;&gt;</code> |
-| `resolveRootVertex` | <code>() =&gt; MaybePromise&lt;TreeVertexResolution&lt;InputVertexTypes&gt;&gt;</code> |
+| `resolveChildVertexFromHint` | <code>(hint: InputVertexTypes["ChildHint"], options: TreeChildResolverContext&lt;InputVertexTypes, RewrittenVertexTypes&gt;) =&gt; MaybePromise&lt;TreeSourceVertexResolution&lt;InputVertexTypes&gt;&gt;</code> |
+| `resolveRootVertex` | <code>() =&gt; MaybePromise&lt;TreeSourceVertexResolution&lt;InputVertexTypes&gt;&gt;</code> |
 
 </details>
 
@@ -1295,7 +1296,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 export declare class BreadthFirstTreeTraversalBuilder<InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes> {
 constructor(icfgInput: BreadthFirstTreeTraversalBuilderOptions<InputVertexTypes, RewrittenVertexTypes>);
 patchOptionsForFutureRunners(icfgInput: BreadthFirstTreeTraversalBuilderOptionsPatch<InputVertexTypes, RewrittenVertexTypes>): this;
-registerVisitorCallbackForPhase<Phase extends BreadthFirstTreeVisitPhase>(phase: Phase, visitor: TreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>, options?: Partial<VisitorRegistrationOptions>): this;
+registerVisitorForPhase<Phase extends BreadthFirstTreeVisitPhase>(phase: Phase, visitor: TreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>, options?: Partial<VisitorRegistrationOptions>): this;
 appendVisitorGroupForPhase<Phase extends BreadthFirstTreeVisitPhase>(phase: Phase, group: VisitorGroupDefinition<TreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>>): this;
 getDetachedVisitorRegistrationRecordsForPhase<Phase extends BreadthFirstTreeVisitPhase>(phase: Phase): BreadthFirstTreeVisitorRegistrationsByPhase<InputVertexTypes, RewrittenVertexTypes>[Phase];
 replaceVisitorDefinitionsForPhase<Phase extends BreadthFirstTreeVisitPhase>(phase: Phase, input: VisitorDefinitionsForPhase<TreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>>): this;
@@ -1312,7 +1313,7 @@ createIndependentRunnerFromCurrentOptions(): BreadthFirstTreeRunner<InputVertexT
 | `createIndependentRunnerFromCurrentOptions` | <code>() =&gt; BreadthFirstTreeRunner&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
 | `getDetachedVisitorRegistrationRecordsForPhase` | <code>&lt;Phase extends BreadthFirstTreeVisitPhase&gt;(phase: Phase) =&gt; BreadthFirstTreeVisitorRegistrationsByPhase&lt;InputVertexTypes, RewrittenVertexTypes&gt;[Phase]</code> |
 | `patchOptionsForFutureRunners` | <code>(icfgInput: BreadthFirstTreeTraversalBuilderOptionsPatch&lt;InputVertexTypes, RewrittenVertexTypes&gt;) =&gt; BreadthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
-| `registerVisitorCallbackForPhase` | <code>&lt;Phase extends BreadthFirstTreeVisitPhase&gt;(phase: Phase, visitor: TreeVertexPhaseVisitorCallback&lt;InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; BreadthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
+| `registerVisitorForPhase` | <code>&lt;Phase extends BreadthFirstTreeVisitPhase&gt;(phase: Phase, visitor: TreeVertexPhaseVisitorCallback&lt;InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; BreadthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
 | `replaceVisitorDefinitionsForPhase` | <code>&lt;Phase extends BreadthFirstTreeVisitPhase&gt;(phase: Phase, input: VisitorDefinitionsForPhase&lt;TreeVertexPhaseVisitorCallback&lt;InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;&gt;&gt;) =&gt; BreadthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
 
 </details>
@@ -1515,7 +1516,7 @@ export type DagChildResolutionContext<SourceVertexTypes extends VertexDataAndChi
         parentVertexHandle: null;
     }>;
     liveResolvedGraphView: LiveResolvedGraphView<SourceVertexTypes | RewrittenVertexTypes, VertexId>;
-    preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<SourceVertexTypes, VertexId> | null;
+    livePreCommandDiscoveredGraphView: LivePreCommandDiscoveredGraphView<SourceVertexTypes, VertexId> | null;
 };
 ```
 
@@ -1524,8 +1525,8 @@ export type DagChildResolutionContext<SourceVertexTypes extends VertexDataAndChi
 
 | Member | Type |
 | --- | --- |
+| `livePreCommandDiscoveredGraphView` | <code>LivePreCommandDiscoveredGraphView&lt;SourceVertexTypes, VertexId&gt; &#124; null</code> |
 | `liveResolvedGraphView` | <code>LiveResolvedGraphView&lt;SourceVertexTypes &#124; RewrittenVertexTypes, VertexId&gt;</code> |
-| `preCommandDiscoveredGraphView` | <code>PreCommandDiscoveredGraphView&lt;SourceVertexTypes, VertexId&gt; &#124; null</code> |
 | `structuralChildResolution` | <code>Readonly&lt;{ discoveryDepthInEdges: number; parentVertexAtChildResolution: VertexView&lt;SourceVertexTypes &#124; RewrittenVertexTypes&gt;; parentVertexHandle: VertexHandle&lt;SourceVertexTypes &#124; RewrittenVertexTypes&gt;; parentChildHintIndex: number; childDiscoveryHint: (SourceVertexTypes &#124; RewrittenVertexTypes)["ChildHint"]; }&gt; &#124; Readonly&lt;Omit&lt;Readonly&lt;{ discoveryDepthInEdges: number; parentVertexAtChildResolution: VertexView&lt;SourceVertexTypes &#124; RewrittenVertexTypes&gt;; parentVertexHandle: VertexHandle&lt;SourceVertexTypes &#124; RewrittenVertexTypes&gt;; parentChildHintIndex: number; childDiscoveryHint: (SourceVertexTypes &#124; RewrittenVertexTypes)["ChildHint"]; }&gt;, "parentVertexAtChildResolution" &#124; "parentVertexHandle"&gt; &amp; { parentVertexAtChildResolution: null; parentVertexHandle: null; }&gt;</code> |
 
 </details>
@@ -1605,7 +1606,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 
 ```ts
 export type DagDefinition<Data, VertexId = unknown> = {
-    readonly vertexDeclarations: readonly DagDefinitionVertex<Data, VertexId>[];
+    readonly vertexDeclarations: readonly DagVertexDeclaration<Data, VertexId>[];
     readonly omittedVertexIds: readonly VertexId[];
     readonly entry: {
         readonly kind: 'root';
@@ -1626,7 +1627,7 @@ export type DagDefinition<Data, VertexId = unknown> = {
 | --- | --- |
 | `entry` | <code>{ readonly kind: "root"; readonly vertexId: VertexId; } &#124; { readonly kind: "roots"; readonly entryDiscoverySlots: readonly DagStructuralDiscoverySlot&lt;VertexId&gt;[]; } &#124; { readonly kind: "empty"; }</code> |
 | `omittedVertexIds` | <code>readonly VertexId[]</code> |
-| `vertexDeclarations` | <code>readonly DagDefinitionVertex&lt;Data, VertexId&gt;[]</code> |
+| `vertexDeclarations` | <code>readonly DagVertexDeclaration&lt;Data, VertexId&gt;[]</code> |
 
 </details>
 
@@ -1654,7 +1655,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 export type DagDefinitionDiff<VertexId = unknown> = {
     readonly addedVertexDeclarationIds: readonly VertexId[];
     readonly removedVertexDeclarationIds: readonly VertexId[];
-    readonly changedVertexDeclarations: readonly DagDefinitionVertexChange<VertexId>[];
+    readonly changedVertexDeclarations: readonly DagVertexDeclarationChange<VertexId>[];
     /** True whenever the ordered live ID sequence differs, including add/remove. */
     readonly vertexDeclarationSequenceChanged: boolean;
     readonly entryChanged: boolean;
@@ -1668,7 +1669,7 @@ export type DagDefinitionDiff<VertexId = unknown> = {
 | Member | Type |
 | --- | --- |
 | `addedVertexDeclarationIds` | <code>readonly VertexId[]</code> |
-| `changedVertexDeclarations` | <code>readonly DagDefinitionVertexChange&lt;VertexId&gt;[]</code> |
+| `changedVertexDeclarations` | <code>readonly DagVertexDeclarationChange&lt;VertexId&gt;[]</code> |
 | `entryChanged` | <code>boolean</code> |
 | `omittedVertexIdSequenceChanged` | <code>boolean</code> |
 | `removedVertexDeclarationIds` | <code>readonly VertexId[]</code> |
@@ -1722,62 +1723,6 @@ export type DagDefinitionIssue<VertexId = unknown> = {
 
 </details>
 
-<a id="symbol-DagDefinitionVertex"></a>
-
-### DagDefinitionVertex
-
-Type-only; no runtime constructor/value. [Owning contract](reference.md#materialized-dag-definitions) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
-
-Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
-
-```ts
-export type DagDefinitionVertex<Data, VertexId> = {
-    readonly vertexId: VertexId;
-    readonly data: Data;
-    readonly childDiscoverySlots: readonly DagStructuralDiscoverySlot<VertexId>[];
-    readonly workWaitsForWorkOf: readonly VertexId[];
-    readonly workWaitsForSubgraphCompletionOf: readonly VertexId[];
-};
-```
-
-<details>
-<summary>Resolved public members (including inherited/mapped fields)</summary>
-
-| Member | Type |
-| --- | --- |
-| `childDiscoverySlots` | <code>readonly DagStructuralDiscoverySlot&lt;VertexId&gt;[]</code> |
-| `data` | <code>Data</code> |
-| `vertexId` | <code>VertexId</code> |
-| `workWaitsForSubgraphCompletionOf` | <code>readonly VertexId[]</code> |
-| `workWaitsForWorkOf` | <code>readonly VertexId[]</code> |
-
-</details>
-
-<a id="symbol-DagDefinitionVertexChange"></a>
-
-### DagDefinitionVertexChange
-
-Type-only; no runtime constructor/value. [Owning contract](reference.md#validated-dag-revisions) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)
-
-Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
-
-```ts
-export type DagDefinitionVertexChange<VertexId = unknown> = {
-    readonly vertexId: VertexId;
-    readonly changedDeclarationFields: readonly DagDefinitionChangeAspect[];
-};
-```
-
-<details>
-<summary>Resolved public members (including inherited/mapped fields)</summary>
-
-| Member | Type |
-| --- | --- |
-| `changedDeclarationFields` | <code>readonly DagDefinitionChangeAspect[]</code> |
-| `vertexId` | <code>VertexId</code> |
-
-</details>
-
 <a id="symbol-DagDiscoverySource"></a>
 
 ### DagDiscoverySource
@@ -1790,7 +1735,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/c
 export interface DagDiscoverySource<SourceVertexTypes extends VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes, VertexId = unknown> {
 resolvePrerequisiteByVertexId?: (vertexId: VertexId) => DagPrerequisiteLookupResult<SourceVertexTypes, VertexId>;
 resolveRootVertex: () => DagSourceVertexResolution<SourceVertexTypes, VertexId>;
-resolveChildHint: (hint: SourceVertexTypes['ChildHint'], context: DagChildResolutionContext<SourceVertexTypes, RewrittenVertexTypes, VertexId>) => DagSourceVertexResolution<SourceVertexTypes, VertexId>;
+resolveChildVertexFromHint: (hint: SourceVertexTypes['ChildHint'], context: DagChildResolutionContext<SourceVertexTypes, RewrittenVertexTypes, VertexId>) => DagSourceVertexResolution<SourceVertexTypes, VertexId>;
 tryGetVertexIdentityFromHint?: (hint: SourceVertexTypes['ChildHint']) => ChildHintVertexIdentity<VertexId> | undefined;
 }
 ```
@@ -1800,7 +1745,7 @@ tryGetVertexIdentityFromHint?: (hint: SourceVertexTypes['ChildHint']) => ChildHi
 
 | Member | Type |
 | --- | --- |
-| `resolveChildHint` | <code>(hint: SourceVertexTypes["ChildHint"], context: DagChildResolutionContext&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;) =&gt; DagSourceVertexResolution&lt;SourceVertexTypes, VertexId&gt;</code> |
+| `resolveChildVertexFromHint` | <code>(hint: SourceVertexTypes["ChildHint"], context: DagChildResolutionContext&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;) =&gt; DagSourceVertexResolution&lt;SourceVertexTypes, VertexId&gt;</code> |
 | `resolvePrerequisiteByVertexId` | <code>((vertexId: VertexId) =&gt; DagPrerequisiteLookupResult&lt;SourceVertexTypes, VertexId&gt;) &#124; undefined</code> |
 | `resolveRootVertex` | <code>() =&gt; DagSourceVertexResolution&lt;SourceVertexTypes, VertexId&gt;</code> |
 | `tryGetVertexIdentityFromHint` | <code>((hint: SourceVertexTypes["ChildHint"]) =&gt; ChildHintVertexIdentity&lt;VertexId&gt; &#124; undefined) &#124; undefined</code> |
@@ -1928,12 +1873,12 @@ export type DagExternalWorkSessionOptions<VertexId> = OwnedOptions & {
 | `dagDiscoverySource` | <code>undefined</code> |
 | `discoveryTiming` | <code>undefined</code> |
 | `retainDiscoveredGraphBeforeVisitorCommands` | <code>undefined</code> |
-| `rootWorkPrerequisitePolicy` | <code>undefined</code> |
+| `rootWorkToWorkPrerequisitePolicy` | <code>undefined</code> |
 | `sourceRootIsHiddenEntryHolder` | <code>undefined</code> |
 | `transformChildHintsBeforeResolution` | <code>undefined</code> |
 | `traversalRunnerInternalObjects` | <code>undefined</code> |
 | `treeDiscoverySource` | <code>undefined</code> |
-| `undeclaredWorkPrerequisitePolicy` | <code>undefined</code> |
+| `undeclaredWorkToWorkPrerequisitePolicy` | <code>undefined</code> |
 | `visitors` | <code>undefined</code> |
 | `workCompletionPolicy` | <code>undefined</code> |
 
@@ -2355,10 +2300,10 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 ```ts
 export type DagRevisionOperation<Data, VertexId = unknown> = {
     readonly kind: 'addVertexDeclaration';
-    readonly vertexDeclaration: DagDefinitionVertex<Data, VertexId>;
+    readonly vertexDeclaration: DagVertexDeclaration<Data, VertexId>;
 } | {
     readonly kind: 'replaceVertexDeclaration';
-    readonly vertexDeclaration: DagDefinitionVertex<Data, VertexId>;
+    readonly vertexDeclaration: DagVertexDeclaration<Data, VertexId>;
 } | {
     readonly kind: 'removeVertexDeclaration';
     readonly vertexId: VertexId;
@@ -2392,7 +2337,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 export type DagRevisionResult<Data, VertexId = unknown> = {
     kind: 'valid';
     validatedTopology: ValidatedReusableDagTopology<Data, VertexId>;
-    changes: DagDefinitionDiff<VertexId>;
+    declarationDiff: DagDefinitionDiff<VertexId>;
 } | {
     kind: 'invalid';
     issues: readonly DagDefinitionIssue<VertexId>[];
@@ -2446,8 +2391,8 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 export type DagSchedulingOptions = {
     workCompletionPolicy?: 'afterWorkReadyVisitorChain' | 'requireExternalWorkSettlement' | undefined;
     discoveryTiming?: 'incrementalDuringTraversal' | 'completeBeforeAnyVisitor' | undefined;
-    rootWorkPrerequisitePolicy?: 'honor' | 'ignore' | undefined;
-    undeclaredWorkPrerequisitePolicy?: 'none' | 'waitForDiscoveringParentWork' | undefined;
+    rootWorkToWorkPrerequisitePolicy?: 'honor' | 'ignore' | undefined;
+    undeclaredWorkToWorkPrerequisitePolicy?: 'none' | 'waitForDiscoveringParentWork' | undefined;
     sourceRootIsHiddenEntryHolder?: boolean | undefined;
 };
 ```
@@ -2458,9 +2403,9 @@ export type DagSchedulingOptions = {
 | Member | Type |
 | --- | --- |
 | `discoveryTiming` | <code>"incrementalDuringTraversal" &#124; "completeBeforeAnyVisitor" &#124; undefined</code> |
-| `rootWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
+| `rootWorkToWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
 | `sourceRootIsHiddenEntryHolder` | <code>boolean &#124; undefined</code> |
-| `undeclaredWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
+| `undeclaredWorkToWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
 | `workCompletionPolicy` | <code>"afterWorkReadyVisitorChain" &#124; "requireExternalWorkSettlement" &#124; undefined</code> |
 
 </details>
@@ -2530,7 +2475,7 @@ Type-only; no runtime constructor/value. [Owning contract](reference.md#discover
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
 ```ts
-export type DagSourceVertexResolution<InputVertexTypes extends VertexDataAndChildHintTypes, VertexId = unknown> = FoundDagSourceVertex<InputVertexTypes, VertexId> | OmittedDagSourceVertex<VertexId>;
+export type DagSourceVertexResolution<InputVertexTypes extends VertexDataAndChildHintTypes, VertexId = unknown> = ResolvedDagSourceVertex<InputVertexTypes, VertexId> | OmittedDagSourceVertex<VertexId>;
 ```
 
 <details>
@@ -2618,12 +2563,12 @@ export type DagTopologyDiscoveryInput<SourceVertexTypes extends VertexDataAndChi
 | `dagDiscoverySource` | <code>DagDiscoverySource&lt;SourceVertexTypes, SourceVertexTypes, VertexId&gt;</code> |
 | `discoveryTiming` | <code>undefined</code> |
 | `retainDiscoveredGraphBeforeVisitorCommands` | <code>undefined</code> |
-| `rootWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
+| `rootWorkToWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
 | `sourceRootIsHiddenEntryHolder` | <code>boolean &#124; undefined</code> |
 | `transformChildHintsBeforeResolution` | <code>undefined</code> |
 | `traversalRunnerInternalObjects` | <code>undefined</code> |
 | `treeDiscoverySource` | <code>undefined</code> |
-| `undeclaredWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
+| `undeclaredWorkToWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
 | `visitors` | <code>undefined</code> |
 | `workCompletionPolicy` | <code>undefined</code> |
 
@@ -2640,8 +2585,8 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 ```ts
 export type DagTopologyDiscoveryOptions = {
     sourceRootIsHiddenEntryHolder?: boolean;
-    rootWorkPrerequisitePolicy?: 'honor' | 'ignore';
-    undeclaredWorkPrerequisitePolicy?: 'none' | 'waitForDiscoveringParentWork';
+    rootWorkToWorkPrerequisitePolicy?: 'honor' | 'ignore';
+    undeclaredWorkToWorkPrerequisitePolicy?: 'none' | 'waitForDiscoveringParentWork';
     treeDiscoverySource?: never;
     visitors?: never;
     acceptedCompletedWorkVertexIds?: never;
@@ -2661,12 +2606,12 @@ export type DagTopologyDiscoveryOptions = {
 | `acceptedCompletedWorkVertexIds` | <code>undefined</code> |
 | `discoveryTiming` | <code>undefined</code> |
 | `retainDiscoveredGraphBeforeVisitorCommands` | <code>undefined</code> |
-| `rootWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
+| `rootWorkToWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
 | `sourceRootIsHiddenEntryHolder` | <code>boolean &#124; undefined</code> |
 | `transformChildHintsBeforeResolution` | <code>undefined</code> |
 | `traversalRunnerInternalObjects` | <code>undefined</code> |
 | `treeDiscoverySource` | <code>undefined</code> |
-| `undeclaredWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
+| `undeclaredWorkToWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
 | `visitors` | <code>undefined</code> |
 | `workCompletionPolicy` | <code>undefined</code> |
 
@@ -2711,7 +2656,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 export declare class DagTraversalBuilder<SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes, VertexId = unknown> {
 constructor(input: DagTraversalBuilderOptions<SourceVertexTypes, RewrittenVertexTypes, VertexId>);
 patchOptionsForFutureRunners(input: DagTraversalBuilderOptionsPatch<SourceVertexTypes, RewrittenVertexTypes, VertexId>): this;
-registerVisitorCallbackForPhase<Phase extends DagVisitorPhase>(order: Phase, visitor: DagVisitor<SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>, VertexId>, options?: Partial<VisitorRegistrationOptions>): this;
+registerVisitorForPhase<Phase extends DagVisitorPhase>(order: Phase, visitor: DagVisitor<SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>, VertexId>, options?: Partial<VisitorRegistrationOptions>): this;
 appendVisitorGroupForPhase<Phase extends DagVisitorPhase>(order: Phase, group: VisitorGroupDefinition<DagVisitor<SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>, VertexId>>): this;
 getDetachedVisitorRegistrationRecordsForPhase<Phase extends DagVisitorPhase>(order: Phase): DagTraversalVisitors<SourceVertexTypes, RewrittenVertexTypes, VertexId>[Phase];
 replaceVisitorDefinitionsForPhase<Phase extends DagVisitorPhase>(order: Phase, input: VisitorDefinitionsForPhase<DagVisitor<SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>, VertexId>>): this;
@@ -2728,7 +2673,7 @@ createIndependentRunnerFromCurrentOptions(): DagTraversalRunner<SourceVertexType
 | `createIndependentRunnerFromCurrentOptions` | <code>() =&gt; DagTraversalRunner&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;</code> |
 | `getDetachedVisitorRegistrationRecordsForPhase` | <code>&lt;Phase extends DagVisitorPhase&gt;(order: Phase) =&gt; DagTraversalVisitors&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;[Phase]</code> |
 | `patchOptionsForFutureRunners` | <code>(input: DagTraversalBuilderOptionsPatch&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;) =&gt; DagTraversalBuilder&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;</code> |
-| `registerVisitorCallbackForPhase` | <code>&lt;Phase extends DagVisitorPhase&gt;(order: Phase, visitor: DagVisitor&lt;SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;, VertexId&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; DagTraversalBuilder&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;</code> |
+| `registerVisitorForPhase` | <code>&lt;Phase extends DagVisitorPhase&gt;(order: Phase, visitor: DagVisitor&lt;SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;, VertexId&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; DagTraversalBuilder&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;</code> |
 | `replaceVisitorDefinitionsForPhase` | <code>&lt;Phase extends DagVisitorPhase&gt;(order: Phase, input: VisitorDefinitionsForPhase&lt;DagVisitor&lt;SourceVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;, VertexId&gt;&gt;) =&gt; DagTraversalBuilder&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;</code> |
 
 </details>
@@ -2745,8 +2690,8 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 export type DagTraversalBuilderOptions<SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes, VertexId = unknown> = DagSource<SourceVertexTypes, RewrittenVertexTypes, VertexId> & DagTraversalOptionsInput<SourceVertexTypes, RewrittenVertexTypes, VertexId> & ({
     dagDiscoverySource: DagDiscoverySource<SourceVertexTypes, RewrittenVertexTypes, VertexId>;
 } | {
-    rootWorkPrerequisitePolicy?: never;
-    undeclaredWorkPrerequisitePolicy?: never;
+    rootWorkToWorkPrerequisitePolicy?: never;
+    undeclaredWorkToWorkPrerequisitePolicy?: never;
 });
 ```
 
@@ -2759,11 +2704,11 @@ export type DagTraversalBuilderOptions<SourceVertexTypes extends VertexDataAndCh
 | `dagDiscoverySource` | <code>DagDiscoverySource&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt; &#124; undefined</code> |
 | `discoveryTiming` | <code>"incrementalDuringTraversal" &#124; "completeBeforeAnyVisitor" &#124; undefined</code> |
 | `retainDiscoveredGraphBeforeVisitorCommands` | <code>boolean &#124; undefined</code> |
-| `rootWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
+| `rootWorkToWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
 | `sourceRootIsHiddenEntryHolder` | <code>boolean &#124; undefined</code> |
 | `transformChildHintsBeforeResolution` | <code>ChildHintsListTransformer&lt;SourceVertexTypes&gt; &#124; null &#124; undefined</code> |
 | `treeDiscoverySource` | <code>(unknown extends VertexId ? TreeDiscoverySource&lt;SourceVertexTypes, RewrittenVertexTypes&gt; : never) &#124; undefined</code> |
-| `undeclaredWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
+| `undeclaredWorkToWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
 | `visitors` | <code>VisitorDefinitionsByPhase&lt;DagTraversalVisitors&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;&gt; &#124; undefined</code> |
 | `workCompletionPolicy` | <code>"afterWorkReadyVisitorChain" &#124; "requireExternalWorkSettlement" &#124; undefined</code> |
 
@@ -2782,8 +2727,8 @@ export type DagTraversalBuilderOptionsPatch<SourceVertexTypes extends VertexData
     dagDiscoverySource?: DagDiscoverySource<SourceVertexTypes, RewrittenVertexTypes, VertexId> | undefined;
     treeDiscoverySource?: undefined;
 } | {
-    rootWorkPrerequisitePolicy?: never;
-    undeclaredWorkPrerequisitePolicy?: never;
+    rootWorkToWorkPrerequisitePolicy?: never;
+    undeclaredWorkToWorkPrerequisitePolicy?: never;
     treeDiscoverySource?: (unknown extends VertexId ? TreeDiscoverySource<SourceVertexTypes, RewrittenVertexTypes> : never) | undefined;
     dagDiscoverySource?: undefined;
 });
@@ -2798,11 +2743,11 @@ export type DagTraversalBuilderOptionsPatch<SourceVertexTypes extends VertexData
 | `dagDiscoverySource` | <code>DagDiscoverySource&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt; &#124; undefined</code> |
 | `discoveryTiming` | <code>"incrementalDuringTraversal" &#124; "completeBeforeAnyVisitor" &#124; undefined</code> |
 | `retainDiscoveredGraphBeforeVisitorCommands` | <code>boolean &#124; undefined</code> |
-| `rootWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
+| `rootWorkToWorkPrerequisitePolicy` | <code>"honor" &#124; "ignore" &#124; undefined</code> |
 | `sourceRootIsHiddenEntryHolder` | <code>boolean &#124; undefined</code> |
 | `transformChildHintsBeforeResolution` | <code>ChildHintsListTransformer&lt;SourceVertexTypes&gt; &#124; null &#124; undefined</code> |
 | `treeDiscoverySource` | <code>(unknown extends VertexId ? TreeDiscoverySource&lt;SourceVertexTypes, RewrittenVertexTypes&gt; : never) &#124; undefined</code> |
-| `undeclaredWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
+| `undeclaredWorkToWorkPrerequisitePolicy` | <code>"none" &#124; "waitForDiscoveringParentWork" &#124; undefined</code> |
 | `visitors` | <code>VisitorDefinitionsByPhase&lt;DagTraversalVisitors&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;&gt; &#124; undefined</code> |
 | `workCompletionPolicy` | <code>"afterWorkReadyVisitorChain" &#124; "requireExternalWorkSettlement" &#124; undefined</code> |
 
@@ -2818,7 +2763,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 
 ```ts
 export interface DagTraversalRunner<SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes, VertexId = unknown> extends SyncTraversalExecution<DagVisitorPhase, DagCommittedMilestoneEvent<SourceVertexTypes | RewrittenVertexTypes, VertexId>, TreeOrDagExecutionSnapshot<DagVisitorPhase>, 'workCompletionCommitted' | 'subgraphCompletionCommitted'> {
-readonly preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<SourceVertexTypes, VertexId> | null;
+readonly livePreCommandDiscoveredGraphView: LivePreCommandDiscoveredGraphView<SourceVertexTypes, VertexId> | null;
 discoverValidateAndFreezeTopology(): this;
 captureMilestoneSnapshot(): DagMilestoneSnapshot<VertexId>;
 captureProgressSnapshot(): DagProgressSnapshot<VertexId>;
@@ -2844,7 +2789,7 @@ isVisibleSourceRootVertex(vertexHandle: VertexHandle<SourceVertexTypes | Rewritt
 | `getTraversalStopReason` | <code>() =&gt; TraversalStopReason &#124; null</code> |
 | `isSuspended` | <code>() =&gt; boolean</code> |
 | `isVisibleSourceRootVertex` | <code>(vertexHandle: VertexHandle&lt;SourceVertexTypes &#124; RewrittenVertexTypes&gt;) =&gt; boolean</code> |
-| `preCommandDiscoveredGraphView` | <code>PreCommandDiscoveredGraphView&lt;SourceVertexTypes, VertexId&gt; &#124; null</code> |
+| `livePreCommandDiscoveredGraphView` | <code>LivePreCommandDiscoveredGraphView&lt;SourceVertexTypes, VertexId&gt; &#124; null</code> |
 | `requestPauseAfterAdmittedCallbacksDrain` | <code>() =&gt; boolean</code> |
 | `runAndIterateObservationEventsUntilSuspendedOrTerminal` | <code>{ (): Generator&lt;DagCommittedMilestoneEvent&lt;SourceVertexTypes &#124; RewrittenVertexTypes, VertexId&gt;, void, unknown&gt;; &lt;Kind extends "workCompletionCommitted" &#124; "subgraphCompletionCommitted"&gt;(config: TraversalExecutionSelectionPatch&lt;DagVisitorPhase, Kind&gt; &amp; { deliveredEventKinds: readonly Kind[]; }): Generator&lt;TraversalEventNarrowedToSelectedKinds&lt;DagCommittedMilestoneEvent&lt;SourceVertexTypes &#124; RewrittenVertexTypes, VertexId&gt;, Kind&gt;, void, unknown&gt;; (config?: TraversalExecutionSelectionPatch&lt;DagVisitorPhase, "workCompletionCommitted" &#124; "subgraphCompletionCommitted"&gt; &#124; undefined): Generator&lt;DagCommittedMilestoneEvent&lt;SourceVertexTypes &#124; RewrittenVertexTypes, VertexId&gt;, void, unknown&gt;; }</code> |
 | `runUntilSuspendedOrTerminal` | <code>(config?: TraversalExecutionSelectionPatch&lt;DagVisitorPhase, "workCompletionCommitted" &#124; "subgraphCompletionCommitted"&gt; &#124; undefined) =&gt; DagTraversalRunner&lt;SourceVertexTypes, RewrittenVertexTypes, VertexId&gt;</code> |
@@ -2864,7 +2809,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/c
 export type DagTraversalStallDiagnostics<VertexId = unknown> = {
     blockedVertexPrerequisiteReports: Array<{
         vertexId: VertexId;
-        prerequisiteVertexIdsInReport: VertexId[];
+        unmetPrerequisiteVertexIds: VertexId[];
     }>;
     unresolvedPrerequisiteVertexIds: VertexId[];
     /** Strongly connected component membership, not ordered cycle witnesses. */
@@ -2880,7 +2825,7 @@ export type DagTraversalStallDiagnostics<VertexId = unknown> = {
 
 | Member | Type |
 | --- | --- |
-| `blockedVertexPrerequisiteReports` | <code>{ vertexId: VertexId; prerequisiteVertexIdsInReport: VertexId[]; }[]</code> |
+| `blockedVertexPrerequisiteReports` | <code>{ vertexId: VertexId; unmetPrerequisiteVertexIds: VertexId[]; }[]</code> |
 | `incompleteVertexIdsWithoutUnmetPrerequisites` | <code>VertexId[]</code> |
 | `milestoneCycleVertexIdComponents` | <code>VertexId[][]</code> |
 | `nonCyclePrerequisiteBlockedVertexIds` | <code>VertexId[]</code> |
@@ -2910,6 +2855,62 @@ constructor(diagnostics: Omit<DagTraversalStallDiagnostics<DiagnosticId<VertexId
 | Member | Type |
 | --- | --- |
 | `diagnostics` | <code>DagTraversalStallDiagnostics&lt;VertexId&gt;</code> |
+
+</details>
+
+<a id="symbol-DagVertexDeclaration"></a>
+
+### DagVertexDeclaration
+
+Type-only; no runtime constructor/value. [Owning contract](reference.md#materialized-dag-definitions) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
+
+Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
+
+```ts
+export type DagVertexDeclaration<Data, VertexId> = {
+    readonly vertexId: VertexId;
+    readonly data: Data;
+    readonly childDiscoverySlots: readonly DagStructuralDiscoverySlot<VertexId>[];
+    readonly workWaitsForWorkOf: readonly VertexId[];
+    readonly workWaitsForSubgraphCompletionOf: readonly VertexId[];
+};
+```
+
+<details>
+<summary>Resolved public members (including inherited/mapped fields)</summary>
+
+| Member | Type |
+| --- | --- |
+| `childDiscoverySlots` | <code>readonly DagStructuralDiscoverySlot&lt;VertexId&gt;[]</code> |
+| `data` | <code>Data</code> |
+| `vertexId` | <code>VertexId</code> |
+| `workWaitsForSubgraphCompletionOf` | <code>readonly VertexId[]</code> |
+| `workWaitsForWorkOf` | <code>readonly VertexId[]</code> |
+
+</details>
+
+<a id="symbol-DagVertexDeclarationChange"></a>
+
+### DagVertexDeclarationChange
+
+Type-only; no runtime constructor/value. [Owning contract](reference.md#validated-dag-revisions) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)
+
+Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
+
+```ts
+export type DagVertexDeclarationChange<VertexId = unknown> = {
+    readonly vertexId: VertexId;
+    readonly changedDeclarationFields: readonly DagDefinitionChangeAspect[];
+};
+```
+
+<details>
+<summary>Resolved public members (including inherited/mapped fields)</summary>
+
+| Member | Type |
+| --- | --- |
+| `changedDeclarationFields` | <code>readonly DagDefinitionChangeAspect[]</code> |
+| `vertexId` | <code>VertexId</code> |
 
 </details>
 
@@ -2972,7 +2973,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 ```ts
 export type DagVisitorContext<SourceVertexTypes extends VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes, Phase extends DagVisitorPhase = DagVisitorPhase, VertexId = unknown> = {
     liveResolvedGraphView: LiveResolvedGraphView<SourceVertexTypes | RewrittenVertexTypes, VertexId>;
-    preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<SourceVertexTypes, VertexId> | null;
+    livePreCommandDiscoveredGraphView: LivePreCommandDiscoveredGraphView<SourceVertexTypes, VertexId> | null;
     vertexHandle: VertexHandle<SourceVertexTypes | RewrittenVertexTypes>;
     visitorPhase: Phase;
     isVisibleSourceRoot: boolean;
@@ -2991,9 +2992,9 @@ export type DagVisitorContext<SourceVertexTypes extends VertexDataAndChildHintTy
 | --- | --- |
 | `currentVertexPhaseChainState` | <code>unknown</code> |
 | `isVisibleSourceRoot` | <code>boolean</code> |
+| `livePreCommandDiscoveredGraphView` | <code>LivePreCommandDiscoveredGraphView&lt;SourceVertexTypes, VertexId&gt; &#124; null</code> |
 | `liveResolvedGraphView` | <code>LiveResolvedGraphView&lt;SourceVertexTypes &#124; RewrittenVertexTypes, VertexId&gt;</code> |
 | `phaseVisitorChainAdmissionIndex` | <code>number</code> |
-| `preCommandDiscoveredGraphView` | <code>PreCommandDiscoveredGraphView&lt;SourceVertexTypes, VertexId&gt; &#124; null</code> |
 | `previousCommittedVisitVertexHandleForSamePhase` | <code>VertexHandle&lt;SourceVertexTypes &#124; RewrittenVertexTypes&gt; &#124; null</code> |
 | `vertexHandle` | <code>VertexHandle&lt;SourceVertexTypes &#124; RewrittenVertexTypes&gt;</code> |
 | `visitorCallbackIndexInPhaseChain` | <code>number</code> |
@@ -3139,7 +3140,7 @@ export interface DepthFirstTreeRunner<InputVertexTypes extends VertexDataAndChil
 getLiveResolvedTreeView(): LiveResolvedTreeView<InputVertexTypes | RewrittenVertexTypes>;
 getLiveResolvedGraphView(): LiveResolvedGraphView<InputVertexTypes | RewrittenVertexTypes>;
 isTreeRootVertex(ref: VertexHandle<InputVertexTypes | RewrittenVertexTypes>): boolean;
-hasSkippedPendingChildDiscovery(ref: VertexHandle<InputVertexTypes | RewrittenVertexTypes>): boolean;
+isPendingChildDiscoveryDisabled(ref: VertexHandle<InputVertexTypes | RewrittenVertexTypes>): boolean;
 }
 ```
 
@@ -3153,7 +3154,7 @@ hasSkippedPendingChildDiscovery(ref: VertexHandle<InputVertexTypes | RewrittenVe
 | `getLiveResolvedTreeView` | <code>() =&gt; LiveResolvedTreeView&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt;</code> |
 | `getTraversalLifecycleStatus` | <code>() =&gt; TraversalRunnerStatus</code> |
 | `getTraversalStopReason` | <code>() =&gt; TraversalStopReason &#124; null</code> |
-| `hasSkippedPendingChildDiscovery` | <code>(ref: VertexHandle&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt;) =&gt; boolean</code> |
+| `isPendingChildDiscoveryDisabled` | <code>(ref: VertexHandle&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt;) =&gt; boolean</code> |
 | `isSuspended` | <code>() =&gt; boolean</code> |
 | `isTreeRootVertex` | <code>(ref: VertexHandle&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt;) =&gt; boolean</code> |
 | `requestPauseAfterAdmittedCallbacksDrain` | <code>() =&gt; boolean</code> |
@@ -3174,7 +3175,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 export declare class DepthFirstTreeTraversalBuilder<InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes> {
 constructor(icfgInput: DepthFirstTreeTraversalBuilderOptions<InputVertexTypes, RewrittenVertexTypes>);
 patchOptionsForFutureRunners(icfgInput: DepthFirstTreeTraversalBuilderOptionsPatch<InputVertexTypes, RewrittenVertexTypes>): this;
-registerVisitorCallbackForPhase<Phase extends DepthFirstTreeVisitPhase>(phase: Phase, visitor: TreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>, options?: Partial<VisitorRegistrationOptions>): this;
+registerVisitorForPhase<Phase extends DepthFirstTreeVisitPhase>(phase: Phase, visitor: TreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>, options?: Partial<VisitorRegistrationOptions>): this;
 appendVisitorGroupForPhase<Phase extends DepthFirstTreeVisitPhase>(phase: Phase, group: VisitorGroupDefinition<TreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>>): this;
 getDetachedVisitorRegistrationRecordsForPhase<Phase extends DepthFirstTreeVisitPhase>(phase: Phase): DepthFirstTreeVisitorRegistrationsByPhase<InputVertexTypes, RewrittenVertexTypes>[Phase];
 replaceVisitorDefinitionsForPhase<Phase extends DepthFirstTreeVisitPhase>(phase: Phase, input: VisitorDefinitionsForPhase<TreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase<Phase>>>): this;
@@ -3191,7 +3192,7 @@ createIndependentRunnerFromCurrentOptions(): DepthFirstTreeRunner<InputVertexTyp
 | `createIndependentRunnerFromCurrentOptions` | <code>() =&gt; DepthFirstTreeRunner&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
 | `getDetachedVisitorRegistrationRecordsForPhase` | <code>&lt;Phase extends DepthFirstTreeVisitPhase&gt;(phase: Phase) =&gt; DepthFirstTreeVisitorRegistrationsByPhase&lt;InputVertexTypes, RewrittenVertexTypes&gt;[Phase]</code> |
 | `patchOptionsForFutureRunners` | <code>(icfgInput: DepthFirstTreeTraversalBuilderOptionsPatch&lt;InputVertexTypes, RewrittenVertexTypes&gt;) =&gt; DepthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
-| `registerVisitorCallbackForPhase` | <code>&lt;Phase extends DepthFirstTreeVisitPhase&gt;(phase: Phase, visitor: TreeVertexPhaseVisitorCallback&lt;InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; DepthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
+| `registerVisitorForPhase` | <code>&lt;Phase extends DepthFirstTreeVisitPhase&gt;(phase: Phase, visitor: TreeVertexPhaseVisitorCallback&lt;InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; DepthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
 | `replaceVisitorDefinitionsForPhase` | <code>&lt;Phase extends DepthFirstTreeVisitPhase&gt;(phase: Phase, input: VisitorDefinitionsForPhase&lt;TreeVertexPhaseVisitorCallback&lt;InputVertexTypes, RewrittenVertexTypes, PreventVisitorReturnFromWideningPhase&lt;Phase&gt;&gt;&gt;) =&gt; DepthFirstTreeTraversalBuilder&lt;InputVertexTypes, RewrittenVertexTypes&gt;</code> |
 
 </details>
@@ -3281,34 +3282,6 @@ AFTER_CHILD_SUBTREES = "AFTER_CHILD_SUBTREES"
 
 </details>
 
-<a id="symbol-FoundDagSourceVertex"></a>
-
-### FoundDagSourceVertex
-
-Type-only; no runtime constructor/value. [Owning contract](reference.md#discovery-and-completed-work) · [Executable snippet](reference.md#graph-source-result-example)
-
-Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
-
-```ts
-export type FoundDagSourceVertex<InputVertexTypes extends VertexDataAndChildHintTypes, VertexId = unknown> = {
-    kind: 'vertexResolved';
-    resolvedVertexInput: GraphDependencies<VertexId> & RequiredGraphVertexIdentity<VertexId> & {
-        vertexContentInput: VertexContentInput<InputVertexTypes>;
-        vertexId?: VertexId;
-    };
-};
-```
-
-<details>
-<summary>Resolved public members (including inherited/mapped fields)</summary>
-
-| Member | Type |
-| --- | --- |
-| `kind` | <code>"vertexResolved"</code> |
-| `resolvedVertexInput` | <code>GraphDependencies&lt;VertexId&gt; &amp; RequiredGraphVertexIdentity&lt;VertexId&gt; &amp; { vertexContentInput: VertexContentInput&lt;InputVertexTypes&gt;; vertexId?: VertexId &#124; undefined; }</code> |
-
-</details>
-
 <a id="symbol-GraphWalkBuilder"></a>
 
 ### GraphWalkBuilder
@@ -3321,9 +3294,9 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 export declare class GraphWalkBuilder<VertexData, EdgeData, VertexId> {
 constructor(options: GraphWalkBuilderOptions<VertexData, EdgeData, VertexId>);
 patchOptionsForFutureRunners(patch: GraphWalkBuilderOptionsPatch<VertexData, EdgeData, VertexId>): this;
-addVisitorForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind, visitor: GraphWalkVisitor<VertexData, EdgeData, PreventVisitorReturnFromWideningPhase<ObservationKind>, VertexId>, options?: Partial<VisitorRegistrationOptions>): this;
-addVisitorGroupForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind, group: VisitorGroupDefinition<GraphWalkVisitor<VertexData, EdgeData, PreventVisitorReturnFromWideningPhase<ObservationKind>, VertexId>>): this;
-replaceVisitorsForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind, input: VisitorDefinitionsForPhase<GraphWalkVisitor<VertexData, EdgeData, PreventVisitorReturnFromWideningPhase<ObservationKind>, VertexId>>): this;
+registerVisitorForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind, visitor: GraphWalkVisitor<VertexData, EdgeData, PreventVisitorReturnFromWideningPhase<ObservationKind>, VertexId>, options?: Partial<VisitorRegistrationOptions>): this;
+appendVisitorGroupForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind, group: VisitorGroupDefinition<GraphWalkVisitor<VertexData, EdgeData, PreventVisitorReturnFromWideningPhase<ObservationKind>, VertexId>>): this;
+replaceVisitorDefinitionsForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind, input: VisitorDefinitionsForPhase<GraphWalkVisitor<VertexData, EdgeData, PreventVisitorReturnFromWideningPhase<ObservationKind>, VertexId>>): this;
 listVisitorRegistrationsForObservationKind<ObservationKind extends GraphWalkObservationKind>(observationKind: ObservationKind): VisitorRecord<GraphWalkVisitor<VertexData, EdgeData, ObservationKind, VertexId>>[];
 createIndependentRunnerFromCurrentOptions(): GraphWalkRunner<VertexData, EdgeData, VertexId>;
 }
@@ -3334,12 +3307,12 @@ createIndependentRunnerFromCurrentOptions(): GraphWalkRunner<VertexData, EdgeDat
 
 | Member | Type |
 | --- | --- |
-| `addVisitorForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind, visitor: GraphWalkVisitor&lt;VertexData, EdgeData, PreventVisitorReturnFromWideningPhase&lt;ObservationKind&gt;, VertexId&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; GraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
-| `addVisitorGroupForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind, group: VisitorGroupDefinition&lt;GraphWalkVisitor&lt;VertexData, EdgeData, PreventVisitorReturnFromWideningPhase&lt;ObservationKind&gt;, VertexId&gt;&gt;) =&gt; GraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
+| `appendVisitorGroupForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind, group: VisitorGroupDefinition&lt;GraphWalkVisitor&lt;VertexData, EdgeData, PreventVisitorReturnFromWideningPhase&lt;ObservationKind&gt;, VertexId&gt;&gt;) =&gt; GraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
 | `createIndependentRunnerFromCurrentOptions` | <code>() =&gt; GraphWalkRunner&lt;VertexData, EdgeData, VertexId&gt;</code> |
 | `listVisitorRegistrationsForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind) =&gt; VisitorRecord&lt;GraphWalkVisitor&lt;VertexData, EdgeData, ObservationKind, VertexId&gt;&gt;[]</code> |
 | `patchOptionsForFutureRunners` | <code>(patch: GraphWalkBuilderOptionsPatch&lt;VertexData, EdgeData, VertexId&gt;) =&gt; GraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
-| `replaceVisitorsForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind, input: VisitorDefinitionsForPhase&lt;GraphWalkVisitor&lt;VertexData, EdgeData, PreventVisitorReturnFromWideningPhase&lt;ObservationKind&gt;, VertexId&gt;&gt;) =&gt; GraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
+| `registerVisitorForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind, visitor: GraphWalkVisitor&lt;VertexData, EdgeData, PreventVisitorReturnFromWideningPhase&lt;ObservationKind&gt;, VertexId&gt;, options?: Partial&lt;VisitorRegistrationOptions&gt; &#124; undefined) =&gt; GraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
+| `replaceVisitorDefinitionsForObservationKind` | <code>&lt;ObservationKind extends GraphWalkObservationKind&gt;(observationKind: ObservationKind, input: VisitorDefinitionsForPhase&lt;GraphWalkVisitor&lt;VertexData, EdgeData, PreventVisitorReturnFromWideningPhase&lt;ObservationKind&gt;, VertexId&gt;&gt;) =&gt; GraphWalkBuilder&lt;VertexData, EdgeData, VertexId&gt;</code> |
 
 </details>
 
@@ -3582,58 +3555,16 @@ export type GraphWalkEventForObservationKind<VertexData, EdgeData, ObservationKi
 
 </details>
 
-<a id="symbol-GraphWalkExpansionOrder"></a>
+<a id="symbol-GraphWalkExecutionSnapshot"></a>
 
-### GraphWalkExpansionOrder
-
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
-
-Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
-
-```ts
-export type GraphWalkExpansionOrder = 'breadthFirst' | 'depthFirst';
-```
-
-<a id="symbol-GraphWalkExplorationLimits"></a>
-
-### GraphWalkExplorationLimits
-
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
-
-Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
-
-```ts
-export type GraphWalkExplorationLimits = {
-    /** Maximum route depth; gates expansion after the expansion predicate. */
-    maxRouteHopDepth?: number;
-    /** Distinct roots and eligible followed links, including returning/omitted targets. */
-    maxAdmittedRootOrLinkTargetOccurrences?: number;
-    /** Root/link read attempts, including exhaustion, filtering, and cached replay. */
-    maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay?: number;
-};
-```
-
-<details>
-<summary>Resolved public members (including inherited/mapped fields)</summary>
-
-| Member | Type |
-| --- | --- |
-| `maxAdmittedRootOrLinkTargetOccurrences` | <code>number &#124; undefined</code> |
-| `maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay` | <code>number &#124; undefined</code> |
-| `maxRouteHopDepth` | <code>number &#124; undefined</code> |
-
-</details>
-
-<a id="symbol-GraphWalkInspection"></a>
-
-### GraphWalkInspection
+### GraphWalkExecutionSnapshot
 
 Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
 ```ts
-export interface GraphWalkInspection extends TraversalExecutionSnapshot {
+export interface GraphWalkExecutionSnapshot extends TraversalExecutionSnapshot {
 readonly traversalAlgorithm: 'graph-walk';
 readonly sourceMode: 'graph';
 readonly concurrency: 1;
@@ -3680,6 +3611,48 @@ readonly pendingInvocationRequests: readonly Readonly<{
 | `traversalLifecycleStatus` | <code>TraversalRunnerStatus</code> |
 | `traversalStopReason` | <code>TraversalStopReason &#124; null</code> |
 | `visitorChainPosition` | <code>Readonly&lt;{ observationKind: GraphWalkObservationKind; visitorIndexInObservationChain: number; }&gt; &#124; null</code> |
+
+</details>
+
+<a id="symbol-GraphWalkExpansionOrder"></a>
+
+### GraphWalkExpansionOrder
+
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+
+Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
+
+```ts
+export type GraphWalkExpansionOrder = 'breadthFirst' | 'depthFirst';
+```
+
+<a id="symbol-GraphWalkExplorationLimits"></a>
+
+### GraphWalkExplorationLimits
+
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+
+Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
+
+```ts
+export type GraphWalkExplorationLimits = {
+    /** Maximum route depth; gates expansion after the expansion predicate. */
+    maxRouteHopDepth?: number;
+    /** Distinct roots and eligible followed links, including returning/omitted targets. */
+    maxAdmittedRootOrLinkTargetOccurrences?: number;
+    /** Root/link read attempts, including exhaustion, filtering, and cached replay. */
+    maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay?: number;
+};
+```
+
+<details>
+<summary>Resolved public members (including inherited/mapped fields)</summary>
+
+| Member | Type |
+| --- | --- |
+| `maxAdmittedRootOrLinkTargetOccurrences` | <code>number &#124; undefined</code> |
+| `maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay` | <code>number &#124; undefined</code> |
+| `maxRouteHopDepth` | <code>number &#124; undefined</code> |
 
 </details>
 
@@ -4001,7 +3974,7 @@ Type-only; no runtime constructor/value. [Owning contract](reference.md#general-
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
 ```ts
-export interface GraphWalkRunner<VertexData, EdgeData, VertexId> extends SyncTraversalExecution<GraphWalkObservationKind, GraphWalkEvent<VertexData, EdgeData, VertexId>, GraphWalkInspection, `${GraphWalkObservationKind}`> {
+export interface GraphWalkRunner<VertexData, EdgeData, VertexId> extends SyncTraversalExecution<GraphWalkObservationKind, GraphWalkEvent<VertexData, EdgeData, VertexId>, GraphWalkExecutionSnapshot, `${GraphWalkObservationKind}`> {
 runAndIterateObservationEventsUntilSuspendedOrTerminal: {
         (): Generator<GraphWalkEvent<VertexData, EdgeData, VertexId>, void, unknown>;
         <ObservationKind extends `${GraphWalkObservationKind}`>(executionOptionsPatch: TraversalExecutionSelectionPatch<GraphWalkObservationKind, ObservationKind> & {
@@ -4020,7 +3993,7 @@ captureProgressSnapshot(): GraphWalkProgressSnapshot;
 
 | Member | Type |
 | --- | --- |
-| `captureExecutionSnapshot` | <code>() =&gt; GraphWalkInspection</code> |
+| `captureExecutionSnapshot` | <code>() =&gt; GraphWalkExecutionSnapshot</code> |
 | `captureProgressSnapshot` | <code>() =&gt; Readonly&lt;{ status: TraversalRunnerStatus; counts: Readonly&lt;{ rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: number; admittedRootOrLinkTargetOccurrences: number; resolvedFoundVertexIdCount: number; resolvedOmittedVertexIdCount: number; freshSourceOutgoingLinkCount: number; acknowledgedObservationCountsByKind: Readonly&lt;Record&lt;GraphWalkObservationKind, number&gt;&gt;; }&gt;; terminalOutcome: GraphWalkTerminalOutcome &#124; null; }&gt;</code> |
 | `closePermanentlyAndDisposeSourceIterators` | <code>() =&gt; void</code> |
 | `getTraversalLifecycleStatus` | <code>() =&gt; TraversalRunnerStatus</code> |
@@ -4042,7 +4015,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/t
 
 ```ts
 export type GraphWalkTerminalOutcome = {
-    readonly kind: 'sourceRoutesExhausted' | 'permanentlyClosedByCaller';
+    readonly kind: 'explorationExhausted' | 'permanentlyClosedByCaller';
 } | {
     readonly kind: 'traversalLimitsReached';
     readonly reachedLimits: readonly ('maxRouteHopDepth' | 'maxAdmittedRootOrLinkTargetOccurrences' | 'maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay')[];
@@ -4057,7 +4030,7 @@ export type GraphWalkTerminalOutcome = {
 
 | Member | Type |
 | --- | --- |
-| `kind` | <code>"failed" &#124; "sourceRoutesExhausted" &#124; "permanentlyClosedByCaller" &#124; "traversalLimitsReached"</code> |
+| `kind` | <code>"failed" &#124; "explorationExhausted" &#124; "permanentlyClosedByCaller" &#124; "traversalLimitsReached"</code> |
 
 </details>
 
@@ -4238,6 +4211,34 @@ export type LiveObjectPropertyVertexTypes<InputTypes extends ObjectPropertyTreeV
 
 </details>
 
+<a id="symbol-LivePreCommandDiscoveredGraphView"></a>
+
+### LivePreCommandDiscoveredGraphView
+
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
+
+Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
+
+```ts
+export type LivePreCommandDiscoveredGraphView<InputVertexTypes extends VertexDataAndChildHintTypes, VertexId = unknown> = Pick<LiveResolvedGraphView<InputVertexTypes, VertexId>, 'containsVertexHandle' | 'getDesignatedRootHandleOrNull' | 'getVertexHandles' | 'getVertexHandleByIdOrNull' | 'requireVertexId' | 'getDistinctStructuralParentHandlesOrNull' | 'getStructuralChildHandlesInSlotOrderOrNull' | 'requireAllStructuralAncestorPathsTo'>;
+```
+
+<details>
+<summary>Resolved public members (including inherited/mapped fields)</summary>
+
+| Member | Type |
+| --- | --- |
+| `containsVertexHandle` | <code>(ref: VertexHandle&lt;InputVertexTypes&gt;) =&gt; boolean</code> |
+| `getDesignatedRootHandleOrNull` | <code>() =&gt; VertexHandle&lt;InputVertexTypes&gt; &#124; null</code> |
+| `getDistinctStructuralParentHandlesOrNull` | <code>(ref: VertexHandle&lt;InputVertexTypes&gt;) =&gt; readonly VertexHandle&lt;InputVertexTypes&gt;[] &#124; null</code> |
+| `getStructuralChildHandlesInSlotOrderOrNull` | <code>(ref: VertexHandle&lt;InputVertexTypes&gt;) =&gt; readonly VertexHandle&lt;InputVertexTypes&gt;[] &#124; null</code> |
+| `getVertexHandleByIdOrNull` | <code>(id: VertexId) =&gt; VertexHandle&lt;InputVertexTypes&gt; &#124; null</code> |
+| `getVertexHandles` | <code>() =&gt; readonly VertexHandle&lt;InputVertexTypes&gt;[]</code> |
+| `requireAllStructuralAncestorPathsTo` | <code>(ref: VertexHandle&lt;InputVertexTypes&gt;, options?: StructuralAncestorPathOptions &#124; undefined) =&gt; readonly (readonly VertexHandle&lt;InputVertexTypes&gt;[])[]</code> |
+| `requireVertexId` | <code>(ref: VertexHandle&lt;InputVertexTypes&gt;) =&gt; VertexId</code> |
+
+</details>
+
 <a id="symbol-LiveResolvedGraphView"></a>
 
 ### LiveResolvedGraphView
@@ -4324,7 +4325,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/d
 export type MaterializedDagTraversalInput<Item, VertexId> = {
     dagDiscoverySource: {
         /** Captured catalog lookup accepts any rewritten live-data domain. */
-        resolveChildHint: <RewrittenVertexTypes extends VertexDataAndChildHintTypes>(hint: VertexId, context: DagChildResolutionContext<VertexDataAndChildHintTypes<Item, VertexId>, RewrittenVertexTypes, VertexId>) => DagSourceVertexResolution<VertexDataAndChildHintTypes<Item, VertexId>, VertexId>;
+        resolveChildVertexFromHint: <RewrittenVertexTypes extends VertexDataAndChildHintTypes>(hint: VertexId, context: DagChildResolutionContext<VertexDataAndChildHintTypes<Item, VertexId>, RewrittenVertexTypes, VertexId>) => DagSourceVertexResolution<VertexDataAndChildHintTypes<Item, VertexId>, VertexId>;
     } & DagDiscoverySource<VertexDataAndChildHintTypes<Item, VertexId>, VertexDataAndChildHintTypes<Item, VertexId>, VertexId>;
     sourceRootIsHiddenEntryHolder: true;
 };
@@ -4335,7 +4336,7 @@ export type MaterializedDagTraversalInput<Item, VertexId> = {
 
 | Member | Type |
 | --- | --- |
-| `dagDiscoverySource` | <code>{ resolveChildHint: &lt;RewrittenVertexTypes extends VertexDataAndChildHintTypes&lt;unknown, unknown&gt;&gt;(hint: VertexId, context: DagChildResolutionContext&lt;VertexDataAndChildHintTypes&lt;Item, VertexId&gt;, RewrittenVertexTypes, VertexId&gt;) =&gt; DagSourceVertexResolution&lt;VertexDataAndChildHintTypes&lt;Item, VertexId&gt;, VertexId&gt;; } &amp; DagDiscoverySource&lt;VertexDataAndChildHintTypes&lt;Item, VertexId&gt;, VertexDataAndChildHintTypes&lt;Item, VertexId&gt;, VertexId&gt;</code> |
+| `dagDiscoverySource` | <code>{ resolveChildVertexFromHint: &lt;RewrittenVertexTypes extends VertexDataAndChildHintTypes&lt;unknown, unknown&gt;&gt;(hint: VertexId, context: DagChildResolutionContext&lt;VertexDataAndChildHintTypes&lt;Item, VertexId&gt;, RewrittenVertexTypes, VertexId&gt;) =&gt; DagSourceVertexResolution&lt;VertexDataAndChildHintTypes&lt;Item, VertexId&gt;, VertexId&gt;; } &amp; DagDiscoverySource&lt;VertexDataAndChildHintTypes&lt;Item, VertexId&gt;, VertexDataAndChildHintTypes&lt;Item, VertexId&gt;, VertexId&gt;</code> |
 | `sourceRootIsHiddenEntryHolder` | <code>true</code> |
 
 </details>
@@ -4367,17 +4368,17 @@ getLiveReadOnlyTreeView(): LiveResolvedTreeView<InputVertexTypes>;
 getRootVertexReferenceOrNull(): MutableValueReference<Vertex<InputVertexTypes>> | null;
 setRootVertexReference(root: MutableValueReference<Vertex<InputVertexTypes>>): void;
 getLiveResolvedGraphView(): LiveResolvedGraphView<InputVertexTypes>;
-getDetachedChildReferenceListOrNull(vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>): Array<MutableValueReference<Vertex<InputVertexTypes>>> | null;
-getParentVertexReferenceOrNull(vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>): MutableValueReference<Vertex<InputVertexTypes>> | null;
-deleteSubtree(vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>): void;
-containsVertexReference(vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>): boolean;
-getMutableVertexRecordOrNull(vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>): MutableTreeVertexTopologyRecord<InputVertexTypes> | null;
-setVertexRecord(vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>, vertexResolved: MutableTreeVertexTopologyRecord<InputVertexTypes>): void;
-getDetachedChildDiscoveryContextOrNull(vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>): InternalChildDiscoveryContext<InputVertexTypes> | null;
-appendChildReferencesTo(vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>, children: Array<MutableValueReference<Vertex<InputVertexTypes>>>): void;
-requireStructuralAncestorPathTo(vertexHandle: MutableValueReference<Vertex<InputVertexTypes>>, options?: StructuralAncestorPathOptions): MutableValueReference<Vertex<InputVertexTypes>>[];
-resolveRootVertex(): TreeVertexResolution<StoredTreeReferenceVertexTypes<InputVertexTypes>>;
-resolveChildVertexFromHint(vertexHint: StoredTreeReferenceVertexTypes<InputVertexTypes>['ChildHint']): TreeVertexResolution<StoredTreeReferenceVertexTypes<InputVertexTypes>>;
+getDetachedChildReferenceListOrNull(vertexReference: MutableValueReference<Vertex<InputVertexTypes>>): Array<MutableValueReference<Vertex<InputVertexTypes>>> | null;
+getParentVertexReferenceOrNull(vertexReference: MutableValueReference<Vertex<InputVertexTypes>>): MutableValueReference<Vertex<InputVertexTypes>> | null;
+deleteSubtree(vertexReference: MutableValueReference<Vertex<InputVertexTypes>>): void;
+containsVertexReference(vertexReference: MutableValueReference<Vertex<InputVertexTypes>>): boolean;
+getMutableVertexRecordOrNull(vertexReference: MutableValueReference<Vertex<InputVertexTypes>>): MutableTreeVertexTopologyRecord<InputVertexTypes> | null;
+setVertexRecord(vertexReference: MutableValueReference<Vertex<InputVertexTypes>>, vertexResolved: MutableTreeVertexTopologyRecord<InputVertexTypes>): void;
+getDetachedChildDiscoveryContextOrNull(vertexReference: MutableValueReference<Vertex<InputVertexTypes>>): MutableTreeChildDiscoveryContext<InputVertexTypes> | null;
+appendChildReferencesTo(vertexReference: MutableValueReference<Vertex<InputVertexTypes>>, children: Array<MutableValueReference<Vertex<InputVertexTypes>>>): void;
+requireStructuralAncestorPathTo(vertexReference: MutableValueReference<Vertex<InputVertexTypes>>, options?: StructuralAncestorPathOptions): MutableValueReference<Vertex<InputVertexTypes>>[];
+resolveRootVertex(): TreeSourceVertexResolution<StoredTreeReferenceVertexTypes<InputVertexTypes>>;
+resolveChildVertexFromHint(vertexHint: StoredTreeReferenceVertexTypes<InputVertexTypes>['ChildHint']): TreeSourceVertexResolution<StoredTreeReferenceVertexTypes<InputVertexTypes>>;
 }
 ```
 
@@ -4386,21 +4387,52 @@ resolveChildVertexFromHint(vertexHint: StoredTreeReferenceVertexTypes<InputVerte
 
 | Member | Type |
 | --- | --- |
-| `appendChildReferencesTo` | <code>(vertexHandle: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;, children: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;[]) =&gt; void</code> |
-| `containsVertexReference` | <code>(vertexHandle: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; boolean</code> |
-| `deleteSubtree` | <code>(vertexHandle: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; void</code> |
-| `getDetachedChildDiscoveryContextOrNull` | <code>(vertexHandle: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; InternalChildDiscoveryContext&lt;InputVertexTypes&gt; &#124; null</code> |
-| `getDetachedChildReferenceListOrNull` | <code>(vertexHandle: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;[] &#124; null</code> |
+| `appendChildReferencesTo` | <code>(vertexReference: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;, children: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;[]) =&gt; void</code> |
+| `containsVertexReference` | <code>(vertexReference: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; boolean</code> |
+| `deleteSubtree` | <code>(vertexReference: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; void</code> |
+| `getDetachedChildDiscoveryContextOrNull` | <code>(vertexReference: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; MutableTreeChildDiscoveryContext&lt;InputVertexTypes&gt; &#124; null</code> |
+| `getDetachedChildReferenceListOrNull` | <code>(vertexReference: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;[] &#124; null</code> |
 | `getLiveReadOnlyTreeView` | <code>() =&gt; LiveResolvedTreeView&lt;InputVertexTypes&gt;</code> |
 | `getLiveResolvedGraphView` | <code>() =&gt; LiveResolvedGraphView&lt;InputVertexTypes, unknown&gt;</code> |
-| `getMutableVertexRecordOrNull` | <code>(vertexHandle: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; MutableTreeVertexTopologyRecord&lt;InputVertexTypes&gt; &#124; null</code> |
-| `getParentVertexReferenceOrNull` | <code>(vertexHandle: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt; &#124; null</code> |
+| `getMutableVertexRecordOrNull` | <code>(vertexReference: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; MutableTreeVertexTopologyRecord&lt;InputVertexTypes&gt; &#124; null</code> |
+| `getParentVertexReferenceOrNull` | <code>(vertexReference: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt; &#124; null</code> |
 | `getRootVertexReferenceOrNull` | <code>() =&gt; MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt; &#124; null</code> |
-| `requireStructuralAncestorPathTo` | <code>(vertexHandle: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;, options?: StructuralAncestorPathOptions &#124; undefined) =&gt; MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;[]</code> |
-| `resolveChildVertexFromHint` | <code>(vertexHint: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; TreeVertexResolution&lt;StoredTreeReferenceVertexTypes&lt;InputVertexTypes&gt;&gt;</code> |
-| `resolveRootVertex` | <code>() =&gt; TreeVertexResolution&lt;StoredTreeReferenceVertexTypes&lt;InputVertexTypes&gt;&gt;</code> |
+| `requireStructuralAncestorPathTo` | <code>(vertexReference: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;, options?: StructuralAncestorPathOptions &#124; undefined) =&gt; MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;[]</code> |
+| `resolveChildVertexFromHint` | <code>(vertexHint: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; TreeSourceVertexResolution&lt;StoredTreeReferenceVertexTypes&lt;InputVertexTypes&gt;&gt;</code> |
+| `resolveRootVertex` | <code>() =&gt; TreeSourceVertexResolution&lt;StoredTreeReferenceVertexTypes&lt;InputVertexTypes&gt;&gt;</code> |
 | `setRootVertexReference` | <code>(root: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;) =&gt; void</code> |
-| `setVertexRecord` | <code>(vertexHandle: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;, vertexResolved: MutableTreeVertexTopologyRecord&lt;InputVertexTypes&gt;) =&gt; void</code> |
+| `setVertexRecord` | <code>(vertexReference: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;, vertexResolved: MutableTreeVertexTopologyRecord&lt;InputVertexTypes&gt;) =&gt; void</code> |
+
+</details>
+
+<a id="symbol-MutableTreeChildDiscoveryContext"></a>
+
+### MutableTreeChildDiscoveryContext
+
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
+
+Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
+
+```ts
+export type MutableTreeChildDiscoveryContext<InputVertexTypes extends VertexDataAndChildHintTypes> = {
+    discoveryDepthInEdges: number;
+    parentVertexAtChildResolution: Vertex<InputVertexTypes>;
+    parentVertexReference: MutableValueReference<Vertex<InputVertexTypes>>;
+    parentChildHintIndex: number;
+    childDiscoveryHint: InputVertexTypes['ChildHint'];
+};
+```
+
+<details>
+<summary>Resolved public members (including inherited/mapped fields)</summary>
+
+| Member | Type |
+| --- | --- |
+| `childDiscoveryHint` | <code>InputVertexTypes["ChildHint"]</code> |
+| `discoveryDepthInEdges` | <code>number</code> |
+| `parentChildHintIndex` | <code>number</code> |
+| `parentVertexAtChildResolution` | <code>Vertex&lt;InputVertexTypes&gt;</code> |
+| `parentVertexReference` | <code>MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;</code> |
 
 </details>
 
@@ -4430,8 +4462,8 @@ readonly metadata: TreeVertexDiscoveryMetadata<InputVertexTypes>;
 readonly childReferences: MutableValueReference<Vertex<InputVertexTypes>>[];
 constructor(vertexContent: TreeVertexTopologyRecordInput<InputVertexTypes>);
 appendChildReferences(childReferences: Array<MutableValueReference<Vertex<InputVertexTypes>>>): void;
-getMutableChildDiscoveryContextOrNull(): InternalChildDiscoveryContext<InputVertexTypes> | null;
-replaceChildDiscoveryContext(childDiscoveryContext: InternalChildDiscoveryContext<InputVertexTypes> | null): void;
+getMutableChildDiscoveryContextOrNull(): MutableTreeChildDiscoveryContext<InputVertexTypes> | null;
+replaceChildDiscoveryContext(childDiscoveryContext: MutableTreeChildDiscoveryContext<InputVertexTypes> | null): void;
 getMutableChildReferenceList(): MutableValueReference<Vertex<InputVertexTypes>>[];
 getParentVertexReferenceOrNull(): MutableValueReference<Vertex<InputVertexTypes>> | null;
 shallowCloneWithRecordOverrides(content?: Partial<TreeVertexTopologyRecordInput<InputVertexTypes>>): MutableTreeVertexTopologyRecord<InputVertexTypes>;
@@ -4445,11 +4477,11 @@ shallowCloneWithRecordOverrides(content?: Partial<TreeVertexTopologyRecordInput<
 | --- | --- |
 | `appendChildReferences` | <code>(childReferences: MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;[]) =&gt; void</code> |
 | `childReferences` | <code>MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;[]</code> |
-| `getMutableChildDiscoveryContextOrNull` | <code>() =&gt; InternalChildDiscoveryContext&lt;InputVertexTypes&gt; &#124; null</code> |
+| `getMutableChildDiscoveryContextOrNull` | <code>() =&gt; MutableTreeChildDiscoveryContext&lt;InputVertexTypes&gt; &#124; null</code> |
 | `getMutableChildReferenceList` | <code>() =&gt; MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt;[]</code> |
 | `getParentVertexReferenceOrNull` | <code>() =&gt; MutableValueReference&lt;Vertex&lt;InputVertexTypes&gt;&gt; &#124; null</code> |
 | `metadata` | <code>TreeVertexDiscoveryMetadata&lt;InputVertexTypes&gt;</code> |
-| `replaceChildDiscoveryContext` | <code>(childDiscoveryContext: InternalChildDiscoveryContext&lt;InputVertexTypes&gt; &#124; null) =&gt; void</code> |
+| `replaceChildDiscoveryContext` | <code>(childDiscoveryContext: MutableTreeChildDiscoveryContext&lt;InputVertexTypes&gt; &#124; null) =&gt; void</code> |
 | `shallowCloneWithRecordOverrides` | <code>(content?: Partial&lt;TreeVertexTopologyRecordInput&lt;InputVertexTypes&gt;&gt; &#124; undefined) =&gt; MutableTreeVertexTopologyRecord&lt;InputVertexTypes&gt;</code> |
 
 </details>
@@ -4515,7 +4547,7 @@ export type ObjectChildPropertyResolutionOverrideResult<T extends VertexDataAndC
     dependsOnWork?: never;
     dependsOnSubgraphCompletion?: never;
     satisfiesDependencies?: never;
-} | TreeVertexResolutionFound<T> | TreeVertexResolutionOmitted;
+} | ResolvedTreeSourceVertex<T> | OmittedTreeSourceVertex;
 ```
 
 <details>
@@ -4739,12 +4771,12 @@ export type ObjectPropertyRewriteContext<InputPropertyKey extends ObjectProperty
 | --- | --- |
 | `currentVertexPhaseChainState` | <code>unknown</code> |
 | `isTreeRoot` | <code>boolean</code> |
+| `livePreCommandDiscoveredTreeView` | <code>LiveResolvedTreeView&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt;&gt; &#124; null</code> |
 | `liveResolvedTreeView` | <code>LiveResolvedTreeView&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt; &#124; LiveObjectPropertyVertexTypes&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt;, ObjectPropertyTreeVertexTypes&lt;RewrittenPropertyKey, RewrittenPropertyValue&gt;&gt;&gt;</code> |
 | `matchesAnyCompositeAssemblyPredicate` | <code>boolean</code> |
 | `matchesArrayAssemblyPredicate` | <code>boolean</code> |
 | `matchesObjectAssemblyPredicate` | <code>boolean</code> |
 | `phaseVisitorChainIndex` | <code>number</code> |
-| `preCommandDiscoveredTreeView` | <code>LiveResolvedTreeView&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt;&gt; &#124; null</code> |
 | `previousCommittedVisitVertexHandleForSamePhase` | <code>VertexHandle&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt; &#124; LiveObjectPropertyVertexTypes&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt;, ObjectPropertyTreeVertexTypes&lt;RewrittenPropertyKey, RewrittenPropertyValue&gt;&gt;&gt; &#124; null</code> |
 | `requirePropertyKeyPathFromRoot` | <code>(options?: StructuralAncestorPathOptions &#124; undefined) =&gt; (InputPropertyKey &#124; RewrittenPropertyKey)[]</code> |
 | `vertex` | <code>VertexView&lt;LiveObjectPropertyVertexTypes&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt;, ObjectPropertyTreeVertexTypes&lt;RewrittenPropertyKey, RewrittenPropertyValue&gt;&gt;&gt;</code> |
@@ -4936,8 +4968,8 @@ constructor(inputRootValue: InputValue, ...args: [ObjectPropertyKey, unknown] ex
         options: ObjectPropertyTreeSourceOptions<InputValue, InputPropertyKey, InputPropertyValue, RewrittenPropertyKey, RewrittenPropertyValue>
     ]);
 static createObjectPropertyMutationHelperBinder: ObjectPropertyMutationHelperBinderFactory;
-resolveRootVertex(): TreeVertexResolutionFound<ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>>;
-resolveChildVertexFromHint(childDiscoveryHint: ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>['ChildHint'], options: TreeChildResolverContext<ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>, LiveObjectPropertyVertexTypes<ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>, ObjectPropertyTreeVertexTypes<RewrittenPropertyKey, RewrittenPropertyValue>>>): TreeVertexResolution<ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>>;
+resolveRootVertex(): ResolvedTreeSourceVertex<ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>>;
+resolveChildVertexFromHint(childDiscoveryHint: ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>['ChildHint'], options: TreeChildResolverContext<ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>, LiveObjectPropertyVertexTypes<ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>, ObjectPropertyTreeVertexTypes<RewrittenPropertyKey, RewrittenPropertyValue>>>): TreeSourceVertexResolution<ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>>;
 }
 ```
 
@@ -4947,8 +4979,8 @@ resolveChildVertexFromHint(childDiscoveryHint: ObjectPropertyTreeVertexTypes<Inp
 | Member | Type |
 | --- | --- |
 | `inputRootValue` | <code>InputValue</code> |
-| `resolveChildVertexFromHint` | <code>(childDiscoveryHint: ObjectPropertyRecord&lt;InputPropertyKey, InputPropertyValue&gt;, options: TreeChildResolverContext&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt;, LiveObjectPropertyVertexTypes&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt;, ObjectPropertyTreeVertexTypes&lt;RewrittenPropertyKey, RewrittenPropertyValue&gt;&gt;&gt;) =&gt; TreeVertexResolution&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt;&gt;</code> |
-| `resolveRootVertex` | <code>() =&gt; TreeVertexResolutionFound&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt;&gt;</code> |
+| `resolveChildVertexFromHint` | <code>(childDiscoveryHint: ObjectPropertyRecord&lt;InputPropertyKey, InputPropertyValue&gt;, options: TreeChildResolverContext&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt;, LiveObjectPropertyVertexTypes&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt;, ObjectPropertyTreeVertexTypes&lt;RewrittenPropertyKey, RewrittenPropertyValue&gt;&gt;&gt;) =&gt; TreeSourceVertexResolution&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt;&gt;</code> |
+| `resolveRootVertex` | <code>() =&gt; ResolvedTreeSourceVertex&lt;ObjectPropertyTreeVertexTypes&lt;InputPropertyKey, InputPropertyValue&gt;&gt;</code> |
 
 </details>
 
@@ -5052,16 +5084,18 @@ export type OmittedDagSourceVertex<VertexId = unknown> = {
 
 </details>
 
-<a id="symbol-PreCommandDiscoveredGraphView"></a>
+<a id="symbol-OmittedTreeSourceVertex"></a>
 
-### PreCommandDiscoveredGraphView
+### OmittedTreeSourceVertex
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#abstract-trees) · [Related example](migration-uniform-api.md#source-resolution)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
 ```ts
-export type PreCommandDiscoveredGraphView<InputVertexTypes extends VertexDataAndChildHintTypes, VertexId = unknown> = Pick<LiveResolvedGraphView<InputVertexTypes, VertexId>, 'containsVertexHandle' | 'getDesignatedRootHandleOrNull' | 'getVertexHandles' | 'getVertexHandleByIdOrNull' | 'requireVertexId' | 'getDistinctStructuralParentHandlesOrNull' | 'getStructuralChildHandlesInSlotOrderOrNull' | 'requireAllStructuralAncestorPathsTo'>;
+export type OmittedTreeSourceVertex = ForbiddenGraphMetadataOnTreeResolution & {
+    kind: 'vertexIntentionallyOmitted';
+};
 ```
 
 <details>
@@ -5069,14 +5103,14 @@ export type PreCommandDiscoveredGraphView<InputVertexTypes extends VertexDataAnd
 
 | Member | Type |
 | --- | --- |
-| `containsVertexHandle` | <code>(ref: VertexHandle&lt;InputVertexTypes&gt;) =&gt; boolean</code> |
-| `getDesignatedRootHandleOrNull` | <code>() =&gt; VertexHandle&lt;InputVertexTypes&gt; &#124; null</code> |
-| `getDistinctStructuralParentHandlesOrNull` | <code>(ref: VertexHandle&lt;InputVertexTypes&gt;) =&gt; readonly VertexHandle&lt;InputVertexTypes&gt;[] &#124; null</code> |
-| `getStructuralChildHandlesInSlotOrderOrNull` | <code>(ref: VertexHandle&lt;InputVertexTypes&gt;) =&gt; readonly VertexHandle&lt;InputVertexTypes&gt;[] &#124; null</code> |
-| `getVertexHandleByIdOrNull` | <code>(id: VertexId) =&gt; VertexHandle&lt;InputVertexTypes&gt; &#124; null</code> |
-| `getVertexHandles` | <code>() =&gt; readonly VertexHandle&lt;InputVertexTypes&gt;[]</code> |
-| `requireAllStructuralAncestorPathsTo` | <code>(ref: VertexHandle&lt;InputVertexTypes&gt;, options?: StructuralAncestorPathOptions &#124; undefined) =&gt; readonly (readonly VertexHandle&lt;InputVertexTypes&gt;[])[]</code> |
-| `requireVertexId` | <code>(ref: VertexHandle&lt;InputVertexTypes&gt;) =&gt; VertexId</code> |
+| `identity` | <code>undefined</code> |
+| `kind` | <code>"vertexIntentionallyOmitted"</code> |
+| `omittedVertexIdentity` | <code>undefined</code> |
+| `satisfiesDependencies` | <code>undefined</code> |
+| `satisfiesWorkAndSubgraphCompletionPrerequisites` | <code>undefined</code> |
+| `vertexId` | <code>undefined</code> |
+| `workWaitsForSubgraphCompletionOf` | <code>undefined</code> |
+| `workWaitsForWorkOf` | <code>undefined</code> |
 
 </details>
 
@@ -5093,6 +5127,34 @@ export type PresentRootOutputConverter<OutputValue> = (propertyValue: unknown, c
     readonly isTraversalFinished: boolean;
 }) => OutputValue;
 ```
+
+<a id="symbol-ResolvedDagSourceVertex"></a>
+
+### ResolvedDagSourceVertex
+
+Type-only; no runtime constructor/value. [Owning contract](reference.md#discovery-and-completed-work) · [Executable snippet](reference.md#graph-source-result-example)
+
+Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
+
+```ts
+export type ResolvedDagSourceVertex<InputVertexTypes extends VertexDataAndChildHintTypes, VertexId = unknown> = {
+    kind: 'vertexResolved';
+    resolvedVertexInput: GraphDependencies<VertexId> & RequiredGraphVertexIdentity<VertexId> & {
+        vertexContentInput: VertexContentInput<InputVertexTypes>;
+        vertexId?: VertexId;
+    };
+};
+```
+
+<details>
+<summary>Resolved public members (including inherited/mapped fields)</summary>
+
+| Member | Type |
+| --- | --- |
+| `kind` | <code>"vertexResolved"</code> |
+| `resolvedVertexInput` | <code>GraphDependencies&lt;VertexId&gt; &amp; RequiredGraphVertexIdentity&lt;VertexId&gt; &amp; { vertexContentInput: VertexContentInput&lt;InputVertexTypes&gt;; vertexId?: VertexId &#124; undefined; }</code> |
+
+</details>
 
 <a id="symbol-ResolvedGraphVertexSnapshot"></a>
 
@@ -5130,6 +5192,40 @@ export type ResolvedGraphVertexSnapshot<InputVertexTypes extends VertexDataAndCh
 | `vertexId` | <code>VertexId</code> |
 | `workWaitsForSubgraphCompletionOf` | <code>readonly VertexId[] &#124; undefined</code> |
 | `workWaitsForWorkOf` | <code>readonly VertexId[]</code> |
+
+</details>
+
+<a id="symbol-ResolvedTreeSourceVertex"></a>
+
+### ResolvedTreeSourceVertex
+
+Type-only; no runtime constructor/value. [Owning contract](reference.md#abstract-trees) · [Related example](reference.md#abstract-trees)
+
+Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
+
+```ts
+export type ResolvedTreeSourceVertex<InputVertexTypes extends VertexDataAndChildHintTypes> = ForbiddenGraphMetadataOnTreeResolution & {
+    kind: 'vertexResolved';
+    resolvedVertexInput: ForbiddenGraphMetadataOnTreeResolution & {
+        vertexContentInput: VertexContentInput<InputVertexTypes>;
+    };
+};
+```
+
+<details>
+<summary>Resolved public members (including inherited/mapped fields)</summary>
+
+| Member | Type |
+| --- | --- |
+| `identity` | <code>undefined</code> |
+| `kind` | <code>"vertexResolved"</code> |
+| `omittedVertexIdentity` | <code>undefined</code> |
+| `resolvedVertexInput` | <code>ForbiddenGraphMetadataOnTreeResolution &amp; { vertexContentInput: VertexContentInput&lt;InputVertexTypes&gt;; }</code> |
+| `satisfiesDependencies` | <code>undefined</code> |
+| `satisfiesWorkAndSubgraphCompletionPrerequisites` | <code>undefined</code> |
+| `vertexId` | <code>undefined</code> |
+| `workWaitsForSubgraphCompletionOf` | <code>undefined</code> |
+| `workWaitsForWorkOf` | <code>undefined</code> |
 
 </details>
 
@@ -5581,7 +5677,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/c
 export type TreeChildResolverContext<InputVertexTypes extends VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes> = {
     childDiscoveryContext: ChildDiscoveryContext<InputVertexTypes | RewrittenVertexTypes>;
     liveResolvedTreeView: LiveResolvedTreeView<InputVertexTypes | RewrittenVertexTypes>;
-    preCommandDiscoveredTreeView: LiveResolvedTreeView<InputVertexTypes> | null;
+    livePreCommandDiscoveredTreeView: LiveResolvedTreeView<InputVertexTypes> | null;
 };
 ```
 
@@ -5591,8 +5687,8 @@ export type TreeChildResolverContext<InputVertexTypes extends VertexDataAndChild
 | Member | Type |
 | --- | --- |
 | `childDiscoveryContext` | <code>Readonly&lt;{ discoveryDepthInEdges: number; parentVertexAtChildResolution: VertexView&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt;; parentVertexHandle: VertexHandle&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt;; parentChildHintIndex: number; childDiscoveryHint: (InputVertexTypes &#124; RewrittenVertexTypes)["ChildHint"]; }&gt;</code> |
+| `livePreCommandDiscoveredTreeView` | <code>LiveResolvedTreeView&lt;InputVertexTypes&gt; &#124; null</code> |
 | `liveResolvedTreeView` | <code>LiveResolvedTreeView&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt;</code> |
-| `preCommandDiscoveredTreeView` | <code>LiveResolvedTreeView&lt;InputVertexTypes&gt; &#124; null</code> |
 
 </details>
 
@@ -5606,8 +5702,8 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/c
 
 ```ts
 export type TreeDiscoverySource<InputVertexTypes extends VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes> = {
-    resolveRootVertex: () => TreeVertexResolution<InputVertexTypes>;
-    resolveChildVertexFromHint: (vertexHint: InputVertexTypes['ChildHint'], options: TreeChildResolverContext<InputVertexTypes, RewrittenVertexTypes>) => TreeVertexResolution<InputVertexTypes>;
+    resolveRootVertex: () => TreeSourceVertexResolution<InputVertexTypes>;
+    resolveChildVertexFromHint: (vertexHint: InputVertexTypes['ChildHint'], options: TreeChildResolverContext<InputVertexTypes, RewrittenVertexTypes>) => TreeSourceVertexResolution<InputVertexTypes>;
 };
 ```
 
@@ -5616,8 +5712,8 @@ export type TreeDiscoverySource<InputVertexTypes extends VertexDataAndChildHintT
 
 | Member | Type |
 | --- | --- |
-| `resolveChildVertexFromHint` | <code>(vertexHint: InputVertexTypes["ChildHint"], options: TreeChildResolverContext&lt;InputVertexTypes, RewrittenVertexTypes&gt;) =&gt; TreeVertexResolution&lt;InputVertexTypes&gt;</code> |
-| `resolveRootVertex` | <code>() =&gt; TreeVertexResolution&lt;InputVertexTypes&gt;</code> |
+| `resolveChildVertexFromHint` | <code>(vertexHint: InputVertexTypes["ChildHint"], options: TreeChildResolverContext&lt;InputVertexTypes, RewrittenVertexTypes&gt;) =&gt; TreeSourceVertexResolution&lt;InputVertexTypes&gt;</code> |
+| `resolveRootVertex` | <code>() =&gt; TreeSourceVertexResolution&lt;InputVertexTypes&gt;</code> |
 
 </details>
 
@@ -5630,7 +5726,7 @@ Type-only; no runtime constructor/value. [Owning contract](reference.md#inspecti
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
 ```ts
-export type TreeOrDagCallbackOperation = 'resolveRootVertex' | 'resolveChildVertexFromHint' | 'resolveChildHint' | 'resolvePrerequisiteByVertexId' | 'transformChildHintsBeforeResolution' | 'tryGetVertexIdentityFromHint' | 'invokeVisitorCallback';
+export type TreeOrDagCallbackOperation = 'resolveRootVertex' | 'resolveChildVertexFromHint' | 'resolvePrerequisiteByVertexId' | 'transformChildHintsBeforeResolution' | 'tryGetVertexIdentityFromHint' | 'invokeVisitorCallback';
 ```
 
 <a id="symbol-TreeOrDagExecutionSnapshot"></a>
@@ -5697,6 +5793,34 @@ export type TreePhaseVisitorRegistrationRecord<Phase extends string, InputVertex
 
 </details>
 
+<a id="symbol-TreeSourceVertexResolution"></a>
+
+### TreeSourceVertexResolution
+
+Type-only; no runtime constructor/value. [Owning contract](reference.md#abstract-trees) · [Related example](reference.md#abstract-trees)
+
+Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
+
+```ts
+export type TreeSourceVertexResolution<InputVertexTypes extends VertexDataAndChildHintTypes> = ResolvedTreeSourceVertex<InputVertexTypes> | OmittedTreeSourceVertex;
+```
+
+<details>
+<summary>Resolved public members (including inherited/mapped fields)</summary>
+
+| Member | Type |
+| --- | --- |
+| `identity` | <code>undefined</code> |
+| `kind` | <code>"vertexResolved" &#124; "vertexIntentionallyOmitted"</code> |
+| `omittedVertexIdentity` | <code>undefined</code> |
+| `satisfiesDependencies` | <code>undefined</code> |
+| `satisfiesWorkAndSubgraphCompletionPrerequisites` | <code>undefined</code> |
+| `vertexId` | <code>undefined</code> |
+| `workWaitsForSubgraphCompletionOf` | <code>undefined</code> |
+| `workWaitsForWorkOf` | <code>undefined</code> |
+
+</details>
+
 <a id="symbol-TreeTraversalEvent"></a>
 
 ### TreeTraversalEvent
@@ -5736,7 +5860,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/c
 
 ```ts
 export type TreeVertexDiscoveryMetadata<InputVertexTypes extends VertexDataAndChildHintTypes> = {
-    childDiscoveryContext: InternalChildDiscoveryContext<InputVertexTypes> | null;
+    childDiscoveryContext: MutableTreeChildDiscoveryContext<InputVertexTypes> | null;
 };
 ```
 
@@ -5745,7 +5869,7 @@ export type TreeVertexDiscoveryMetadata<InputVertexTypes extends VertexDataAndCh
 
 | Member | Type |
 | --- | --- |
-| `childDiscoveryContext` | <code>InternalChildDiscoveryContext&lt;InputVertexTypes&gt; &#124; null</code> |
+| `childDiscoveryContext` | <code>MutableTreeChildDiscoveryContext&lt;InputVertexTypes&gt; &#124; null</code> |
 
 </details>
 
@@ -5760,98 +5884,6 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/c
 ```ts
 export type TreeVertexPhaseVisitorCallback<InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes, Phase extends string = string> = VisitorCommandsResult<RewrittenVertexTypes, Phase, 'tree', InputVertexTypes['ChildHint']> extends infer RESULT ? (vertex: VertexView<InputVertexTypes | RewrittenVertexTypes>, options: TreeVisitorContext<Phase, InputVertexTypes, RewrittenVertexTypes>) => RESULT | undefined | void : never;
 ```
-
-<a id="symbol-TreeVertexResolution"></a>
-
-### TreeVertexResolution
-
-Type-only; no runtime constructor/value. [Owning contract](reference.md#abstract-trees) · [Related example](reference.md#abstract-trees)
-
-Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
-
-```ts
-export type TreeVertexResolution<InputVertexTypes extends VertexDataAndChildHintTypes> = TreeVertexResolutionFound<InputVertexTypes> | TreeVertexResolutionOmitted;
-```
-
-<details>
-<summary>Resolved public members (including inherited/mapped fields)</summary>
-
-| Member | Type |
-| --- | --- |
-| `identity` | <code>undefined</code> |
-| `kind` | <code>"vertexResolved" &#124; "vertexIntentionallyOmitted"</code> |
-| `omittedVertexIdentity` | <code>undefined</code> |
-| `satisfiesDependencies` | <code>undefined</code> |
-| `satisfiesWorkAndSubgraphCompletionPrerequisites` | <code>undefined</code> |
-| `vertexId` | <code>undefined</code> |
-| `workWaitsForSubgraphCompletionOf` | <code>undefined</code> |
-| `workWaitsForWorkOf` | <code>undefined</code> |
-
-</details>
-
-<a id="symbol-TreeVertexResolutionFound"></a>
-
-### TreeVertexResolutionFound
-
-Type-only; no runtime constructor/value. [Owning contract](reference.md#abstract-trees) · [Related example](reference.md#abstract-trees)
-
-Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
-
-```ts
-export type TreeVertexResolutionFound<InputVertexTypes extends VertexDataAndChildHintTypes> = ForbiddenGraphMetadataOnTreeResolution & {
-    kind: 'vertexResolved';
-    resolvedVertexInput: ForbiddenGraphMetadataOnTreeResolution & {
-        vertexContentInput: VertexContentInput<InputVertexTypes>;
-    };
-};
-```
-
-<details>
-<summary>Resolved public members (including inherited/mapped fields)</summary>
-
-| Member | Type |
-| --- | --- |
-| `identity` | <code>undefined</code> |
-| `kind` | <code>"vertexResolved"</code> |
-| `omittedVertexIdentity` | <code>undefined</code> |
-| `resolvedVertexInput` | <code>ForbiddenGraphMetadataOnTreeResolution &amp; { vertexContentInput: VertexContentInput&lt;InputVertexTypes&gt;; }</code> |
-| `satisfiesDependencies` | <code>undefined</code> |
-| `satisfiesWorkAndSubgraphCompletionPrerequisites` | <code>undefined</code> |
-| `vertexId` | <code>undefined</code> |
-| `workWaitsForSubgraphCompletionOf` | <code>undefined</code> |
-| `workWaitsForWorkOf` | <code>undefined</code> |
-
-</details>
-
-<a id="symbol-TreeVertexResolutionOmitted"></a>
-
-### TreeVertexResolutionOmitted
-
-Type-only; no runtime constructor/value. [Owning contract](reference.md#abstract-trees) · [Related example](migration-uniform-api.md#source-resolution)
-
-Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
-
-```ts
-export type TreeVertexResolutionOmitted = ForbiddenGraphMetadataOnTreeResolution & {
-    kind: 'vertexIntentionallyOmitted';
-};
-```
-
-<details>
-<summary>Resolved public members (including inherited/mapped fields)</summary>
-
-| Member | Type |
-| --- | --- |
-| `identity` | <code>undefined</code> |
-| `kind` | <code>"vertexIntentionallyOmitted"</code> |
-| `omittedVertexIdentity` | <code>undefined</code> |
-| `satisfiesDependencies` | <code>undefined</code> |
-| `satisfiesWorkAndSubgraphCompletionPrerequisites` | <code>undefined</code> |
-| `vertexId` | <code>undefined</code> |
-| `workWaitsForSubgraphCompletionOf` | <code>undefined</code> |
-| `workWaitsForWorkOf` | <code>undefined</code> |
-
-</details>
 
 <a id="symbol-TreeVertexTopologyRecordInput"></a>
 
@@ -5889,7 +5921,7 @@ Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/c
 ```ts
 export type TreeVisitorContext<Phase extends string, InputVertexTypes extends VertexDataAndChildHintTypes, RewrittenVertexTypes extends VertexDataAndChildHintTypes> = {
     liveResolvedTreeView: LiveResolvedTreeView<InputVertexTypes | RewrittenVertexTypes>;
-    preCommandDiscoveredTreeView: LiveResolvedTreeView<InputVertexTypes> | null;
+    livePreCommandDiscoveredTreeView: LiveResolvedTreeView<InputVertexTypes> | null;
     phaseVisitorChainIndex: number;
     visitorCallbackIndexInPhaseChain: number;
     previousCommittedVisitVertexHandleForSamePhase: VertexHandle<InputVertexTypes | RewrittenVertexTypes> | null;
@@ -5908,9 +5940,9 @@ export type TreeVisitorContext<Phase extends string, InputVertexTypes extends Ve
 | --- | --- |
 | `currentVertexPhaseChainState` | <code>unknown</code> |
 | `isTreeRoot` | <code>boolean</code> |
+| `livePreCommandDiscoveredTreeView` | <code>LiveResolvedTreeView&lt;InputVertexTypes&gt; &#124; null</code> |
 | `liveResolvedTreeView` | <code>LiveResolvedTreeView&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt;</code> |
 | `phaseVisitorChainIndex` | <code>number</code> |
-| `preCommandDiscoveredTreeView` | <code>LiveResolvedTreeView&lt;InputVertexTypes&gt; &#124; null</code> |
 | `previousCommittedVisitVertexHandleForSamePhase` | <code>VertexHandle&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt; &#124; null</code> |
 | `vertexHandle` | <code>VertexHandle&lt;InputVertexTypes &#124; RewrittenVertexTypes&gt;</code> |
 | `visitorCallbackIndexInPhaseChain` | <code>number</code> |
@@ -5965,12 +5997,12 @@ export type ValidatedDagTopologyAsyncRunnerOptions<Data, VertexId> = Pick<AsyncD
 | `discoveryTiming` | <code>undefined</code> |
 | `maxConcurrentCallbackInvocations` | <code>number &#124; undefined</code> |
 | `retainDiscoveredGraphBeforeVisitorCommands` | <code>boolean &#124; undefined</code> |
-| `rootWorkPrerequisitePolicy` | <code>undefined</code> |
+| `rootWorkToWorkPrerequisitePolicy` | <code>undefined</code> |
 | `sourceRootIsHiddenEntryHolder` | <code>undefined</code> |
 | `transformChildHintsBeforeResolution` | <code>undefined</code> |
 | `traversalRunnerInternalObjects` | <code>undefined</code> |
 | `treeDiscoverySource` | <code>undefined</code> |
-| `undeclaredWorkPrerequisitePolicy` | <code>undefined</code> |
+| `undeclaredWorkToWorkPrerequisitePolicy` | <code>undefined</code> |
 | `visitors` | <code>VisitorDefinitionsByPhase&lt;AsyncDagTraversalVisitors&lt;VertexDataAndChildHintTypes&lt;Data, VertexId&gt;, VertexDataAndChildHintTypes&lt;Data, VertexId&gt;, VertexId&gt;&gt; &#124; undefined</code> |
 | `workCompletionPolicy` | <code>"afterWorkReadyVisitorChain" &#124; "requireExternalWorkSettlement" &#124; undefined</code> |
 
@@ -6028,12 +6060,12 @@ export type ValidatedDagTopologyRunnerOptions<Data, VertexId> = Pick<DagTraversa
 | `dagDiscoverySource` | <code>undefined</code> |
 | `discoveryTiming` | <code>undefined</code> |
 | `retainDiscoveredGraphBeforeVisitorCommands` | <code>boolean &#124; undefined</code> |
-| `rootWorkPrerequisitePolicy` | <code>undefined</code> |
+| `rootWorkToWorkPrerequisitePolicy` | <code>undefined</code> |
 | `sourceRootIsHiddenEntryHolder` | <code>undefined</code> |
 | `transformChildHintsBeforeResolution` | <code>undefined</code> |
 | `traversalRunnerInternalObjects` | <code>undefined</code> |
 | `treeDiscoverySource` | <code>undefined</code> |
-| `undeclaredWorkPrerequisitePolicy` | <code>undefined</code> |
+| `undeclaredWorkToWorkPrerequisitePolicy` | <code>undefined</code> |
 | `visitors` | <code>VisitorDefinitionsByPhase&lt;DagTraversalVisitors&lt;VertexDataAndChildHintTypes&lt;Data, VertexId&gt;, VertexDataAndChildHintTypes&lt;Data, VertexId&gt;, VertexId&gt;&gt; &#124; undefined</code> |
 | `workCompletionPolicy` | <code>"afterWorkReadyVisitorChain" &#124; "requireExternalWorkSettlement" &#124; undefined</code> |
 
@@ -6720,7 +6752,7 @@ Runtime value and public type surface. [Owning contract](reference.md#api-compat
 
 Supported imports: `configurable-tree-traversal`.
 
-Namespace for `configurable-tree-traversal/core`: [AsyncChildHintsListTransformer](#symbol-AsyncChildHintsListTransformer), [AsyncDagDiscoverySource](#symbol-AsyncDagDiscoverySource), [AsyncTraversalExecution](#symbol-AsyncTraversalExecution), [AsyncTreeDiscoverySource](#symbol-AsyncTreeDiscoverySource), [AsyncTreeVertexPhaseVisitorCallback](#symbol-AsyncTreeVertexPhaseVisitorCallback), [ChildDiscoveryContext](#symbol-ChildDiscoveryContext), [ChildDiscoverySlot](#symbol-ChildDiscoverySlot), [ChildHintVertexIdentity](#symbol-ChildHintVertexIdentity), [ChildHintsListTransformer](#symbol-ChildHintsListTransformer), [DagChildResolutionContext](#symbol-DagChildResolutionContext), [DagDiscoverySource](#symbol-DagDiscoverySource), [DagMilestone](#symbol-DagMilestone), [DagMilestoneConstraint](#symbol-DagMilestoneConstraint), [DagPrerequisiteLookupMissing](#symbol-DagPrerequisiteLookupMissing), [DagPrerequisiteLookupResult](#symbol-DagPrerequisiteLookupResult), [DagSourceVertexResolution](#symbol-DagSourceVertexResolution), [DagStructuralDiscoveryCycleError](#symbol-DagStructuralDiscoveryCycleError), [DagTraversalStallDiagnostics](#symbol-DagTraversalStallDiagnostics), [DagTraversalStallError](#symbol-DagTraversalStallError), [FoundDagSourceVertex](#symbol-FoundDagSourceVertex), [LiveResolvedGraphView](#symbol-LiveResolvedGraphView), [LiveResolvedTreeView](#symbol-LiveResolvedTreeView), [MaybePromise](#symbol-MaybePromise), [MutableResolvedTreeStore](#symbol-MutableResolvedTreeStore), [MutableTreeVertexRecordMap](#symbol-MutableTreeVertexRecordMap), [MutableTreeVertexTopologyRecord](#symbol-MutableTreeVertexTopologyRecord), [MutableValueReference](#symbol-MutableValueReference), [OmittedDagSourceVertex](#symbol-OmittedDagSourceVertex), [PreCommandDiscoveredGraphView](#symbol-PreCommandDiscoveredGraphView), [ResolvedGraphVertexSnapshot](#symbol-ResolvedGraphVertexSnapshot), [StoredTreeReferenceVertexTypes](#symbol-StoredTreeReferenceVertexTypes), [StructuralAncestorPathOptions](#symbol-StructuralAncestorPathOptions), [StructuralChildEdge](#symbol-StructuralChildEdge), [SyncTraversalExecution](#symbol-SyncTraversalExecution), [TraversalEventKindForVisitorPhase](#symbol-TraversalEventKindForVisitorPhase), [TraversalEventNarrowedToSelectedKinds](#symbol-TraversalEventNarrowedToSelectedKinds), [TraversalExecutionSelectionPatch](#symbol-TraversalExecutionSelectionPatch), [TraversalExecutionSelections](#symbol-TraversalExecutionSelections), [TraversalExecutionSnapshot](#symbol-TraversalExecutionSnapshot), [TraversalExecutionState](#symbol-TraversalExecutionState), [TraversalRunnerStatus](#symbol-TraversalRunnerStatus), [TraversalStopReason](#symbol-TraversalStopReason), [TraversalVisitorCommand](#symbol-TraversalVisitorCommand), [TraversalVisitorCommandArguments](#symbol-TraversalVisitorCommandArguments), [TraversalVisitorCommandName](#symbol-TraversalVisitorCommandName), [TreeChildResolverContext](#symbol-TreeChildResolverContext), [TreeDiscoverySource](#symbol-TreeDiscoverySource), [TreeOrDagCallbackOperation](#symbol-TreeOrDagCallbackOperation), [TreeOrDagExecutionSnapshot](#symbol-TreeOrDagExecutionSnapshot), [TreePhaseVisitorRegistrationRecord](#symbol-TreePhaseVisitorRegistrationRecord), [TreeTraversalEvent](#symbol-TreeTraversalEvent), [TreeVertexDiscoveryMetadata](#symbol-TreeVertexDiscoveryMetadata), [TreeVertexPhaseVisitorCallback](#symbol-TreeVertexPhaseVisitorCallback), [TreeVertexResolution](#symbol-TreeVertexResolution), [TreeVertexResolutionFound](#symbol-TreeVertexResolutionFound), [TreeVertexResolutionOmitted](#symbol-TreeVertexResolutionOmitted), [TreeVertexTopologyRecordInput](#symbol-TreeVertexTopologyRecordInput), [TreeVisitorContext](#symbol-TreeVisitorContext), [TreeVisitorVertexDataMutationToolsBinder](#symbol-TreeVisitorVertexDataMutationToolsBinder), [TreeVisitorVertexDataMutationToolsBinderFactory](#symbol-TreeVisitorVertexDataMutationToolsBinderFactory), [Vertex](#symbol-Vertex), [VertexContent](#symbol-VertexContent), [VertexContentInput](#symbol-VertexContentInput), [VertexContentOverridesForShallowClone](#symbol-VertexContentOverridesForShallowClone), [VertexDataAndChildHintTypes](#symbol-VertexDataAndChildHintTypes), [VertexDataMutationCommandBuilder](#symbol-VertexDataMutationCommandBuilder), [VertexDataMutationCommandTools](#symbol-VertexDataMutationCommandTools), [VertexDataReplacementOrDeletionCommand](#symbol-VertexDataReplacementOrDeletionCommand), [VertexDataReplacementOrDeletionRequest](#symbol-VertexDataReplacementOrDeletionRequest), [VertexHandle](#symbol-VertexHandle), [VertexId](#symbol-VertexId), [VertexView](#symbol-VertexView), [VertexVisitSchedulingStage](#symbol-VertexVisitSchedulingStage), [VisitorCallbackPhaseSelection](#symbol-VisitorCallbackPhaseSelection), [VisitorCommandCommitTiming](#symbol-VisitorCommandCommitTiming), [VisitorCommandsResult](#symbol-VisitorCommandsResult), [VisitorDefinitionsForPhase](#symbol-VisitorDefinitionsForPhase), [VisitorGroupDefinition](#symbol-VisitorGroupDefinition), [VisitorGroupMember](#symbol-VisitorGroupMember), [VisitorGroupMetadata](#symbol-VisitorGroupMetadata), [VisitorRegistrationDefinition](#symbol-VisitorRegistrationDefinition), [VisitorRegistrationMetadata](#symbol-VisitorRegistrationMetadata), [VisitorRegistrationOptions](#symbol-VisitorRegistrationOptions).
+Namespace for `configurable-tree-traversal/core`: [AsyncChildHintsListTransformer](#symbol-AsyncChildHintsListTransformer), [AsyncDagDiscoverySource](#symbol-AsyncDagDiscoverySource), [AsyncTraversalExecution](#symbol-AsyncTraversalExecution), [AsyncTreeDiscoverySource](#symbol-AsyncTreeDiscoverySource), [AsyncTreeVertexPhaseVisitorCallback](#symbol-AsyncTreeVertexPhaseVisitorCallback), [ChildDiscoveryContext](#symbol-ChildDiscoveryContext), [ChildDiscoverySlot](#symbol-ChildDiscoverySlot), [ChildHintVertexIdentity](#symbol-ChildHintVertexIdentity), [ChildHintsListTransformer](#symbol-ChildHintsListTransformer), [DagChildResolutionContext](#symbol-DagChildResolutionContext), [DagDiscoverySource](#symbol-DagDiscoverySource), [DagMilestone](#symbol-DagMilestone), [DagMilestoneConstraint](#symbol-DagMilestoneConstraint), [DagPrerequisiteLookupMissing](#symbol-DagPrerequisiteLookupMissing), [DagPrerequisiteLookupResult](#symbol-DagPrerequisiteLookupResult), [DagSourceVertexResolution](#symbol-DagSourceVertexResolution), [DagStructuralDiscoveryCycleError](#symbol-DagStructuralDiscoveryCycleError), [DagTraversalStallDiagnostics](#symbol-DagTraversalStallDiagnostics), [DagTraversalStallError](#symbol-DagTraversalStallError), [LivePreCommandDiscoveredGraphView](#symbol-LivePreCommandDiscoveredGraphView), [LiveResolvedGraphView](#symbol-LiveResolvedGraphView), [LiveResolvedTreeView](#symbol-LiveResolvedTreeView), [MaybePromise](#symbol-MaybePromise), [MutableResolvedTreeStore](#symbol-MutableResolvedTreeStore), [MutableTreeChildDiscoveryContext](#symbol-MutableTreeChildDiscoveryContext), [MutableTreeVertexRecordMap](#symbol-MutableTreeVertexRecordMap), [MutableTreeVertexTopologyRecord](#symbol-MutableTreeVertexTopologyRecord), [MutableValueReference](#symbol-MutableValueReference), [OmittedDagSourceVertex](#symbol-OmittedDagSourceVertex), [OmittedTreeSourceVertex](#symbol-OmittedTreeSourceVertex), [ResolvedDagSourceVertex](#symbol-ResolvedDagSourceVertex), [ResolvedGraphVertexSnapshot](#symbol-ResolvedGraphVertexSnapshot), [ResolvedTreeSourceVertex](#symbol-ResolvedTreeSourceVertex), [StoredTreeReferenceVertexTypes](#symbol-StoredTreeReferenceVertexTypes), [StructuralAncestorPathOptions](#symbol-StructuralAncestorPathOptions), [StructuralChildEdge](#symbol-StructuralChildEdge), [SyncTraversalExecution](#symbol-SyncTraversalExecution), [TraversalEventKindForVisitorPhase](#symbol-TraversalEventKindForVisitorPhase), [TraversalEventNarrowedToSelectedKinds](#symbol-TraversalEventNarrowedToSelectedKinds), [TraversalExecutionSelectionPatch](#symbol-TraversalExecutionSelectionPatch), [TraversalExecutionSelections](#symbol-TraversalExecutionSelections), [TraversalExecutionSnapshot](#symbol-TraversalExecutionSnapshot), [TraversalExecutionState](#symbol-TraversalExecutionState), [TraversalRunnerStatus](#symbol-TraversalRunnerStatus), [TraversalStopReason](#symbol-TraversalStopReason), [TraversalVisitorCommand](#symbol-TraversalVisitorCommand), [TraversalVisitorCommandArguments](#symbol-TraversalVisitorCommandArguments), [TraversalVisitorCommandName](#symbol-TraversalVisitorCommandName), [TreeChildResolverContext](#symbol-TreeChildResolverContext), [TreeDiscoverySource](#symbol-TreeDiscoverySource), [TreeOrDagCallbackOperation](#symbol-TreeOrDagCallbackOperation), [TreeOrDagExecutionSnapshot](#symbol-TreeOrDagExecutionSnapshot), [TreePhaseVisitorRegistrationRecord](#symbol-TreePhaseVisitorRegistrationRecord), [TreeSourceVertexResolution](#symbol-TreeSourceVertexResolution), [TreeTraversalEvent](#symbol-TreeTraversalEvent), [TreeVertexDiscoveryMetadata](#symbol-TreeVertexDiscoveryMetadata), [TreeVertexPhaseVisitorCallback](#symbol-TreeVertexPhaseVisitorCallback), [TreeVertexTopologyRecordInput](#symbol-TreeVertexTopologyRecordInput), [TreeVisitorContext](#symbol-TreeVisitorContext), [TreeVisitorVertexDataMutationToolsBinder](#symbol-TreeVisitorVertexDataMutationToolsBinder), [TreeVisitorVertexDataMutationToolsBinderFactory](#symbol-TreeVisitorVertexDataMutationToolsBinderFactory), [Vertex](#symbol-Vertex), [VertexContent](#symbol-VertexContent), [VertexContentInput](#symbol-VertexContentInput), [VertexContentOverridesForShallowClone](#symbol-VertexContentOverridesForShallowClone), [VertexDataAndChildHintTypes](#symbol-VertexDataAndChildHintTypes), [VertexDataMutationCommandBuilder](#symbol-VertexDataMutationCommandBuilder), [VertexDataMutationCommandTools](#symbol-VertexDataMutationCommandTools), [VertexDataReplacementOrDeletionCommand](#symbol-VertexDataReplacementOrDeletionCommand), [VertexDataReplacementOrDeletionRequest](#symbol-VertexDataReplacementOrDeletionRequest), [VertexHandle](#symbol-VertexHandle), [VertexId](#symbol-VertexId), [VertexView](#symbol-VertexView), [VertexVisitSchedulingStage](#symbol-VertexVisitSchedulingStage), [VisitorCallbackPhaseSelection](#symbol-VisitorCallbackPhaseSelection), [VisitorCommandCommitTiming](#symbol-VisitorCommandCommitTiming), [VisitorCommandsResult](#symbol-VisitorCommandsResult), [VisitorDefinitionsForPhase](#symbol-VisitorDefinitionsForPhase), [VisitorGroupDefinition](#symbol-VisitorGroupDefinition), [VisitorGroupMember](#symbol-VisitorGroupMember), [VisitorGroupMetadata](#symbol-VisitorGroupMetadata), [VisitorRegistrationDefinition](#symbol-VisitorRegistrationDefinition), [VisitorRegistrationMetadata](#symbol-VisitorRegistrationMetadata), [VisitorRegistrationOptions](#symbol-VisitorRegistrationOptions).
 
 <a id="symbol-createAndRunGraphWalkUntilSuspendedOrTerminal"></a>
 
@@ -6792,7 +6824,7 @@ Runtime value and public type surface. [Owning contract](reference.md#api-compat
 
 Supported imports: `configurable-tree-traversal`.
 
-Namespace for `configurable-tree-traversal/traversals/dag-traversal`: [AsyncDagExternalWorkSession](#symbol-AsyncDagExternalWorkSession), [AsyncDagExternalWorkSessionOptions](#symbol-AsyncDagExternalWorkSessionOptions), [AsyncDagTopologyDiscoveryInput](#symbol-AsyncDagTopologyDiscoveryInput), [AsyncDagTraversalBuilder](#symbol-AsyncDagTraversalBuilder), [AsyncDagTraversalBuilderOptions](#symbol-AsyncDagTraversalBuilderOptions), [AsyncDagTraversalBuilderOptionsPatch](#symbol-AsyncDagTraversalBuilderOptionsPatch), [AsyncDagTraversalRunner](#symbol-AsyncDagTraversalRunner), [AsyncDagVisitor](#symbol-AsyncDagVisitor), [DagCommittedMilestoneEvent](#symbol-DagCommittedMilestoneEvent), [DagCompositionOptions](#symbol-DagCompositionOptions), [DagDefinition](#symbol-DagDefinition), [DagDefinitionChangeAspect](#symbol-DagDefinitionChangeAspect), [DagDefinitionDiff](#symbol-DagDefinitionDiff), [DagDefinitionIssue](#symbol-DagDefinitionIssue), [DagDefinitionVertex](#symbol-DagDefinitionVertex), [DagDefinitionVertexChange](#symbol-DagDefinitionVertexChange), [DagExternalWorkRunBoundary](#symbol-DagExternalWorkRunBoundary), [DagExternalWorkSession](#symbol-DagExternalWorkSession), [DagExternalWorkSessionControl](#symbol-DagExternalWorkSessionControl), [DagExternalWorkSessionOptions](#symbol-DagExternalWorkSessionOptions), [DagFragment](#symbol-DagFragment), [DagFragmentValidationError](#symbol-DagFragmentValidationError), [DagMilestone](#symbol-DagMilestone), [DagMilestoneBlocker](#symbol-DagMilestoneBlocker), [DagMilestoneConstraint](#symbol-DagMilestoneConstraint), [DagMilestoneExplanation](#symbol-DagMilestoneExplanation), [DagMilestoneQueryOptions](#symbol-DagMilestoneQueryOptions), [DagMilestoneQueryResult](#symbol-DagMilestoneQueryResult), [DagMilestoneSnapshot](#symbol-DagMilestoneSnapshot), [DagMilestoneStatus](#symbol-DagMilestoneStatus), [DagProgressSnapshot](#symbol-DagProgressSnapshot), [DagRevisionOperation](#symbol-DagRevisionOperation), [DagRevisionResult](#symbol-DagRevisionResult), [DagSchedulingOptions](#symbol-DagSchedulingOptions), [DagSettlementOutcome](#symbol-DagSettlementOutcome), [DagSettlementReceipt](#symbol-DagSettlementReceipt), [DagStructuralDiscoveryCycleError](#symbol-DagStructuralDiscoveryCycleError), [DagStructuralDiscoverySlot](#symbol-DagStructuralDiscoverySlot), [DagTopologyDiscoveryInput](#symbol-DagTopologyDiscoveryInput), [DagTopologyDiscoveryOptions](#symbol-DagTopologyDiscoveryOptions), [DagTopologyValidationResult](#symbol-DagTopologyValidationResult), [DagTraversalBuilder](#symbol-DagTraversalBuilder), [DagTraversalBuilderOptions](#symbol-DagTraversalBuilderOptions), [DagTraversalBuilderOptionsPatch](#symbol-DagTraversalBuilderOptionsPatch), [DagTraversalRunner](#symbol-DagTraversalRunner), [DagTraversalStallDiagnostics](#symbol-DagTraversalStallDiagnostics), [DagTraversalStallError](#symbol-DagTraversalStallError), [DagVertexProgress](#symbol-DagVertexProgress), [DagVisitor](#symbol-DagVisitor), [DagVisitorContext](#symbol-DagVisitorContext), [DagVisitorPhase](#symbol-DagVisitorPhase), [DagWorkAwaitingSettlement](#symbol-DagWorkAwaitingSettlement), [DagWorkSettlementTicket](#symbol-DagWorkSettlementTicket), [DagWorkSettlementToken](#symbol-DagWorkSettlementToken), [DagWorkState](#symbol-DagWorkState), [ValidatedDagTopologyAsyncRunnerOptions](#symbol-ValidatedDagTopologyAsyncRunnerOptions), [ValidatedDagTopologyLiveVertexSummary](#symbol-ValidatedDagTopologyLiveVertexSummary), [ValidatedDagTopologyRunnerOptions](#symbol-ValidatedDagTopologyRunnerOptions), [ValidatedReusableDagTopology](#symbol-ValidatedReusableDagTopology), [applyDagDefinitionRevisionBatch](#symbol-applyDagDefinitionRevisionBatch), [bindAsyncDagExternalWorkSession](#symbol-bindAsyncDagExternalWorkSession), [bindDagExternalWorkSession](#symbol-bindDagExternalWorkSession), [captureDagMilestoneSnapshot](#symbol-captureDagMilestoneSnapshot), [composeAndValidateDagFragments](#symbol-composeAndValidateDagFragments), [copyAndNormalizeDagDefinition](#symbol-copyAndNormalizeDagDefinition), [createConditionalAsyncDagDataVisitor](#symbol-createConditionalAsyncDagDataVisitor), [createConditionalDagDataVisitor](#symbol-createConditionalDagDataVisitor), [diffDagDefinitionDeclarationsShallowly](#symbol-diffDagDefinitionDeclarationsShallowly), [discoverValidateAndCaptureDag](#symbol-discoverValidateAndCaptureDag), [discoverValidateAndCaptureDagAsync](#symbol-discoverValidateAndCaptureDagAsync), [hasExactlyOneResolvedStructuralLeaf](#symbol-hasExactlyOneResolvedStructuralLeaf), [mapDagFragmentIds](#symbol-mapDagFragmentIds), [traverseDag](#symbol-traverseDag), [traverseDagAsync](#symbol-traverseDagAsync), [validateAndCreateDagFragment](#symbol-validateAndCreateDagFragment), [validateAndPrepareDagDefinition](#symbol-validateAndPrepareDagDefinition).
+Namespace for `configurable-tree-traversal/traversals/dag-traversal`: [AsyncDagExternalWorkSession](#symbol-AsyncDagExternalWorkSession), [AsyncDagExternalWorkSessionOptions](#symbol-AsyncDagExternalWorkSessionOptions), [AsyncDagTopologyDiscoveryInput](#symbol-AsyncDagTopologyDiscoveryInput), [AsyncDagTraversalBuilder](#symbol-AsyncDagTraversalBuilder), [AsyncDagTraversalBuilderOptions](#symbol-AsyncDagTraversalBuilderOptions), [AsyncDagTraversalBuilderOptionsPatch](#symbol-AsyncDagTraversalBuilderOptionsPatch), [AsyncDagTraversalRunner](#symbol-AsyncDagTraversalRunner), [AsyncDagVisitor](#symbol-AsyncDagVisitor), [DagCommittedMilestoneEvent](#symbol-DagCommittedMilestoneEvent), [DagCompositionOptions](#symbol-DagCompositionOptions), [DagDefinition](#symbol-DagDefinition), [DagDefinitionChangeAspect](#symbol-DagDefinitionChangeAspect), [DagDefinitionDiff](#symbol-DagDefinitionDiff), [DagDefinitionIssue](#symbol-DagDefinitionIssue), [DagExternalWorkRunBoundary](#symbol-DagExternalWorkRunBoundary), [DagExternalWorkSession](#symbol-DagExternalWorkSession), [DagExternalWorkSessionControl](#symbol-DagExternalWorkSessionControl), [DagExternalWorkSessionOptions](#symbol-DagExternalWorkSessionOptions), [DagFragment](#symbol-DagFragment), [DagFragmentValidationError](#symbol-DagFragmentValidationError), [DagMilestone](#symbol-DagMilestone), [DagMilestoneBlocker](#symbol-DagMilestoneBlocker), [DagMilestoneConstraint](#symbol-DagMilestoneConstraint), [DagMilestoneExplanation](#symbol-DagMilestoneExplanation), [DagMilestoneQueryOptions](#symbol-DagMilestoneQueryOptions), [DagMilestoneQueryResult](#symbol-DagMilestoneQueryResult), [DagMilestoneSnapshot](#symbol-DagMilestoneSnapshot), [DagMilestoneStatus](#symbol-DagMilestoneStatus), [DagProgressSnapshot](#symbol-DagProgressSnapshot), [DagRevisionOperation](#symbol-DagRevisionOperation), [DagRevisionResult](#symbol-DagRevisionResult), [DagSchedulingOptions](#symbol-DagSchedulingOptions), [DagSettlementOutcome](#symbol-DagSettlementOutcome), [DagSettlementReceipt](#symbol-DagSettlementReceipt), [DagStructuralDiscoveryCycleError](#symbol-DagStructuralDiscoveryCycleError), [DagStructuralDiscoverySlot](#symbol-DagStructuralDiscoverySlot), [DagTopologyDiscoveryInput](#symbol-DagTopologyDiscoveryInput), [DagTopologyDiscoveryOptions](#symbol-DagTopologyDiscoveryOptions), [DagTopologyValidationResult](#symbol-DagTopologyValidationResult), [DagTraversalBuilder](#symbol-DagTraversalBuilder), [DagTraversalBuilderOptions](#symbol-DagTraversalBuilderOptions), [DagTraversalBuilderOptionsPatch](#symbol-DagTraversalBuilderOptionsPatch), [DagTraversalRunner](#symbol-DagTraversalRunner), [DagTraversalStallDiagnostics](#symbol-DagTraversalStallDiagnostics), [DagTraversalStallError](#symbol-DagTraversalStallError), [DagVertexDeclaration](#symbol-DagVertexDeclaration), [DagVertexDeclarationChange](#symbol-DagVertexDeclarationChange), [DagVertexProgress](#symbol-DagVertexProgress), [DagVisitor](#symbol-DagVisitor), [DagVisitorContext](#symbol-DagVisitorContext), [DagVisitorPhase](#symbol-DagVisitorPhase), [DagWorkAwaitingSettlement](#symbol-DagWorkAwaitingSettlement), [DagWorkSettlementTicket](#symbol-DagWorkSettlementTicket), [DagWorkSettlementToken](#symbol-DagWorkSettlementToken), [DagWorkState](#symbol-DagWorkState), [ValidatedDagTopologyAsyncRunnerOptions](#symbol-ValidatedDagTopologyAsyncRunnerOptions), [ValidatedDagTopologyLiveVertexSummary](#symbol-ValidatedDagTopologyLiveVertexSummary), [ValidatedDagTopologyRunnerOptions](#symbol-ValidatedDagTopologyRunnerOptions), [ValidatedReusableDagTopology](#symbol-ValidatedReusableDagTopology), [applyDagDefinitionRevisionBatch](#symbol-applyDagDefinitionRevisionBatch), [bindAsyncDagExternalWorkSession](#symbol-bindAsyncDagExternalWorkSession), [bindDagExternalWorkSession](#symbol-bindDagExternalWorkSession), [captureDagMilestoneSnapshot](#symbol-captureDagMilestoneSnapshot), [composeAndValidateDagFragments](#symbol-composeAndValidateDagFragments), [copyAndNormalizeDagDefinition](#symbol-copyAndNormalizeDagDefinition), [createConditionalAsyncDagDataVisitor](#symbol-createConditionalAsyncDagDataVisitor), [createConditionalDagDataVisitor](#symbol-createConditionalDagDataVisitor), [diffDagDefinitionDeclarationsShallowly](#symbol-diffDagDefinitionDeclarationsShallowly), [discoverValidateAndCaptureDag](#symbol-discoverValidateAndCaptureDag), [discoverValidateAndCaptureDagAsync](#symbol-discoverValidateAndCaptureDagAsync), [hasExactlyOneResolvedStructuralLeaf](#symbol-hasExactlyOneResolvedStructuralLeaf), [mapDagFragmentIds](#symbol-mapDagFragmentIds), [traverseDag](#symbol-traverseDag), [traverseDagAsync](#symbol-traverseDagAsync), [validateAndCreateDagFragment](#symbol-validateAndCreateDagFragment), [validateAndPrepareDagDefinition](#symbol-validateAndPrepareDagDefinition).
 
 <a id="symbol-depthFirstTreeTraversal"></a>
 
@@ -6851,7 +6883,7 @@ Runtime value and public type surface. [Owning contract](reference.md#api-compat
 
 Supported imports: `configurable-tree-traversal`.
 
-Namespace for `configurable-tree-traversal/traversals/graph-walk`: [AsyncGraphWalkBuilder](#symbol-AsyncGraphWalkBuilder), [AsyncGraphWalkBuilderOptions](#symbol-AsyncGraphWalkBuilderOptions), [AsyncGraphWalkBuilderOptionsPatch](#symbol-AsyncGraphWalkBuilderOptionsPatch), [AsyncGraphWalkDiscoverySource](#symbol-AsyncGraphWalkDiscoverySource), [AsyncGraphWalkLinkTargetAdmissionPredicate](#symbol-AsyncGraphWalkLinkTargetAdmissionPredicate), [AsyncGraphWalkRecordMaterializationOptions](#symbol-AsyncGraphWalkRecordMaterializationOptions), [AsyncGraphWalkRunner](#symbol-AsyncGraphWalkRunner), [AsyncGraphWalkVertexOccurrenceExpansionPredicate](#symbol-AsyncGraphWalkVertexOccurrenceExpansionPredicate), [AsyncGraphWalkVisitor](#symbol-AsyncGraphWalkVisitor), [GraphWalkBuilder](#symbol-GraphWalkBuilder), [GraphWalkBuilderOptions](#symbol-GraphWalkBuilderOptions), [GraphWalkBuilderOptionsPatch](#symbol-GraphWalkBuilderOptionsPatch), [GraphWalkCatalogOutgoingLinkToVertexId](#symbol-GraphWalkCatalogOutgoingLinkToVertexId), [GraphWalkDagDeclarationRelation](#symbol-GraphWalkDagDeclarationRelation), [GraphWalkDiscoverySource](#symbol-GraphWalkDiscoverySource), [GraphWalkEdge](#symbol-GraphWalkEdge), [GraphWalkEvent](#symbol-GraphWalkEvent), [GraphWalkEventForObservationKind](#symbol-GraphWalkEventForObservationKind), [GraphWalkExpansionOrder](#symbol-GraphWalkExpansionOrder), [GraphWalkExplorationLimits](#symbol-GraphWalkExplorationLimits), [GraphWalkInspection](#symbol-GraphWalkInspection), [GraphWalkLinkTargetAdmissionContext](#symbol-GraphWalkLinkTargetAdmissionContext), [GraphWalkLinkTargetAdmissionPredicate](#symbol-GraphWalkLinkTargetAdmissionPredicate), [GraphWalkObservationKind](#symbol-GraphWalkObservationKind), [GraphWalkOutgoingLink](#symbol-GraphWalkOutgoingLink), [GraphWalkPendingInvocationOperation](#symbol-GraphWalkPendingInvocationOperation), [GraphWalkProgressCounts](#symbol-GraphWalkProgressCounts), [GraphWalkProgressSnapshot](#symbol-GraphWalkProgressSnapshot), [GraphWalkRecordMaterializationOptions](#symbol-GraphWalkRecordMaterializationOptions), [GraphWalkResolvedVertex](#symbol-GraphWalkResolvedVertex), [GraphWalkRouteEnumerationAndRequiredBounds](#symbol-GraphWalkRouteEnumerationAndRequiredBounds), [GraphWalkRouteEnumerationContext](#symbol-GraphWalkRouteEnumerationContext), [GraphWalkRouteEnumerationPolicy](#symbol-GraphWalkRouteEnumerationPolicy), [GraphWalkRoutePrefixEvent](#symbol-GraphWalkRoutePrefixEvent), [GraphWalkRunner](#symbol-GraphWalkRunner), [GraphWalkTerminalOutcome](#symbol-GraphWalkTerminalOutcome), [GraphWalkVertexOccurrenceExpansionContext](#symbol-GraphWalkVertexOccurrenceExpansionContext), [GraphWalkVertexOccurrenceExpansionPredicate](#symbol-GraphWalkVertexOccurrenceExpansionPredicate), [GraphWalkVertexResolutionMode](#symbol-GraphWalkVertexResolutionMode), [GraphWalkVertexResolutionResult](#symbol-GraphWalkVertexResolutionResult), [GraphWalkVertexResolutionTarget](#symbol-GraphWalkVertexResolutionTarget), [GraphWalkVisitor](#symbol-GraphWalkVisitor), [GraphWalkVisitorContext](#symbol-GraphWalkVisitorContext), [GraphWalkVisitorResult](#symbol-GraphWalkVisitorResult), [createAndRunGraphWalkUntilSuspendedOrTerminal](#symbol-createAndRunGraphWalkUntilSuspendedOrTerminal), [createAndRunGraphWalkUntilSuspendedOrTerminalAsync](#symbol-createAndRunGraphWalkUntilSuspendedOrTerminalAsync), [materializeGraphWalkSourceFromDagDeclarationRelations](#symbol-materializeGraphWalkSourceFromDagDeclarationRelations), [materializeGraphWalkSourceFromVertexRecords](#symbol-materializeGraphWalkSourceFromVertexRecords), [materializeSynchronousGraphWalkSourceFromAsyncRecords](#symbol-materializeSynchronousGraphWalkSourceFromAsyncRecords).
+Namespace for `configurable-tree-traversal/traversals/graph-walk`: [AsyncGraphWalkBuilder](#symbol-AsyncGraphWalkBuilder), [AsyncGraphWalkBuilderOptions](#symbol-AsyncGraphWalkBuilderOptions), [AsyncGraphWalkBuilderOptionsPatch](#symbol-AsyncGraphWalkBuilderOptionsPatch), [AsyncGraphWalkDiscoverySource](#symbol-AsyncGraphWalkDiscoverySource), [AsyncGraphWalkLinkTargetAdmissionPredicate](#symbol-AsyncGraphWalkLinkTargetAdmissionPredicate), [AsyncGraphWalkRecordMaterializationOptions](#symbol-AsyncGraphWalkRecordMaterializationOptions), [AsyncGraphWalkRunner](#symbol-AsyncGraphWalkRunner), [AsyncGraphWalkVertexOccurrenceExpansionPredicate](#symbol-AsyncGraphWalkVertexOccurrenceExpansionPredicate), [AsyncGraphWalkVisitor](#symbol-AsyncGraphWalkVisitor), [GraphWalkBuilder](#symbol-GraphWalkBuilder), [GraphWalkBuilderOptions](#symbol-GraphWalkBuilderOptions), [GraphWalkBuilderOptionsPatch](#symbol-GraphWalkBuilderOptionsPatch), [GraphWalkCatalogOutgoingLinkToVertexId](#symbol-GraphWalkCatalogOutgoingLinkToVertexId), [GraphWalkDagDeclarationRelation](#symbol-GraphWalkDagDeclarationRelation), [GraphWalkDiscoverySource](#symbol-GraphWalkDiscoverySource), [GraphWalkEdge](#symbol-GraphWalkEdge), [GraphWalkEvent](#symbol-GraphWalkEvent), [GraphWalkEventForObservationKind](#symbol-GraphWalkEventForObservationKind), [GraphWalkExecutionSnapshot](#symbol-GraphWalkExecutionSnapshot), [GraphWalkExpansionOrder](#symbol-GraphWalkExpansionOrder), [GraphWalkExplorationLimits](#symbol-GraphWalkExplorationLimits), [GraphWalkLinkTargetAdmissionContext](#symbol-GraphWalkLinkTargetAdmissionContext), [GraphWalkLinkTargetAdmissionPredicate](#symbol-GraphWalkLinkTargetAdmissionPredicate), [GraphWalkObservationKind](#symbol-GraphWalkObservationKind), [GraphWalkOutgoingLink](#symbol-GraphWalkOutgoingLink), [GraphWalkPendingInvocationOperation](#symbol-GraphWalkPendingInvocationOperation), [GraphWalkProgressCounts](#symbol-GraphWalkProgressCounts), [GraphWalkProgressSnapshot](#symbol-GraphWalkProgressSnapshot), [GraphWalkRecordMaterializationOptions](#symbol-GraphWalkRecordMaterializationOptions), [GraphWalkResolvedVertex](#symbol-GraphWalkResolvedVertex), [GraphWalkRouteEnumerationAndRequiredBounds](#symbol-GraphWalkRouteEnumerationAndRequiredBounds), [GraphWalkRouteEnumerationContext](#symbol-GraphWalkRouteEnumerationContext), [GraphWalkRouteEnumerationPolicy](#symbol-GraphWalkRouteEnumerationPolicy), [GraphWalkRoutePrefixEvent](#symbol-GraphWalkRoutePrefixEvent), [GraphWalkRunner](#symbol-GraphWalkRunner), [GraphWalkTerminalOutcome](#symbol-GraphWalkTerminalOutcome), [GraphWalkVertexOccurrenceExpansionContext](#symbol-GraphWalkVertexOccurrenceExpansionContext), [GraphWalkVertexOccurrenceExpansionPredicate](#symbol-GraphWalkVertexOccurrenceExpansionPredicate), [GraphWalkVertexResolutionMode](#symbol-GraphWalkVertexResolutionMode), [GraphWalkVertexResolutionResult](#symbol-GraphWalkVertexResolutionResult), [GraphWalkVertexResolutionTarget](#symbol-GraphWalkVertexResolutionTarget), [GraphWalkVisitor](#symbol-GraphWalkVisitor), [GraphWalkVisitorContext](#symbol-GraphWalkVisitorContext), [GraphWalkVisitorResult](#symbol-GraphWalkVisitorResult), [createAndRunGraphWalkUntilSuspendedOrTerminal](#symbol-createAndRunGraphWalkUntilSuspendedOrTerminal), [createAndRunGraphWalkUntilSuspendedOrTerminalAsync](#symbol-createAndRunGraphWalkUntilSuspendedOrTerminalAsync), [materializeGraphWalkSourceFromDagDeclarationRelations](#symbol-materializeGraphWalkSourceFromDagDeclarationRelations), [materializeGraphWalkSourceFromVertexRecords](#symbol-materializeGraphWalkSourceFromVertexRecords), [materializeSynchronousGraphWalkSourceFromAsyncRecords](#symbol-materializeSynchronousGraphWalkSourceFromAsyncRecords).
 
 <a id="symbol-hasExactlyOneResolvedStructuralLeaf"></a>
 
@@ -6862,7 +6894,7 @@ Runtime value and public type surface. [Owning contract](reference.md#dag-traver
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
 ```ts
-export declare function hasExactlyOneResolvedStructuralLeaf<SourceVertexTypes extends VertexDataAndChildHintTypes>(graph: PreCommandDiscoveredGraphView<SourceVertexTypes>): boolean;
+export declare function hasExactlyOneResolvedStructuralLeaf<SourceVertexTypes extends VertexDataAndChildHintTypes>(graph: LivePreCommandDiscoveredGraphView<SourceVertexTypes>): boolean;
 ```
 
 <a id="symbol-mapDagFragmentIds"></a>

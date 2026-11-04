@@ -1,4 +1,4 @@
-import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
 import { MutableValueReference } from '@core/CTTRef';
 import {
   MutableResolvedTreeStore,
@@ -36,7 +36,7 @@ function makeContext(
   return {
     discoveryDepthInEdges: depth,
     parentVertexAtChildResolution: parentVertexHandle.getReferencedValue(),
-    parentVertexHandle: parentVertexHandle,
+    parentVertexReference: parentVertexHandle,
     parentChildHintIndex: hintIndex,
     childDiscoveryHint: childDiscoveryHint,
   };
@@ -97,7 +97,7 @@ describe('MutableTreeVertexTopologyRecord', () => {
     clone.appendChildReferences([secondChildRef]);
 
     expect(
-      original.getMutableChildDiscoveryContextOrNull()?.parentVertexHandle,
+      original.getMutableChildDiscoveryContextOrNull()?.parentVertexReference,
     ).toBe(parentRef);
     expect(original.getMutableChildReferenceList()).toEqual([firstChildRef]);
     expect(clone.getMutableChildDiscoveryContextOrNull()).toBeNull();
@@ -260,7 +260,7 @@ describe('DepthFirstTraversalResolvedTreesContainer', () => {
     expect(
       container.resolvedTree.getDetachedChildReferenceListOrNull(rootRef),
     ).toEqual([childRef]);
-    expect(container.preCommandDiscoveredTreeView).toBeNull();
+    expect(container.livePreCommandDiscoveredTreeView).toBeNull();
   });
 
   test('saved tree owns references, contexts, topology, and its root', () => {
@@ -284,7 +284,7 @@ describe('DepthFirstTraversalResolvedTreesContainer', () => {
     );
     container.pushChildrenTo(rootRef, [childRef]);
 
-    const savedTree = container.preCommandDiscoveredTreeView;
+    const savedTree = container.livePreCommandDiscoveredTreeView;
     const refsMap = container.originalTreeRefsMap;
     expect(savedTree).not.toBeNull();
     expect(refsMap).not.toBeNull();
@@ -316,11 +316,11 @@ describe('DepthFirstTraversalResolvedTreesContainer', () => {
     );
     expect(
       container.resolvedTree.getDetachedChildDiscoveryContextOrNull(childRef)
-        ?.parentVertexHandle,
+        ?.parentVertexReference,
     ).toBe(rootRef);
     expect(
       savedTree.getDetachedChildDiscoveryContextOrNull(savedChildRef)
-        ?.parentVertexHandle,
+        ?.parentVertexReference,
     ).toBe(savedRootRef);
     expect(
       savedTree.getDetachedChildDiscoveryContextOrNull(savedChildRef)

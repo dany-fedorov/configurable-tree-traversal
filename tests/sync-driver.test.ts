@@ -238,7 +238,7 @@ test('callback bindings dispatch every request by its discriminant', () => {
       context: {
         discoveryDepthInEdges: 1,
         parentVertexAtChildResolution: ref.getReferencedValue(),
-        parentVertexHandle: ref,
+        parentVertexReference: ref,
         parentChildHintIndex: 0,
         childDiscoveryHint: 'a',
       },

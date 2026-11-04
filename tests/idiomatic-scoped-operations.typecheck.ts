@@ -58,29 +58,29 @@ const badDag: DagVisitor<T, T, DagVisitorPhase.ON_WORK_READY> = () => ({
 });
 new DagTraversalBuilder({
   treeDiscoverySource: tree,
-}).registerVisitorCallbackForPhase(DagVisitorPhase.ON_WORK_READY, dagDelete);
+}).registerVisitorForPhase(DagVisitorPhase.ON_WORK_READY, dagDelete);
 new DepthFirstTreeTraversalBuilder({
   treeDiscoverySource: tree,
-}).registerVisitorCallbackForPhase(
+}).registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   treeDelete,
 );
 // @ts-expect-error Explicit graph policies are inapplicable to tree discovery.
 new DagTraversalBuilder({
   treeDiscoverySource: tree,
-  rootWorkPrerequisitePolicy: 'ignore',
+  rootWorkToWorkPrerequisitePolicy: 'ignore',
 });
 // @ts-expect-error Explicit graph policies are inapplicable to async tree discovery.
 new AsyncDagTraversalBuilder({
   treeDiscoverySource: tree,
-  undeclaredWorkPrerequisitePolicy: 'none',
+  undeclaredWorkToWorkPrerequisitePolicy: 'none',
 });
 new DagTraversalBuilder({
   treeDiscoverySource: tree,
 // @ts-expect-error Tree source patches cannot supply graph-only policies.
 }).patchOptionsForFutureRunners({
   treeDiscoverySource: tree,
-  undeclaredWorkPrerequisitePolicy: 'none',
+  undeclaredWorkToWorkPrerequisitePolicy: 'none',
 });
 const shared: VertexDataReplacementOrDeletionCommand<T> = {
   commandName:

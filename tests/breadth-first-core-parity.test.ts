@@ -42,7 +42,7 @@ test('BFS shared core resolves one queued child per event advancement', () => {
       },
     },
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
     (vertex) => {
       if (vertex.getVertexData() !== 'root')
@@ -226,7 +226,7 @@ test('BFS resumes a valid injected queue context from a nonzero cursor once', ()
   const validContext = {
     discoveryDepthInEdges: 2,
     parentVertexAtChildResolution: parent.getReferencedValue(),
-    parentVertexHandle: parent,
+    parentVertexReference: parent,
     parentChildHintIndex: 0,
     childDiscoveryHint: 'child',
   };
@@ -259,7 +259,7 @@ test('BFS resumes a valid injected queue context from a nonzero cursor once', ()
       state,
     },
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
     (vertex) => {
       calls.push(`visit:${vertex.getVertexData()}`);
@@ -345,7 +345,7 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
       state: runnerInternals(first).state,
     },
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
     (vertex, options) => {
       visits.push([
@@ -421,7 +421,7 @@ test('BFS closes an injected frontier whose contexts were all consumed', () => {
   const context = {
     discoveryDepthInEdges: 1,
     parentVertexAtChildResolution: seed.root.getReferencedValue(),
-    parentVertexHandle: seed.root,
+    parentVertexReference: seed.root,
     parentChildHintIndex: 0,
     childDiscoveryHint: 'child',
   };
@@ -461,7 +461,7 @@ test('BFS rejects an injected frontier with non-contiguous hint indices', () => 
       {
         discoveryDepthInEdges: 1,
         parentVertexAtChildResolution: seed.root.getReferencedValue(),
-        parentVertexHandle: seed.root,
+        parentVertexReference: seed.root,
         parentChildHintIndex: 1,
         childDiscoveryHint: 'child',
       },

@@ -27,7 +27,7 @@ function omissionSource(anonymous = false): DagDiscoverySource<G, G, string> {
         },
       },
     }),
-    resolveChildHint: (id) =>
+    resolveChildVertexFromHint: (id) =>
       ['before', 'skip', 'after'].includes(id)
         ? {
             omittedVertexIdentity: id === 'skip' ? { vertexId: id } : null,
@@ -345,7 +345,7 @@ test('definitions retain empty and omitted roots separately from forest catalogs
           kind: 'vertexIntentionallyOmitted',
           satisfiesWorkAndSubgraphCompletionPrerequisites: true,
         }),
-        resolveChildHint: () => {
+        resolveChildVertexFromHint: () => {
           throw new Error('No children');
         },
       },
@@ -397,7 +397,7 @@ test('definitions retain empty and omitted roots separately from forest catalogs
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         kind: 'vertexIntentionallyOmitted',
       }),
-      resolveChildHint: () => {
+      resolveChildVertexFromHint: () => {
         throw new Error('No children');
       },
     },
@@ -434,7 +434,7 @@ test('definition replay retains structural sharing and detached prerequisites wi
       Object.defineProperty({}, 'vertexId', { value: vertexId }) as {
         vertexId: ID;
       },
-    resolveChildHint: (id) => {
+    resolveChildVertexFromHint: (id) => {
       calls.push(id);
       return id === undefined
         ? {
@@ -553,7 +553,7 @@ test('an omitted synthetic catalog root does not expose its private holder ident
         omittedVertexIdentity: { vertexId: 'catalog' },
         satisfiesWorkAndSubgraphCompletionPrerequisites: true,
       }),
-      resolveChildHint: () => {
+      resolveChildVertexFromHint: () => {
         throw new Error('No children');
       },
     },

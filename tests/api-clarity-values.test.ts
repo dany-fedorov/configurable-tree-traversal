@@ -16,7 +16,7 @@ import {
   DagVisitorPhase,
   MutableTreeVertexTopologyRecord,
   Vertex as VertexValue,
-  type PreCommandDiscoveredGraphView,
+  type LivePreCommandDiscoveredGraphView,
 } from '../src';
 
 test('mutable handles preserve reference identity when their value changes', () => {
@@ -42,7 +42,7 @@ for (const Constructor of [
       _vertex: VertexView<RetainedTree>,
       context: TreeVisitorContext<string, RetainedTree, RetainedTree>,
     ) => {
-      retained = context.preCommandDiscoveredTreeView;
+      retained = context.livePreCommandDiscoveredTreeView;
       expect(retained).not.toHaveProperty('set');
       const root = retained!.getRootVertexHandleOrNull()!;
       expect(root.getCurrentVertexView().getVertexData()).toBe(data);
@@ -69,8 +69,8 @@ for (const Constructor of [
           },
         }),
         resolveChildVertexFromHint: (_hint, context) => {
-          expect(context.preCommandDiscoveredTreeView).toBe(retained);
-          expect(context.preCommandDiscoveredTreeView).not.toHaveProperty(
+          expect(context.livePreCommandDiscoveredTreeView).toBe(retained);
+          expect(context.livePreCommandDiscoveredTreeView).not.toHaveProperty(
             'set',
           );
           return {
@@ -131,7 +131,7 @@ for (const Constructor of [
 ]) {
   test(`${Constructor.name} retains progressively discovered original graph structure`, async () => {
     const data = { count: 1 };
-    let retained: PreCommandDiscoveredGraphView<RetainedTree> | null = null;
+    let retained: LivePreCommandDiscoveredGraphView<RetainedTree> | null = null;
     const sizes: number[] = [];
     const runner = new Constructor({
       dagDiscoverySource: {
@@ -145,8 +145,8 @@ for (const Constructor of [
             },
           },
         }),
-        resolveChildHint: (_hint, context) => {
-          expect(context.preCommandDiscoveredGraphView).toBe(retained);
+        resolveChildVertexFromHint: (_hint, context) => {
+          expect(context.livePreCommandDiscoveredGraphView).toBe(retained);
           expect(retained!.getVertexHandles()).toHaveLength(1);
           return {
             kind: 'vertexResolved' as const,
@@ -163,7 +163,7 @@ for (const Constructor of [
       retainDiscoveredGraphBeforeVisitorCommands: true,
       visitors: {
         [DagVisitorPhase.ON_WORK_READY]: (_vertex, context) => {
-          retained = context.preCommandDiscoveredGraphView;
+          retained = context.livePreCommandDiscoveredGraphView;
           sizes.push(retained!.getVertexHandles().length);
           expect(
             retained!
@@ -180,7 +180,7 @@ for (const Constructor of [
     }).createIndependentRunnerFromCurrentOptions();
     await runner.runUntilSuspendedOrTerminal();
     expect(sizes).toEqual([1, 2]);
-    const view = retained! as PreCommandDiscoveredGraphView<RetainedTree>;
+    const view = retained! as LivePreCommandDiscoveredGraphView<RetainedTree>;
     const root = view.getVertexHandleByIdOrNull('root')!;
     expect(view.getStructuralChildHandlesInSlotOrderOrNull(root)).toHaveLength(
       1,

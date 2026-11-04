@@ -55,7 +55,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
                   },
                 },
               }),
-              resolveChildHint: () => ({
+              resolveChildVertexFromHint: () => ({
                 kind: 'vertexResolved' as const,
                 resolvedVertexInput: {
                   vertexId: 'child',
@@ -149,7 +149,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -231,7 +231,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -298,7 +298,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             vertexContentInput: { $vertexData: '', $childDiscoveryHints: ids },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -446,7 +446,7 @@ test('public preparation diagnoses a 10k-node dependency chain without recursion
           vertexContentInput: { $vertexData: 0, $childDiscoveryHints: [1] },
         },
       }),
-      resolveChildHint: (id) => ({
+      resolveChildVertexFromHint: (id) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: id,

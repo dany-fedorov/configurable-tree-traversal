@@ -86,7 +86,7 @@ function createInspection(
           },
         };
       },
-      resolveChildHint: (id) => {
+      resolveChildVertexFromHint: (id) => {
         counters.vertex++;
         return {
           kind: 'vertexResolved',
@@ -99,7 +99,7 @@ function createInspection(
       },
     },
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     library.DagVisitorPhase.ON_WORK_READY,
     () => {
       if (counters.ready++ === 0) onFirstReady();

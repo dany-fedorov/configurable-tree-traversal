@@ -92,7 +92,7 @@ test('assembling current children can suppress cache writes without suppressing 
   new DepthFirstTreeTraversalBuilder({
     treeDiscoverySource: new ObjectPropertyTreeSource({}),
   })
-    .registerVisitorCallbackForPhase(
+    .registerVisitorForPhase(
       DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
       (vertex, context) => {
         const helpers = bind(vertex, context);
@@ -133,7 +133,7 @@ test.each([
     new DepthFirstTreeTraversalBuilder({
       treeDiscoverySource: new ObjectPropertyTreeSource({}),
     })
-      .registerVisitorCallbackForPhase(
+      .registerVisitorForPhase(
         DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
         (vertex, context) => {
           expect(() =>

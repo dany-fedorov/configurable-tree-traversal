@@ -52,7 +52,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           };
         },
-        resolveChildHint: (hint: string) => {
+        resolveChildVertexFromHint: (hint: string) => {
           sourceCalls++;
           if (scenario === 'child source failure') throw failure;
           return {
@@ -68,11 +68,11 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         },
       };
       const traversal = new Constructor<G>({ dagDiscoverySource });
-      traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+      traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => {
         visits++;
         if (scenario === 'ready failure') throw failure;
       });
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         Order.ON_SUBGRAPH_COMPLETION_READY,
         () => {
           visits++;
@@ -315,7 +315,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
     ])
       (values as unknown[]).push('changed');
     const diagnostics = before.invalidDependencyTopologyDiagnostics!;
-    diagnostics.blockedVertexPrerequisiteReports[0]!.prerequisiteVertexIdsInReport.pop();
+    diagnostics.blockedVertexPrerequisiteReports[0]!.unmetPrerequisiteVertexIds.pop();
     diagnostics.blockedVertexPrerequisiteReports[0]!.vertexId =
       'changed' as unknown as typeof first;
     diagnostics.unresolvedPrerequisiteVertexIds.push({ name: 'changed' });
@@ -360,7 +360,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         : {}),
     });
     const failure = { problem: 'later visitor' };
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
       if (vertex.getVertexData().id === 'deferred')
         return {
           commands: [
@@ -445,7 +445,7 @@ test('terminal async observations stay stable after an invalidated callback sett
     discoveryTiming: 'completeBeforeAnyVisitor',
   });
   let callbacks = 0;
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async (vertex) => {
       callbacks++;
@@ -516,7 +516,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           },
         };
       },
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         kind: 'vertexIntentionallyOmitted' as const,
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -629,7 +629,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
               },
             };
           },
-          resolveChildHint: () => ({
+          resolveChildVertexFromHint: () => ({
             omittedVertexIdentity: null,
             kind: 'vertexIntentionallyOmitted' as const,
             satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -644,7 +644,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           traversalRunnerInternalObjects: { state },
         });
         const failure = undefined;
-        traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+        traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => {
           calls++;
           if (outcome === 'failure') throw failure;
         });
@@ -721,7 +721,7 @@ test('retaining a terminal observation again preserves an immutable metadata des
           vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: [] },
         },
       }),
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         kind: 'vertexIntentionallyOmitted' as const,
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,

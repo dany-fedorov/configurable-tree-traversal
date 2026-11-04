@@ -15,7 +15,7 @@ import {
   TraversalRunnerStatus,
   type TreeOrDagExecutionSnapshot,
   type GraphWalkEvent,
-  type GraphWalkInspection,
+  type GraphWalkExecutionSnapshot,
   type GraphWalkDiscoverySource,
   type TraversalExecutionSnapshot,
   type TraversalExecutionState,
@@ -255,12 +255,12 @@ type WalkEvent = GraphWalkEvent<string, number, undefined>;
 const detailedWalk: SyncTraversalExecution<
   WALK,
   WalkEvent,
-  GraphWalkInspection
+  GraphWalkExecutionSnapshot
 > = walkingSync;
 const detailedAsyncWalk: AsyncTraversalExecution<
   WALK,
   WalkEvent,
-  GraphWalkInspection
+  GraphWalkExecutionSnapshot
 > = walkingAsync;
 const commonWalk: SyncTraversalExecution<
   WALK,
@@ -272,8 +272,8 @@ const commonAsyncWalk: AsyncTraversalExecution<
   WalkEvent,
   TraversalExecutionSnapshot
 > = detailedAsyncWalk;
-const detailedState: TraversalExecutionState<GraphWalkInspection> = walkingSync;
-const detailedAsyncState: TraversalExecutionState<GraphWalkInspection> =
+const detailedState: TraversalExecutionState<GraphWalkExecutionSnapshot> = walkingSync;
+const detailedAsyncState: TraversalExecutionState<GraphWalkExecutionSnapshot> =
   walkingAsync;
 const walkKind: 'graph-walk' =
   detailedWalk.captureExecutionSnapshot().traversalAlgorithm;

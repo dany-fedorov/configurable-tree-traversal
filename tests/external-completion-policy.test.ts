@@ -16,7 +16,7 @@ const catalog = {
       vertexContentInput: { $vertexData: '', $childDiscoveryHints: ['A', 'B'] },
     },
   }),
-  resolveChildHint: (id: string) => ({
+  resolveChildVertexFromHint: (id: string) => ({
     kind: 'vertexResolved' as const,
     resolvedVertexInput: {
       vertexId: id,
@@ -134,7 +134,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       discoveryTiming: 'completeBeforeAnyVisitor',
       ...external,
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_WORK_READY,
       (vertex) => {
         seen.push(vertex.getVertexData());
@@ -178,7 +178,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       acceptedCompletedWorkVertexIds: new Set(['A']),
       ...external,
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => {
       throw new Error('filtered callback ran');
     });
     const runner = traversal.createIndependentRunnerFromCurrentOptions();
@@ -223,7 +223,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       sourceRootIsHiddenEntryHolder: true,
       ...external,
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_WORK_READY,
       () => ({
         commands: [
@@ -235,7 +235,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       }),
       { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
     );
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_WORK_READY,
       () => ({
         commands: [
@@ -247,7 +247,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       }),
       { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
     );
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => {
       throw new Error('must skip later callback');
     });
     const runner = traversal.createIndependentRunnerFromCurrentOptions();
@@ -291,7 +291,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -351,7 +351,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       sourceRootIsHiddenEntryHolder: true,
       ...external,
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_WORK_READY,
       (vertex) => ({
         commands: [
@@ -365,7 +365,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         ],
       }),
     );
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
       seen.push(vertex.getVertexData());
     });
     const runner = traversal.createIndependentRunnerFromCurrentOptions();
@@ -391,7 +391,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       sourceRootIsHiddenEntryHolder: true,
       ...external,
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => ({
       commands: [
         {
           commandName:
@@ -455,7 +455,7 @@ test('async external settlement frees logical chain capacity while a physical ca
       }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
     seen.push(vertex.getVertexData());
     return vertex.getVertexData() === 'busy' ? release.promise : undefined;
   });
@@ -502,7 +502,7 @@ test('external async close drains callbacks before recording pause and retains g
       }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) =>
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) =>
     vertex.getVertexData() === 'busy' ? release.promise : undefined,
   );
   const runner = traversal.createIndependentRunnerFromCurrentOptions();

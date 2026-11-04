@@ -1,7 +1,7 @@
 import type {
   MakeVertexResult,
   DagPrerequisiteLookupResult,
-  TreeVertexResolution,
+  TreeSourceVertexResolution,
 } from '@core/TraversableTree';
 import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
@@ -47,7 +47,7 @@ export function normalizeSourceResult<
 >(
   result:
     | DagPrerequisiteLookupResult<InputVertexTypes, VertexId>
-    | TreeVertexResolution<InputVertexTypes>,
+    | TreeSourceVertexResolution<InputVertexTypes>,
   prerequisite: boolean,
   treeSourceName?: string,
 ): MakeVertexResult<InputVertexTypes> | undefined {

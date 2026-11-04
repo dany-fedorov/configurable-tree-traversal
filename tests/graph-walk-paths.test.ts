@@ -65,7 +65,7 @@ it.each(policies)(
       },
       terminalOutcome:
         routeEnumerationPolicy === 'allVertexSimpleRoutePrefixes'
-          ? { kind: 'sourceRoutesExhausted' }
+          ? { kind: 'explorationExhausted' }
           : {
               kind: 'traversalLimitsReached',
               reachedLimits: ['maxRouteHopDepth'],
@@ -113,7 +113,7 @@ it.each(policies)(
         resolvedFoundVertexIdCount: 2,
         freshSourceOutgoingLinkCount: 2,
       },
-      terminalOutcome: { kind: 'sourceRoutesExhausted' },
+      terminalOutcome: { kind: 'explorationExhausted' },
     });
   },
 );
@@ -179,7 +179,7 @@ it.each(policies)(
         resolvedFoundVertexIdCount: 2,
         freshSourceOutgoingLinkCount: 1,
       },
-      terminalOutcome: { kind: 'sourceRoutesExhausted' },
+      terminalOutcome: { kind: 'explorationExhausted' },
     });
   },
 );
@@ -347,7 +347,7 @@ it.each([0, 1])(
       expect(runner.captureProgressSnapshot().terminalOutcome).toEqual(
         maxRouteHopDepth === 1 &&
           routeEnumerationPolicy === 'allVertexSimpleRoutePrefixes'
-          ? { kind: 'sourceRoutesExhausted' }
+          ? { kind: 'explorationExhausted' }
           : {
               kind: 'traversalLimitsReached',
               reachedLimits: ['maxRouteHopDepth'],
@@ -405,7 +405,7 @@ it('tests simple path ancestry with SameValueZero and preserves object and symbo
     ids.slice(1).map((id) => (Object.is(id, -0) ? 0 : id)),
   );
   expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
 });
 
@@ -607,7 +607,7 @@ it.each(policies)(
         .runUntilSuspendedOrTerminal()
         .captureProgressSnapshot().terminalOutcome,
     ).toEqual({
-      kind: 'sourceRoutesExhausted',
+      kind: 'explorationExhausted',
     });
     factory
       .patchOptionsForFutureRunners({ replaceLimits: { maxRouteHopDepth: 1 } })
@@ -680,7 +680,7 @@ it('keeps once paths first-discovery only without a route bound', () => {
     ),
   ).toEqual(['A', 'AB', 'AC', 'ABD']);
   expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
 });
 
@@ -802,7 +802,7 @@ it.each([-0, 0])(
         admittedRootOrLinkTargetOccurrences: 1,
         freshSourceOutgoingLinkCount: 1,
       },
-      terminalOutcome: { kind: 'sourceRoutesExhausted' },
+      terminalOutcome: { kind: 'explorationExhausted' },
     });
   },
 );

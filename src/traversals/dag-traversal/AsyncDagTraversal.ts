@@ -76,8 +76,8 @@ export class AsyncDagTraversalBuilder<
             treeDiscoverySource?: undefined;
           }
         | {
-            rootWorkPrerequisitePolicy?: never;
-            undeclaredWorkPrerequisitePolicy?: never;
+            rootWorkToWorkPrerequisitePolicy?: never;
+            undeclaredWorkToWorkPrerequisitePolicy?: never;
             treeDiscoverySource: unknown extends VertexId
               ? AsyncTreeDiscoverySource<
                   SourceVertexTypes,
@@ -159,7 +159,7 @@ export class AsyncDagTraversalBuilder<
     return this;
   }
 
-  registerVisitorCallbackForPhase<Phase extends DagVisitorPhase>(
+  registerVisitorForPhase<Phase extends DagVisitorPhase>(
     order: Phase,
     visitor: AsyncDagVisitor<
       SourceVertexTypes,

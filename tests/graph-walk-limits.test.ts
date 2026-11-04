@@ -59,7 +59,7 @@ it('does not treat returning edge depth as a new vertex cutoff', () => {
     .createIndependentRunnerFromCurrentOptions()
     .runUntilSuspendedOrTerminal();
   expect(self.captureProgressSnapshot().terminalOutcome).toEqual({
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
   const boundary = new GraphWalkBuilder({
     graphWalkDiscoverySource: idGraph(
@@ -88,7 +88,7 @@ it('runs expansion predicate before depth and lets host pruning exhaust', () => 
     .createIndependentRunnerFromCurrentOptions()
     .runUntilSuspendedOrTerminal();
   expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
 });
 
@@ -173,7 +173,7 @@ it.each([
       .createIndependentRunnerFromCurrentOptions()
       .runUntilSuspendedOrTerminal();
     expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
-      kind: 'sourceRoutesExhausted',
+      kind: 'explorationExhausted',
     });
     expect(runner.captureProgressSnapshot().counts).toMatchObject({
       rootOrLinkReadAttemptsIncludingDoneAndCacheReplay:
@@ -347,14 +347,14 @@ it('replaces supplied limits and atomically rejects invalid patches', () => {
   expect(
     snapshot.runUntilSuspendedOrTerminal().captureProgressSnapshot()
       .terminalOutcome,
-  ).toEqual({ kind: 'sourceRoutesExhausted' });
+  ).toEqual({ kind: 'explorationExhausted' });
   expect(
     factory
       .createIndependentRunnerFromCurrentOptions()
       .runUntilSuspendedOrTerminal()
       .captureProgressSnapshot().terminalOutcome,
   ).toEqual({
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
   const limits: GraphWalkExplorationLimits = { maxRouteHopDepth: 0 };
   factory.patchOptionsForFutureRunners({ replaceLimits: limits });
@@ -412,7 +412,7 @@ it.each([GraphWalkBuilder, AsyncGraphWalkBuilder])(
       routePrefix: 1,
     });
     expect(captureProgressSnapshot.terminalOutcome).toEqual({
-      kind: 'sourceRoutesExhausted',
+      kind: 'explorationExhausted',
     });
   },
 );

@@ -1,4 +1,4 @@
-import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { InternalVertexRef } from '../src/core/graph/types';
@@ -25,7 +25,7 @@ function context(
   return {
     discoveryDepthInEdges: depth,
     parentVertexAtChildResolution: parentRef.getReferencedValue(),
-    parentVertexHandle: parentRef,
+    parentVertexReference: parentRef,
     parentChildHintIndex: hintIndex,
     childDiscoveryHint: parentRef
       .getReferencedValue()

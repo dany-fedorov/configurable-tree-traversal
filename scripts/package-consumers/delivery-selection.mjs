@@ -21,7 +21,7 @@ const graph = {
       vertexContentInput: { $vertexData: vertexId, $childDiscoveryHints: [] },
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     omittedVertexIdentity: null,
     kind: 'vertexIntentionallyOmitted',
     satisfiesWorkAndSubgraphCompletionPrerequisites: true,
@@ -37,7 +37,7 @@ for (const lib of [esm, cjs]) {
       dagDiscoverySource: graph,
       workCompletionPolicy: 'requireExternalWorkSettlement',
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       lib.DagVisitorPhase.ON_WORK_READY,
       () => {
         callbacks++;
@@ -100,7 +100,7 @@ for (const lib of [esm, cjs]) {
       });
       let callbacks = 0;
       const traversal = new Constructor(options);
-      traversal.registerVisitorCallbackForPhase(phase, async () => {
+      traversal.registerVisitorForPhase(phase, async () => {
         callbacks++;
         started();
         await gate;

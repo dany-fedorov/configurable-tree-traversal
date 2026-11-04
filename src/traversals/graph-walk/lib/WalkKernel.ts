@@ -11,7 +11,7 @@ import type {
   GraphWalkResolvedVertex,
   GraphWalkVertexResolutionResult,
 } from '../GraphWalkSource';
-import type { GraphWalkInspection } from './GraphWalkInspection';
+import type { GraphWalkExecutionSnapshot } from './GraphWalkExecutionSnapshot';
 import type {
   GraphWalkTerminalOutcome,
   GraphWalkProgressSnapshot,
@@ -436,7 +436,7 @@ export class WalkKernel<VertexData, EdgeData, VertexId> {
     this.terminalOutcome =
       reachedLimits.length > 0
         ? { kind: 'traversalLimitsReached', reachedLimits }
-        : { kind: 'sourceRoutesExhausted' };
+        : { kind: 'explorationExhausted' };
   }
 
   poll(retainObservation = false): WalkAction<VertexData, EdgeData, VertexId> {
@@ -595,7 +595,7 @@ export class WalkKernel<VertexData, EdgeData, VertexId> {
             const step = readStep(value);
             if (step.done) {
               roots.done = true;
-              this.resources.sourceRoutesExhausted(roots.iterator!);
+              this.resources.markSourceIteratorExhausted(roots.iterator!);
             } else {
               const targetToResolveOnAdmission = this.cache.copyTarget(
                 step.value,
@@ -653,7 +653,7 @@ export class WalkKernel<VertexData, EdgeData, VertexId> {
               if (step.done) {
                 if (!previouslyAdmittedVertex) {
                   cursor.done = true;
-                  this.resources.sourceRoutesExhausted(cursor.iterator!);
+                  this.resources.markSourceIteratorExhausted(cursor.iterator!);
                 }
                 this.frontier.remove();
               } else {
@@ -707,7 +707,7 @@ export class WalkKernel<VertexData, EdgeData, VertexId> {
           : Object.freeze({ ...this.terminalOutcome }),
     });
   }
-  captureExecutionSnapshot(): GraphWalkInspection {
+  captureExecutionSnapshot(): GraphWalkExecutionSnapshot {
     const { deliveredEventKinds, admittedVisitorCallbackPhases } =
       normalizeTraversalExecutionOptions(phases, undefined, this.execution);
     const execution = { deliveredEventKinds, admittedVisitorCallbackPhases };

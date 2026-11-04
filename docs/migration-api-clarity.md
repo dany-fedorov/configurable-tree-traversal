@@ -56,7 +56,7 @@ Namespaces `core`, `depthFirstTraversal`, `breadthFirstTraversal`, `dagTraversal
 | `MakeVertexOptions`, `MakeGraphVertexOptions`                                | `TreeChildResolutionContext`, `DagChildResolutionContext`                                              |
 | `FoundVertexResult`, `OmittedVertexResult`, `SourceVertexResult`             | `DagVertexFound`, `DagVertexOmitted`, `DagVertexResolution`                                            |
 | `PrerequisiteResolutionResult`, `MissingVertexResult`                        | `DagPrerequisiteResolution`, `PrerequisiteMissing`                                                     |
-| `TreeFoundVertexResult`, `TreeOmittedVertexResult`, `TreeSourceVertexResult` | `TreeVertexFound`, `TreeVertexOmitted`, `TreeVertexResolution`                                         |
+| `TreeFoundVertexResult`, `TreeOmittedVertexResult`, `TreeSourceVertexResult` | `TreeVertexFound`, `TreeVertexOmitted`, `TreeSourceVertexResolution`                                         |
 | Public legacy `MakeVertexResult`, `MakeTreeVertexResult` imports             | Use the family resolution union. Untagged inputs are removed; return tagged `found`/`omitted` results. |
 
 Materializers eagerly copy finite membership and edge lists and share caller data/ID identity. Record catalogs include disconnected records. Root materialization allows shared records; it does not assert a strict forest. DAG materialization adapts discovery, without executing work or validating all milestone constraints; preparation validates those later. Async DAG materializers await input and return an input envelope containing a **synchronous discovery source**; async walking materializers return a **synchronous walking source**. The definition-to-walking adapter materializes selected relations, not a running coordinator. There is no additional async definition adapter.
@@ -267,7 +267,7 @@ Retired compatibility routes are removed: legacy vertex content/access, untagged
 
 ## Generic execution and tree callbacks
 
-`TraversalExecutionState`, `SyncTraversalExecution` and `AsyncTraversalExecution` default to `ExecutionInspection`. Their emission default is `EmissionKind<Phase>`; DAG event selectors accept committed event names while callback selectors retain readiness phases. Concrete tree/DAG runners explicitly return `TreeDagExecutionInspection` (formerly `CoreInspection`); walking runners return `GraphWalkInspection`.
+`TraversalExecutionState`, `SyncTraversalExecution` and `AsyncTraversalExecution` default to `ExecutionInspection`. Their emission default is `EmissionKind<Phase>`; DAG event selectors accept committed event names while callback selectors retain readiness phases. Concrete tree/DAG runners explicitly return `TreeDagExecutionInspection` (formerly `CoreInspection`); walking runners return `GraphWalkExecutionSnapshot`.
 
 `AsyncCoreExecution`, `TreeTraversal`, `TreeTraversalRunner`, `TreeTraversalIterable` and `AbstractTreeSource` are removed. Use execution capabilities for wrappers, concrete builders, `Iterable<TreeTraversalEvent<...>>` for tree iteration, and structural `TreeSource` implementations.
 

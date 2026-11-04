@@ -22,8 +22,8 @@ type OwnedOptions = {
   treeDiscoverySource?: never;
   sourceRootIsHiddenEntryHolder?: never;
   discoveryTiming?: never;
-  rootWorkPrerequisitePolicy?: never;
-  undeclaredWorkPrerequisitePolicy?: never;
+  rootWorkToWorkPrerequisitePolicy?: never;
+  undeclaredWorkToWorkPrerequisitePolicy?: never;
   transformChildHintsBeforeResolution?: never;
   traversalRunnerInternalObjects?: never;
 };
@@ -69,7 +69,7 @@ export type AsyncDagExternalWorkSessionOptions<VertexId> =
 
 /** An in-memory validated topology; data and identities remain shallow caller values. */
 export interface ValidatedReusableDagTopology<Data, VertexId = unknown> {
-  /** Live-child convenience projection; omission slots are absent. Do not use for round-trip reconstruction. */
+  /** Frozen projection of retained vertices and children, excluding omissions; not a live view or round-trip definition. */
   readonly liveVertexSummaries: readonly ValidatedDagTopologyLiveVertexSummary<
     Data,
     VertexId

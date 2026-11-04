@@ -49,7 +49,7 @@ const graph = {
       vertexContentInput: { $vertexData: 'A', $childDiscoveryHints: [] },
     },
   }),
-  resolveChildHint: tree.resolveChildVertexFromHint,
+  resolveChildVertexFromHint: tree.resolveChildVertexFromHint,
 };
 function expectReason(
   runner: {
@@ -121,7 +121,7 @@ for (const Constructor of [
 ]) {
   test(`${Constructor.name} keeps the preceding settlement stop until resume`, async () => {
     const traversal = new Constructor({ dagDiscoverySource: graph });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => ({
       commands: [
         {
           commandName:
@@ -146,7 +146,7 @@ for (const Constructor of [
   test(`${Constructor.name} distinguishes requested pause from deferred quiescence`, async () => {
     let halted = false;
     const traversal = new Constructor({ dagDiscoverySource: graph });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => {
       if (!halted) {
         halted = true;
         return {
@@ -170,7 +170,7 @@ test('async pause has no stop reason while admitted callbacks drain', async () =
   const traversal = new AsyncDagTraversalBuilder<G>({
     dagDiscoverySource: graph,
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     () => release.promise,
   );

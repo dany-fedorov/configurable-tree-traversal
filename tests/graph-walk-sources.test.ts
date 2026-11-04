@@ -355,7 +355,7 @@ it.each([null, undefined, { exact: true }])(
 
 function dagVertex<ID>(
   vertexId: ID,
-  overrides: Partial<import('../src').DagDefinitionVertex<ID, ID>> = {},
+  overrides: Partial<import('../src').DagVertexDeclaration<ID, ID>> = {},
 ) {
   return {
     vertexId,
@@ -408,7 +408,7 @@ it('walks cyclic definitions without DAG preparation or callback execution', () 
     ['b', 'a', { kind: 'structuralChildSlot', childSlotIndex: 0 }],
   ]);
   expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
   expect(graphWalk.materializeGraphWalkSourceFromDagDeclarationRelations).toBe(
     materializeGraphWalkSourceFromDagDeclarationRelations,

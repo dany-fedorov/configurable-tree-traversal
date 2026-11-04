@@ -4,7 +4,7 @@ import {
   AsyncDepthFirstTreeTraversalBuilder,
   type AsyncDagDiscoverySource,
   type AsyncTreeDiscoverySource,
-  type TreeVertexResolution,
+  type TreeSourceVertexResolution,
   type TreeOrDagCallbackOperation,
   type VertexDataAndChildHintTypes,
 } from '../src';
@@ -61,7 +61,7 @@ it.each(treeRunners)(
   '%s identifies the pending tree child resolver',
   async (_name, createRunner) => {
     const entered = deferred<void>();
-    const child = deferred<TreeVertexResolution<Tree>>();
+    const child = deferred<TreeSourceVertexResolution<Tree>>();
     const runner = createRunner({
       resolveRootVertex: () => ({
         kind: 'vertexResolved',
@@ -116,7 +116,7 @@ it('async DAG with a graph source identifies the pending graph child resolver', 
         },
       },
     }),
-    resolveChildHint: async () => {
+    resolveChildVertexFromHint: async () => {
       entered.resolve();
       await child.promise;
       return {
@@ -141,7 +141,7 @@ it('async DAG with a graph source identifies the pending graph child resolver', 
     expect(snapshot.sourceTopologyKind).toBe('graph');
     expect(
       snapshot.pendingCallbackRequests.map(({ operation }) => operation),
-    ).toEqual(['resolveChildHint']);
+    ).toEqual(['resolveChildVertexFromHint']);
   } finally {
     child.resolve();
     await execution;

@@ -17,7 +17,7 @@ const dagDiscoverySource = {
       },
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     omittedVertexIdentity: null,
     satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
     kind: 'vertexIntentionallyOmitted' as const,
@@ -29,7 +29,7 @@ for (const Ctor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
     const t = new (Ctor as typeof DagTraversalBuilder)<T>({
       dagDiscoverySource,
     });
-    t.registerVisitorCallbackForPhase(
+    t.registerVisitorForPhase(
       D.ON_WORK_READY,
       () => {
         seen.push('high');
@@ -39,7 +39,7 @@ for (const Ctor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
       },
     );
-    t.registerVisitorCallbackForPhase(
+    t.registerVisitorForPhase(
       D.ON_WORK_READY,
       () => {
         seen.push('low');
@@ -111,7 +111,7 @@ for (const Ctor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       D.ON_WORK_READY,
       t.getDetachedVisitorRegistrationRecordsForPhase(D.ON_WORK_READY),
     );
-    t.registerVisitorCallbackForPhase(
+    t.registerVisitorForPhase(
       D.ON_WORK_READY,
       (_v, o) => {
         seen.push(['implicit', o.currentVertexPhaseChainState]);
@@ -125,7 +125,7 @@ for (const Ctor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         },
       ],
     });
-    t.registerVisitorCallbackForPhase(
+    t.registerVisitorForPhase(
       D.ON_WORK_READY,
       () => {
         seen.push('tail');
@@ -163,7 +163,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       mode: 'afterEachVisitorCallback' | 'afterContiguousVisitorBatch',
       next: string,
     ) =>
-      t.registerVisitorCallbackForPhase(
+      t.registerVisitorForPhase(
         D.ON_WORK_READY,
         (v) => {
           seen.push(v.getVertexData());
@@ -228,10 +228,10 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         },
       },
     });
-    t.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => {
+    t.registerVisitorForPhase(D.ON_WORK_READY, () => {
       seen.push('fourth');
     });
-    t.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => {
+    t.registerVisitorForPhase(D.ON_WORK_READY, () => {
       seen.push('fifth');
     });
     await t

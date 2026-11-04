@@ -1,4 +1,4 @@
-import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
 import {
   DepthFirstTreeTraversalBuilder,
   MutableValueReference,
@@ -39,7 +39,7 @@ function makeContext(
   return {
     discoveryDepthInEdges: 1,
     parentVertexAtChildResolution: parentVertexRef.getReferencedValue(),
-    parentVertexHandle: parentVertexRef,
+    parentVertexReference: parentVertexRef,
     parentChildHintIndex: 0,
     childDiscoveryHint: vertexHint,
   };
@@ -136,7 +136,7 @@ describe('saved-container consistency errors', () => {
       childRef,
       makeContext(rootRef, childHint),
     );
-    const savedTree = container.preCommandDiscoveredTreeView;
+    const savedTree = container.livePreCommandDiscoveredTreeView;
     const savedRootRef = container.originalTreeRefsMap?.get(rootRef);
     if (savedTree === null || savedRootRef === undefined) {
       throw new Error('Expected saved root state');

@@ -50,7 +50,7 @@ runner.runUntilSuspendedOrTerminal({
   // @ts-expect-error legacy execution selectors are not canonical inputs
   iterateOver: [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION],
 });
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   () => undefined,
   {

@@ -89,7 +89,7 @@ test('arbitrary IDs retain identity and caller data stays shared and unfrozen', 
     items[0]!.value = 2;
     const traversal = new DagTraversalBuilder(source);
     const seen: typeof items = [];
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DagVisitorPhase.ON_WORK_READY,
       (vertex) => {
         seen.push(vertex.getVertexData());
@@ -290,8 +290,8 @@ test('a source rejects unknown structural lookup without omitting it', () => {
     ...source,
     dagDiscoverySource: {
       ...source.dagDiscoverySource,
-      resolveChildHint: (_hint, options) =>
-        source.dagDiscoverySource.resolveChildHint('missing', options),
+      resolveChildVertexFromHint: (_hint, options) =>
+        source.dagDiscoverySource.resolveChildVertexFromHint('missing', options),
     },
   });
   expect(() =>

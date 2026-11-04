@@ -36,7 +36,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           };
         },
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           kind: "vertexIntentionallyOmitted" as const,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,

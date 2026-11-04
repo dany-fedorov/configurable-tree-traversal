@@ -2,7 +2,7 @@ import {
   copyAndNormalizeDagDefinition,
   type DagDefinition,
   type DagStructuralDiscoverySlot,
-  type DagDefinitionVertex,
+  type DagVertexDeclaration,
   discoverValidateAndCaptureDag,
   validateAndPrepareDagDefinition,
   type DagDefinitionIssue,
@@ -18,7 +18,7 @@ const slot: DagStructuralDiscoverySlot<ID> = {
   kind: 'omitted',
   omittedVertexIdentity: { vertexId: 'b' },
 };
-const vertex: DagDefinitionVertex<Data, ID> = {
+const vertex: DagVertexDeclaration<Data, ID> = {
   vertexId: 'a',
   data: { label: 'A' },
   childDiscoverySlots: [slot],

@@ -23,7 +23,7 @@ for (const prepare of [
           kind: 'vertexResolved',
           resolvedVertexInput: vertex,
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted',
@@ -66,7 +66,7 @@ for (const prepare of [
             kind: 'vertexResolved',
             resolvedVertexInput: vertex,
           }),
-          resolveChildHint: () => ({
+          resolveChildVertexFromHint: () => ({
             omittedVertexIdentity: null,
             satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
             kind: 'vertexIntentionallyOmitted',
@@ -104,7 +104,7 @@ for (const prepare of [
               kind: 'vertexResolved',
               resolvedVertexInput: vertex,
             }),
-            resolveChildHint: () => ({
+            resolveChildVertexFromHint: () => ({
               omittedVertexIdentity: null,
               satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
               kind: 'vertexIntentionallyOmitted',
@@ -136,7 +136,7 @@ for (const prepare of [
         kind: 'vertexResolved',
         resolvedVertexInput: new Entry('root'),
       }),
-      resolveChildHint: (id) => ({
+      resolveChildVertexFromHint: (id) => ({
         kind: 'vertexResolved',
         resolvedVertexInput: new Entry(id),
       }),
@@ -194,7 +194,7 @@ for (const prepare of [
             },
           }),
           tryGetVertexIdentityFromHint: () => inherited,
-          resolveChildHint: () => ({
+          resolveChildVertexFromHint: () => ({
             kind: 'vertexResolved',
             resolvedVertexInput: {
               vertexId: 'b',
@@ -241,7 +241,7 @@ for (const prepare of [
           }),
           tryGetVertexIdentityFromHint: (hint) =>
             hint === 'skip' ? wrapper : { vertexId: hint },
-          resolveChildHint: (hint) =>
+          resolveChildVertexFromHint: (hint) =>
             hint === 'skip'
               ? {
                   omittedVertexIdentity: null,

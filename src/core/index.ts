@@ -38,7 +38,7 @@ export type {
 } from './MakeMutationCommandFunctionFactory';
 export type {
   LiveResolvedGraphView,
-  PreCommandDiscoveredGraphView,
+  LivePreCommandDiscoveredGraphView,
 } from './ResolvedGraphView';
 export {
   MutableTreeVertexTopologyRecord,
@@ -46,6 +46,7 @@ export {
 } from './ResolvedTree';
 export type {
   ChildDiscoveryContext,
+  MutableTreeChildDiscoveryContext,
   TreeVertexDiscoveryMetadata,
   TreeVertexTopologyRecordInput,
   MutableTreeVertexRecordMap,
@@ -60,14 +61,14 @@ export type {
 } from './TraversableGraph';
 export type {
   TreeChildResolverContext,
-  FoundDagSourceVertex,
+  ResolvedDagSourceVertex,
   OmittedDagSourceVertex,
   DagPrerequisiteLookupMissing,
   DagSourceVertexResolution,
   DagPrerequisiteLookupResult,
-  TreeVertexResolutionFound,
-  TreeVertexResolutionOmitted,
-  TreeVertexResolution,
+  ResolvedTreeSourceVertex,
+  OmittedTreeSourceVertex,
+  TreeSourceVertexResolution,
   TreeDiscoverySource,
 } from './TraversableTree';
 export type {

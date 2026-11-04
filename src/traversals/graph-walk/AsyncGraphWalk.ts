@@ -38,7 +38,7 @@ export class AsyncGraphWalkBuilder<VertexData, EdgeData, VertexId> {
     this.options = normalizeWalkOptions(patch, this.options);
     return this;
   }
-  addVisitorForObservationKind<
+  registerVisitorForObservationKind<
     ObservationKind extends GraphWalkObservationKind,
   >(
     observationKind: ObservationKind,
@@ -67,7 +67,7 @@ export class AsyncGraphWalkBuilder<VertexData, EdgeData, VertexId> {
     };
     return this;
   }
-  addVisitorGroupForObservationKind<
+  appendVisitorGroupForObservationKind<
     ObservationKind extends GraphWalkObservationKind,
   >(
     observationKind: ObservationKind,
@@ -90,7 +90,7 @@ export class AsyncGraphWalkBuilder<VertexData, EdgeData, VertexId> {
     };
     return this;
   }
-  replaceVisitorsForObservationKind<
+  replaceVisitorDefinitionsForObservationKind<
     ObservationKind extends GraphWalkObservationKind,
   >(
     observationKind: ObservationKind,

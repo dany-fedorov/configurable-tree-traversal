@@ -174,7 +174,7 @@ for (const api of [esm, cjs]) {
         ],
       },
     );
-    chain.registerVisitorCallbackForPhase(
+    chain.registerVisitorForPhase(
       api.DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
       (_vertex, context) => {
         seen.push(context.currentVertexPhaseChainState);
@@ -201,7 +201,7 @@ for (const api of [esm, cjs]) {
           },
         },
       }),
-      resolveChildHint: (id) => ({
+      resolveChildVertexFromHint: (id) => ({
         kind: 'vertexResolved',
         resolvedVertexInput: {
           vertexId: id,
@@ -309,7 +309,7 @@ for (const api of [esm, cjs]) {
     );
   assert.throws(
     () =>
-      tree.registerVisitorCallbackForPhase(
+      tree.registerVisitorForPhase(
         api.DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
         {
           visitor() {},

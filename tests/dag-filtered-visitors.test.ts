@@ -30,7 +30,7 @@ const source: DagDiscoverySource<G, G, string> = {
       },
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     kind: 'vertexResolved',
     resolvedVertexInput: {
       vertexId: 'task',
@@ -45,7 +45,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       dagDiscoverySource: source,
     });
     const seen: unknown[] = [];
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_WORK_READY,
       createConditionalDagDataVisitor(isTask, (data, options) => {
         seen.push(
@@ -80,7 +80,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       }),
       { descendingExecutionPriorityWithinGroup: 12 },
     );
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_WORK_READY,
       createConditionalDagDataVisitor(
         (data: Data) => data.kind === 'task',
@@ -116,7 +116,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       dagDiscoverySource: source,
     });
     const after: string[] = [];
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_WORK_READY,
       createConditionalDagDataVisitor(isTask, () => ({
         commands: [
@@ -127,7 +127,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         ],
       })),
     );
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_WORK_READY,
       (_, options) => {
         after.push(
@@ -160,7 +160,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       const traversal = new Constructor<G, G, string>({
         dagDiscoverySource: source,
       });
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         Order.ON_WORK_READY,
         createConditionalDagDataVisitor(
           (data: Data) => {
@@ -184,7 +184,7 @@ test('async filtered callbacks await commands and preserve rejected values', asy
   const traversal = new AsyncDagTraversalBuilder<G, G, string>({
     dagDiscoverySource: source,
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     createConditionalAsyncDagDataVisitor(isTask, async (data) => {
       await Promise.resolve();
@@ -209,7 +209,7 @@ test('async filtered callbacks await commands and preserve rejected values', asy
       .getCurrentVertexView()
       .getVertexData(),
   ).toEqual({ kind: 'task', label: 'task!' });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_SUBGRAPH_COMPLETION_READY,
     createConditionalAsyncDagDataVisitor(isTask, async () => {
       throw undefined;
@@ -226,7 +226,7 @@ test('async filtering preserves deferral after awaited host work', async () => {
   const traversal = new AsyncDagTraversalBuilder<G, G, string>({
     dagDiscoverySource: source,
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     createConditionalAsyncDagDataVisitor(
       isTask,
@@ -272,7 +272,7 @@ test.each(['predicate', 'callback'] as const)(
     const traversal = new AsyncDagTraversalBuilder<G, G, string>({
       dagDiscoverySource: source,
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_WORK_READY,
       createConditionalAsyncDagDataVisitor(
         (data: Data) => {

@@ -206,7 +206,7 @@ test('visitor registration options and groups reject unknown own fields atomical
     treeDiscoverySource: new ObjectPropertyTreeSource(1),
   });
   expect(() =>
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
       () => undefined,
       {
@@ -233,7 +233,7 @@ test('visitor registration options and groups reject unknown own fields atomical
     ),
   ).toThrow(TypeError);
   expect(() =>
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
       () => undefined,
       {
@@ -463,13 +463,13 @@ test('supported nonenumerable object-source and registration options apply', () 
     treeDiscoverySource: new ObjectPropertyTreeSource(1, sourceOptions),
   });
   const order: string[] = [];
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
     () => {
       order.push('normal');
     },
   );
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
     (vertex) => {
       order.push('high');

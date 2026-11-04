@@ -369,7 +369,7 @@ export function rewriteObject<
           }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
     (
       vertex: VertexView<

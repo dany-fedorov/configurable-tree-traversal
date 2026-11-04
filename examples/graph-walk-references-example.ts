@@ -86,7 +86,7 @@ runSync(treeRunner, DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION);
 async function main() {
   const references: string[] = [];
   const runner = new AsyncGraphWalkBuilder({ graphWalkDiscoverySource: source })
-    .addVisitorForObservationKind(
+    .registerVisitorForObservationKind(
       GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE,
       (event) => {
         // Endpoint discriminants narrow directly; no ID registry or cast is needed.
@@ -106,7 +106,7 @@ async function main() {
   await runAsync(runner, GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE);
   assert.deepEqual(references, ['src/main.ts defines main']);
   assert.deepEqual(runner.captureProgressSnapshot().terminalOutcome, {
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
   console.log('Typed references:', references);
   // A fresh runner can use explicitly narrowed iteration instead of callbacks.

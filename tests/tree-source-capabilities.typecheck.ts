@@ -5,25 +5,25 @@ import type {
   AsyncTreeDiscoverySource,
   DagDiscoverySource,
   VertexDataAndChildHintTypes,
-  TreeVertexResolutionFound,
-  TreeVertexResolutionOmitted,
-  TreeVertexResolution,
+  ResolvedTreeSourceVertex,
+  OmittedTreeSourceVertex,
+  TreeSourceVertexResolution,
   DagSourceVertexResolution,
   ObjectChildPropertyResolutionOverrideResult,
 } from '../src';
 
 type T = VertexDataAndChildHintTypes<string, string>;
 const content = { $vertexData: 'root', $childDiscoveryHints: [] };
-const found: TreeVertexResolutionFound<T> = {
+const found: ResolvedTreeSourceVertex<T> = {
   kind: 'vertexResolved',
   resolvedVertexInput: { vertexContentInput: content },
 };
-const omitted: TreeVertexResolutionOmitted = {
+const omitted: OmittedTreeSourceVertex = {
   kind: 'vertexIntentionallyOmitted',
 };
 // @ts-expect-error Untagged tree source resolutions are retired.
-const legacy: TreeVertexResolution<T> = { vertexContent: null };
-const source: TreeVertexResolution<T> = found;
+const legacy: TreeSourceVertexResolution<T> = { vertexContent: null };
+const source: TreeSourceVertexResolution<T> = found;
 const tree: TreeDiscoverySource<T> = {
   resolveRootVertex: () => source,
   resolveChildVertexFromHint: () => omitted,
@@ -45,7 +45,7 @@ const graph: DagDiscoverySource<T> = {
       workWaitsForSubgraphCompletionOf: [],
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     kind: 'vertexIntentionallyOmitted',
     satisfiesWorkAndSubgraphCompletionPrerequisites: true,
     omittedVertexIdentity: { vertexId: undefined },

@@ -76,7 +76,7 @@ test('legacy deletion detaches by clone and permits manually re-setting a ref', 
       childDiscoveryContext: {
         discoveryDepthInEdges: 1,
         parentVertexAtChildResolution: rootRef.getReferencedValue(),
-        parentVertexHandle: rootRef,
+        parentVertexReference: rootRef,
         parentChildHintIndex: 0,
         childDiscoveryHint: 'child',
       },

@@ -25,7 +25,7 @@ const rootOnly = {
       vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     omittedVertexIdentity: null,
     kind: 'vertexIntentionallyOmitted' as const,
     satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -47,7 +47,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -62,7 +62,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, deferReady);
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, deferReady);
     const runner = traversal.createIndependentRunnerFromCurrentOptions();
     await runner.runUntilSuspendedOrTerminal();
     const settlementToken = runner
@@ -122,7 +122,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
     `${Constructor.name} canonical fatal feedback preserves %p and cross-form replay`,
     async (error) => {
       const traversal = new Constructor<G>({ dagDiscoverySource: rootOnly });
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         Order.ON_WORK_READY,
         deferReady,
       );
@@ -193,7 +193,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
     `${Constructor.name} tagged replay retains completion and exact failure equality %p`,
     async (ok) => {
       const traversal = new Constructor<G>({ dagDiscoverySource: rootOnly });
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         Order.ON_WORK_READY,
         deferReady,
       );
@@ -239,7 +239,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
     `${Constructor.name} rejects malformed feedback %p without consuming its generation`,
     async (outcome) => {
       const traversal = new Constructor<G>({ dagDiscoverySource: rootOnly });
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         Order.ON_WORK_READY,
         deferReady,
       );
@@ -291,7 +291,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, deferReady);
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, deferReady);
     const runner = traversal.createIndependentRunnerFromCurrentOptions();
     await runner.runUntilSuspendedOrTerminal();
     const settlementToken = runner
@@ -336,7 +336,7 @@ test('canonical async settlement wakes W consumers while physical callbacks reta
           },
         },
       }),
-      resolveChildHint: (id) => ({
+      resolveChildVertexFromHint: (id) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: id,
@@ -346,7 +346,7 @@ test('canonical async settlement wakes W consumers while physical callbacks reta
       }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
     seen.push(vertex.getVertexData());
     return vertex.getVertexData() === 'b' ? release.promise : deferReady();
   });

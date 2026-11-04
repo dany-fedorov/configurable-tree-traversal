@@ -14,10 +14,10 @@ it('runs mixed callbacks with emissions suppressed and unchanged source discover
   const traversal = new GraphWalkBuilder({
     graphWalkDiscoverySource: fixture.source,
   });
-  traversal.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, (event) => {
+  traversal.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, (event) => {
     seen.push(`v:${event.vertex.vertexId}`);
   });
-  traversal.addVisitorForObservationKind(
+  traversal.registerVisitorForObservationKind(
     Phase.ADMITTED_EDGE_OCCURRENCE,
     (event) => {
       seen.push(
@@ -71,7 +71,7 @@ it('halts after its group and resumes only the remaining callbacks', () => {
   const traversal = new GraphWalkBuilder({
     graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
   });
-  traversal.addVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
+  traversal.appendVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
     visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
     visitors: [
       () => {
@@ -87,7 +87,7 @@ it('halts after its group and resumes only the remaining callbacks', () => {
       },
     ],
   });
-  traversal.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
+  traversal.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
     seen.push('third');
   });
   const runner = traversal
@@ -115,7 +115,7 @@ it('commits flat afterGroup batches at sorted mode boundaries and halts once per
     [3, 'afterContiguousVisitorBatch', 'middle'],
     [2, 'afterEachVisitorCallback', 'each'],
   ] as const)
-    traversal.addVisitorForObservationKind(
+    traversal.registerVisitorForObservationKind(
       Phase.VERTEX_OCCURRENCE,
       () => {
         seen.push(label);
@@ -167,7 +167,7 @@ it('detaches list and context wrappers while preserving callback and group metad
   const t = new GraphWalkBuilder({
     graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
   });
-  t.addVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
+  t.appendVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
     visitors: [first],
   });
   const listed = t.listVisitorRegistrationsForObservationKind(
@@ -175,7 +175,7 @@ it('detaches list and context wrappers while preserving callback and group metad
   );
   const group = listed[0]!.visitorGroup;
   expect(listed[0]!.visitor).toBe(first);
-  t.replaceVisitorsForObservationKind(Phase.VERTEX_OCCURRENCE, listed);
+  t.replaceVisitorDefinitionsForObservationKind(Phase.VERTEX_OCCURRENCE, listed);
   listed[0]!.descendingExecutionPriorityWithinGroup = 999;
   listed.push({
     ...listed[0]!,
@@ -214,7 +214,7 @@ it('supplies logical phase and occurrence indices independently of emission and 
     ),
     deliveredEventKinds: [],
   });
-  t.addVisitorForObservationKind(
+  t.registerVisitorForObservationKind(
     Phase.ADMITTED_EDGE_OCCURRENCE,
     (event, context) => {
       seen.push([
@@ -225,7 +225,7 @@ it('supplies logical phase and occurrence indices independently of emission and 
       ]);
     },
   );
-  t.addVisitorForObservationKind(Phase.ROUTE_PREFIX, (event, context) => {
+  t.registerVisitorForObservationKind(Phase.ROUTE_PREFIX, (event, context) => {
     seen.push([
       event.eventKind,
       event.verticesInRootToTargetOrder.map((v) => v.vertexId),
@@ -283,15 +283,15 @@ it('keeps previous configuration after invalid phase/group/merged-bound patches'
       TypeError,
     );
   expect(() =>
-    t.addVisitorForObservationKind('ON_WORK_READY' as Phase, () => undefined),
+    t.registerVisitorForObservationKind('ON_WORK_READY' as Phase, () => undefined),
   ).toThrow(TypeError);
   expect(() =>
-    t.addVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
+    t.appendVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
       visitorsByObservationKind: null,
     } as never),
   ).toThrow(TypeError);
   expect(() =>
-    t.replaceVisitorsForObservationKind(Phase.VERTEX_OCCURRENCE, null as never),
+    t.replaceVisitorDefinitionsForObservationKind(Phase.VERTEX_OCCURRENCE, null as never),
   ).toThrow(TypeError);
   t.createIndependentRunnerFromCurrentOptions().runUntilSuspendedOrTerminal();
   expect(seen).toEqual(['original']);
@@ -302,7 +302,7 @@ it('snapshots registrations, source identities and factory configuration per run
   const t = new GraphWalkBuilder({
     graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
   });
-  t.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
+  t.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
     seen.push('first');
   });
   const old = t.createIndependentRunnerFromCurrentOptions();
@@ -310,7 +310,7 @@ it('snapshots registrations, source identities and factory configuration per run
     graphWalkDiscoverySource: idGraph(['B'], [['B', []]]),
     deliveredEventKinds: [Phase.ROUTE_PREFIX],
   });
-  t.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
+  t.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
     seen.push('second');
   });
   expect([
@@ -336,7 +336,7 @@ it('validates the whole command batch before applying HALT', () => {
   const t = new GraphWalkBuilder({
     graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
   });
-  t.addVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
+  t.appendVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
     visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
     visitors: [
       () => ({
@@ -442,7 +442,7 @@ it('captures buffered command names before a later group callback mutates caller
   const t = new GraphWalkBuilder({
     graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
   });
-  t.addVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
+  t.appendVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
     visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
     visitors: [
       () => ({ commands: [command] }),
@@ -452,7 +452,7 @@ it('captures buffered command names before a later group callback mutates caller
       },
     ],
   });
-  t.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
+  t.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
     seen.push('next group');
   });
   const runner = t
@@ -470,7 +470,7 @@ for (const Factory of [GraphWalkBuilder, AsyncGraphWalkBuilder]) {
     const traversal = new Factory({
       graphWalkDiscoverySource: idGraph(['a'], [['a', []]]),
     });
-    traversal.addVisitorForObservationKind(
+    traversal.registerVisitorForObservationKind(
       Phase.VERTEX_OCCURRENCE,
       () =>
         ({
@@ -483,7 +483,7 @@ for (const Factory of [GraphWalkBuilder, AsyncGraphWalkBuilder]) {
           ],
         } as never),
     );
-    traversal.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
+    traversal.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
       seen.push('resumed');
     });
     const runner = traversal.createIndependentRunnerFromCurrentOptions();

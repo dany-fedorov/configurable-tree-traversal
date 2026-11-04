@@ -33,7 +33,7 @@ for (const traversal of [
   new DagTraversalBuilder<T>(graph),
   new AsyncDagTraversalBuilder<T>(graph),
 ]) {
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     D.ON_WORK_READY,
     (_vertex, options) => {
       const phase: D.ON_WORK_READY = options.visitorPhase;
@@ -45,7 +45,7 @@ for (const traversal of [
       };
     },
   );
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     D.ON_SUBGRAPH_COMPLETION_READY,
     () => ({
       commands: [
@@ -57,7 +57,7 @@ for (const traversal of [
       ],
     }),
   );
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     D.ON_SUBGRAPH_COMPLETION_READY,
     () => ({
       commands: [
@@ -66,13 +66,13 @@ for (const traversal of [
       ],
     }),
   );
-  traversal.registerVisitorCallbackForPhase(dagOrder, () => ({
+  traversal.registerVisitorForPhase(dagOrder, () => ({
     commands: [
       // @ts-expect-error A union phase can be completion.
       { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
     ],
   }));
-  traversal.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => ({
+  traversal.registerVisitorForPhase(D.ON_WORK_READY, () => ({
     // @ts-expect-error Deferral cannot be combined with another command.
     commands: [
       { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
@@ -160,7 +160,7 @@ for (const traversal of [
   new DepthFirstTreeTraversalBuilder<T>(tree),
   new AsyncDepthFirstTreeTraversalBuilder<T>(tree),
 ]) {
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     F.BEFORE_CHILD_EXPANSION,
     (_v, o) => {
       const phase: F.BEFORE_CHILD_EXPANSION = o.visitorPhase;
@@ -175,7 +175,7 @@ for (const traversal of [
       };
     },
   );
-  traversal.registerVisitorCallbackForPhase(F.AFTER_CHILD_SUBTREES, () => ({
+  traversal.registerVisitorForPhase(F.AFTER_CHILD_SUBTREES, () => ({
     commands: [
       {
         // @ts-expect-error Rewrite is forbidden at POST_ORDER.
@@ -185,7 +185,7 @@ for (const traversal of [
       },
     ],
   }));
-  traversal.registerVisitorCallbackForPhase(dfsOrder, () => ({
+  traversal.registerVisitorForPhase(dfsOrder, () => ({
     commands: [
       {
         // @ts-expect-error Union phase can be POST_ORDER.
@@ -234,7 +234,7 @@ for (const traversal of [
   new BreadthFirstTreeTraversalBuilder<T>(tree),
   new AsyncBreadthFirstTreeTraversalBuilder<T>(tree),
 ]) {
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     B.AT_LEVEL_ORDER_VERTEX,
     (_v, o) => {
       const phase: B.AT_LEVEL_ORDER_VERTEX = o.visitorPhase;
@@ -249,7 +249,7 @@ for (const traversal of [
       };
     },
   );
-  traversal.registerVisitorCallbackForPhase(B.AT_LEVEL_ORDER_VERTEX, () => ({
+  traversal.registerVisitorForPhase(B.AT_LEVEL_ORDER_VERTEX, () => ({
     commands: [
       // @ts-expect-error Tree callbacks cannot defer.
       { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
@@ -386,8 +386,8 @@ for (const traversal of [
   new AsyncDagTraversalBuilder<T>(graph),
 ]) {
   // @ts-expect-error The callback requires ON_WORK_READY but the registration can complete.
-  traversal.registerVisitorCallbackForPhase(dagOrder, ready);
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(dagOrder, ready);
+  traversal.registerVisitorForPhase(
     D.ON_SUBGRAPH_COMPLETION_READY,
     // @ts-expect-error A narrow callback cannot be registered for another phase.
     ready,
@@ -410,7 +410,7 @@ for (const traversal of [
   new AsyncDepthFirstTreeTraversalBuilder<T>(tree),
 ]) {
   // @ts-expect-error The callback can rewrite hints while the registration can run post-phase.
-  traversal.registerVisitorCallbackForPhase(dfsOrder, pre);
+  traversal.registerVisitorForPhase(dfsOrder, pre);
   traversal.patchOptionsForFutureRunners({
     visitors: {
       [F.AFTER_CHILD_SUBTREES]: [
@@ -453,14 +453,14 @@ for (const traversal of [
   });
 }
 
-new DagTraversalBuilder<T>(graph).registerVisitorCallbackForPhase(
+new DagTraversalBuilder<T>(graph).registerVisitorForPhase(
   D.ON_WORK_READY,
   commonVisitor,
 );
 const asyncCommon: import('../src').AsyncDagVisitor<T> = async () => ({
   commands: [{ commandName: C.NO_OPERATION }],
 });
-new AsyncDagTraversalBuilder<T>(graph).registerVisitorCallbackForPhase(
+new AsyncDagTraversalBuilder<T>(graph).registerVisitorForPhase(
   D.ON_WORK_READY,
   asyncCommon,
 );
@@ -684,12 +684,12 @@ declare const asyncPre: import('../src').AsyncTreeVertexPhaseVisitorCallback<
 >;
 const asyncDag = new AsyncDagTraversalBuilder<T>(graph);
 const asyncDfs = new AsyncDepthFirstTreeTraversalBuilder<T>(tree);
-asyncDag.registerVisitorCallbackForPhase(D.ON_WORK_READY, asyncReady);
-asyncDfs.registerVisitorCallbackForPhase(F.BEFORE_CHILD_EXPANSION, asyncPre);
+asyncDag.registerVisitorForPhase(D.ON_WORK_READY, asyncReady);
+asyncDfs.registerVisitorForPhase(F.BEFORE_CHILD_EXPANSION, asyncPre);
 // @ts-expect-error An async ON_WORK_READY callback cannot run at a union phase.
-asyncDag.registerVisitorCallbackForPhase(dagOrder, asyncReady);
+asyncDag.registerVisitorForPhase(dagOrder, asyncReady);
 // @ts-expect-error An async PRE_ORDER callback cannot run at a union phase.
-asyncDfs.registerVisitorCallbackForPhase(dfsOrder, asyncPre);
+asyncDfs.registerVisitorForPhase(dfsOrder, asyncPre);
 asyncDag.patchOptionsForFutureRunners({
   visitors: {
     [D.ON_SUBGRAPH_COMPLETION_READY]: [

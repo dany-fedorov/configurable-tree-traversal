@@ -1,4 +1,4 @@
-import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext } from '@core/ResolvedTree';
 import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalRunnerStatus,
@@ -67,7 +67,7 @@ export type CallSpec<
     }
   | {
       kind: 'MAKE_VERTEX';
-      context: InternalChildDiscoveryContext<
+      context: MutableTreeChildDiscoveryContext<
         InputVertexTypes | RewrittenVertexTypes
       >;
     }

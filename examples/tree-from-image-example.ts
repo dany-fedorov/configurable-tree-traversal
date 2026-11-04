@@ -132,7 +132,7 @@ const traversal = new DepthFirstTreeTraversalBuilder({
           },
   },
 });
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   (vertex) =>
     reportVisit(
@@ -140,7 +140,7 @@ traversal.registerVisitorCallbackForPhase(
       vertex.getVertexData(),
     ),
 );
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
   (vertex) =>
     reportVisit(
@@ -148,7 +148,7 @@ traversal.registerVisitorCallbackForPhase(
       vertex.getVertexData(),
     ),
 );
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
   (vertex) =>
     reportVisit(

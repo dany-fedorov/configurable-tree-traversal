@@ -2,13 +2,13 @@ import type { MutableValueReference, VertexHandle } from './CTTRef';
 import type { Vertex, VertexView } from './Vertex';
 import type { VertexDataAndChildHintTypes } from './TreeTypeParameters';
 import type {
-  InternalChildDiscoveryContext,
+  MutableTreeChildDiscoveryContext,
   ChildDiscoveryContext,
 } from './ResolvedTree';
 import type {
   InternalResolvedGraphView,
   LiveResolvedGraphView,
-  PreCommandDiscoveredGraphView,
+  LivePreCommandDiscoveredGraphView,
 } from './ResolvedGraphView';
 import { normalizePathOptions } from './normalizePathOptions';
 
@@ -83,7 +83,7 @@ export function internalRef<
 export function resolutionContextView<
   InputVertexTypes extends VertexDataAndChildHintTypes,
 >(
-  context: InternalChildDiscoveryContext<InputVertexTypes> | null,
+  context: MutableTreeChildDiscoveryContext<InputVertexTypes> | null,
 ): ChildDiscoveryContext<InputVertexTypes> | null {
   if (context === null) return null;
   let view = contexts.get(context) as
@@ -95,7 +95,7 @@ export function resolutionContextView<
       parentVertexAtChildResolution: vertexView(
         context.parentVertexAtChildResolution,
       ),
-      parentVertexHandle: createVertexHandleFacet(context.parentVertexHandle),
+      parentVertexHandle: createVertexHandleFacet(context.parentVertexReference),
       parentChildHintIndex: context.parentChildHintIndex,
       childDiscoveryHint: context.childDiscoveryHint,
     });
@@ -111,12 +111,12 @@ type InternalOriginalGraphView<
   InternalResolvedGraphView<InputVertexTypes, VertexId>,
   'get' | 'getVertexVisitSchedulingStageOrNull'
 >;
-export function preCommandDiscoveredGraphView<
+export function livePreCommandDiscoveredGraphView<
   InputVertexTypes extends VertexDataAndChildHintTypes,
   VertexId,
 >(
   graph: InternalOriginalGraphView<InputVertexTypes, VertexId>,
-): PreCommandDiscoveredGraphView<InputVertexTypes, VertexId> {
+): LivePreCommandDiscoveredGraphView<InputVertexTypes, VertexId> {
   const list = (values: MutableValueReference<Vertex<InputVertexTypes>>[]) =>
     Object.freeze(values.map((ref) => createVertexHandleFacet(ref)));
   return Object.freeze({
@@ -164,7 +164,7 @@ export function liveResolvedGraphView<
     | undefined;
   if (view === undefined) {
     view = Object.freeze({
-      ...preCommandDiscoveredGraphView(graph),
+      ...livePreCommandDiscoveredGraphView(graph),
       getVertexVisitSchedulingStageOrNull: (
         ref: VertexHandle<InputVertexTypes>,
       ) => graph.getVertexVisitSchedulingStageOrNull(internalRef(ref)),

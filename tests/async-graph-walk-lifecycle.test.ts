@@ -112,13 +112,13 @@ it('return drains a serial visitor chain while preserving its undelivered observ
   const walk = new AsyncGraphWalkBuilder({
     graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
   });
-  walk.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async () => {
+  walk.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async () => {
     trace.push('first');
     started.resolve();
     await finish.promise;
     trace.push('settled');
   });
-  walk.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async () => {
+  walk.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async () => {
     trace.push('second');
   });
   const runner = walk.createIndependentRunnerFromCurrentOptions();
@@ -243,7 +243,7 @@ it.each([
     expect(calls.filter((call) => call === 'resolve:A')).toHaveLength(1);
     expect(calls.filter((call) => call === 'resolve:B')).toHaveLength(1);
     expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
-      kind: 'sourceRoutesExhausted',
+      kind: 'explorationExhausted',
     });
   },
 );
@@ -356,7 +356,7 @@ it('serves queued demand in order and lets independent runners progress while an
     ),
   });
   const independent = walk.createIndependentRunnerFromCurrentOptions();
-  walk.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async (event) => {
+  walk.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async (event) => {
     if (event.vertex.vertexId === 'A') {
       started.resolve();
       await finish.promise;
@@ -371,7 +371,7 @@ it('serves queued demand in order and lets independent runners progress while an
   await started.promise;
   await independent.runUntilSuspendedOrTerminal();
   expect(independent.captureProgressSnapshot().terminalOutcome).toEqual({
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
   expect(runner.captureExecutionSnapshot().inFlightInvocationCount).toBe(1);
   finish.resolve();
@@ -385,12 +385,12 @@ it('cooperative pause drains a selected chain and delivers its observation befor
   const walk = new AsyncGraphWalkBuilder({
     graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
   });
-  walk.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async () => {
+  walk.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async () => {
     expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(true);
     expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(false);
     calls.push('first');
   });
-  walk.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async () => {
+  walk.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async () => {
     calls.push('second');
   });
   const runner = walk.createIndependentRunnerFromCurrentOptions();
@@ -436,7 +436,7 @@ it('retains the admitted async chain across HALT and uses the new lease emission
   const walk = new AsyncGraphWalkBuilder({
     graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
   });
-  walk.addVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
+  walk.appendVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
     visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
     visitors: [
       async () => {
@@ -452,7 +452,7 @@ it('retains the admitted async chain across HALT and uses the new lease emission
       },
     ],
   });
-  walk.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async () => {
+  walk.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async () => {
     calls.push('tail');
   });
   const runner = walk.createIndependentRunnerFromCurrentOptions();
@@ -506,7 +506,7 @@ it('consumer exceptions and successful pending throw pause without failing the r
   expect(runner.captureProgressSnapshot().terminalOutcome).toBe(null);
   await runner.runUntilSuspendedOrTerminal();
   expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
 });
 

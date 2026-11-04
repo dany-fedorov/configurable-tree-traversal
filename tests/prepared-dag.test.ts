@@ -33,7 +33,7 @@ function source(calls: string[] = []): DagDiscoverySource<T, T, string> {
         },
       };
     },
-    resolveChildHint: (id) => {
+    resolveChildVertexFromHint: (id) => {
       calls.push(id);
       return {
         kind: 'vertexResolved',
@@ -224,7 +224,7 @@ for (const prepare of [
         },
       }),
       tryGetVertexIdentityFromHint: (id) => ({ vertexId: id }),
-      resolveChildHint: (id) =>
+      resolveChildVertexFromHint: (id) =>
         id === 'skip'
           ? {
               omittedVertexIdentity: null,
@@ -276,7 +276,7 @@ for (const prepare of [
             kind: 'vertexIntentionallyOmitted',
             satisfiesWorkAndSubgraphCompletionPrerequisites: true,
           }),
-          resolveChildHint: () => {
+          resolveChildVertexFromHint: () => {
             throw new Error('No children');
           },
         },
@@ -370,7 +370,7 @@ test('prepared discovery retains undefined omission IDs and transitive detached 
       },
     }),
     tryGetVertexIdentityFromHint: (vertexId) => ({ vertexId }),
-    resolveChildHint: (id) =>
+    resolveChildVertexFromHint: (id) =>
       id === undefined
         ? {
             omittedVertexIdentity: null,
@@ -439,7 +439,7 @@ test('prepared discovery retains undefined omission IDs and transitive detached 
 test('unidentified omitted children do not become fake prepared identities', () => {
   const adapter: DagDiscoverySource<T, T, string> = {
     ...source(),
-    resolveChildHint: () => ({
+    resolveChildVertexFromHint: () => ({
       omittedVertexIdentity: null,
       kind: 'vertexIntentionallyOmitted',
       satisfiesWorkAndSubgraphCompletionPrerequisites: true,
@@ -461,7 +461,7 @@ test('unidentified omitted children do not become fake prepared identities', () 
 
 test('prepared definitions preserve effective implicit work dependencies and root policy', () => {
   const adapter = source();
-  const resolveChild: typeof adapter.resolveChildHint = (id) => ({
+  const resolveChild: typeof adapter.resolveChildVertexFromHint = (id) => ({
     kind: 'vertexResolved',
     resolvedVertexInput: {
       vertexId: id,
@@ -472,8 +472,8 @@ test('prepared definitions preserve effective implicit work dependencies and roo
     },
   });
   const implicit = discoverValidateAndCaptureDag({
-    dagDiscoverySource: { ...adapter, resolveChildHint: resolveChild },
-    undeclaredWorkPrerequisitePolicy: 'waitForDiscoveringParentWork',
+    dagDiscoverySource: { ...adapter, resolveChildVertexFromHint: resolveChild },
+    undeclaredWorkToWorkPrerequisitePolicy: 'waitForDiscoveringParentWork',
   });
   if (implicit.kind !== 'valid') throw new Error('Expected valid');
   expect(
@@ -491,10 +491,10 @@ test('prepared definitions preserve effective implicit work dependencies and roo
   });
 
   const ignored = discoverValidateAndCaptureDag({
-    rootWorkPrerequisitePolicy: 'ignore',
+    rootWorkToWorkPrerequisitePolicy: 'ignore',
     dagDiscoverySource: {
       ...adapter,
-      resolveChildHint: resolveChild,
+      resolveChildVertexFromHint: resolveChild,
       resolveRootVertex: () => ({
         kind: 'vertexResolved',
         resolvedVertexInput: {
@@ -614,7 +614,7 @@ test('definition arrays are immutable while arbitrary IDs and data stay shallow'
   ).toBe('updated');
   first.runUntilSuspendedOrTerminal();
   await second.runUntilSuspendedOrTerminal();
-  expect(first.preCommandDiscoveredGraphView).not.toBeNull();
+  expect(first.livePreCommandDiscoveredGraphView).not.toBeNull();
 });
 
 test('prepared runners reject topology-changing visitor commands independently', () => {
@@ -662,8 +662,8 @@ test('prepared option boundaries reject overrides including present undefined be
     'treeDiscoverySource',
     'syntheticRoot',
     'discovery',
-    'rootWorkPrerequisitePolicy',
-    'undeclaredWorkPrerequisitePolicy',
+    'rootWorkToWorkPrerequisitePolicy',
+    'undeclaredWorkToWorkPrerequisitePolicy',
     'transformChildHintsBeforeResolution',
     'traversalRunnerInternalObjects',
   ]) {
@@ -709,7 +709,7 @@ test('source callback failures are never mistaken for validation results', async
   ]) {
     const adapter = source();
     for (const hook of [
-      'resolveChildHint',
+      'resolveChildVertexFromHint',
       'tryGetVertexIdentityFromHint',
     ] as const) {
       await expect(async () =>
@@ -794,7 +794,7 @@ for (const prepare of [
           kind: 'vertexResolved',
           resolvedVertexInput: new Entry('a'),
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved',
           resolvedVertexInput: new Entry(id),
         }),
@@ -836,7 +836,7 @@ for (const prepare of [
         ...(hintSupplied
           ? { tryGetVertexIdentityFromHint: (id: string) => ({ vertexId: id }) }
           : {}),
-        resolveChildHint: (id) =>
+        resolveChildVertexFromHint: (id) =>
           id === 'skip'
             ? {
                 omittedVertexIdentity: hintSupplied ? null : { vertexId: id },

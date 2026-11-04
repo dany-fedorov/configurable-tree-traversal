@@ -32,7 +32,7 @@ function reconstruct() {
           },
         },
       }),
-      resolveChildHint: (id) => ({
+      resolveChildVertexFromHint: (id) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: id,

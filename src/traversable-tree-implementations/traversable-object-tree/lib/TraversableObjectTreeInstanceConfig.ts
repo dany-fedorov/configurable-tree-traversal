@@ -1,8 +1,8 @@
 import type { LiveObjectPropertyVertexTypes } from '@traversable-object-tree/lib/ObjectCurrentVertexTypes';
 import type {
   TreeChildResolverContext,
-  TreeVertexResolutionFound,
-  TreeVertexResolutionOmitted,
+  ResolvedTreeSourceVertex,
+  OmittedTreeSourceVertex,
 } from '@core/TraversableTree';
 import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { ObjectPropertyRecord } from '@traversable-object-tree/lib/TraversableObjectProp';
@@ -23,8 +23,8 @@ export type ObjectChildPropertyResolutionOverrideResult<
       dependsOnSubgraphCompletion?: never;
       satisfiesDependencies?: never;
     }
-  | TreeVertexResolutionFound<T>
-  | TreeVertexResolutionOmitted;
+  | ResolvedTreeSourceVertex<T>
+  | OmittedTreeSourceVertex;
 
 export type ObjectPropertyTreeBaseOptions<
   InputValue,

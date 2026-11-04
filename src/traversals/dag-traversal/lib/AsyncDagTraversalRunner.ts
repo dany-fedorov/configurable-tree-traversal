@@ -17,7 +17,7 @@ import type { ResolvedGraphsContainerOptions } from '@core/graph/ResolvedGraphsC
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
 import type {
-  PreCommandDiscoveredGraphView,
+  LivePreCommandDiscoveredGraphView,
   LiveResolvedGraphView,
 } from '@core/ResolvedGraphView';
 import type { LiveResolvedTreeView } from '@core/ResolvedTreeView';
@@ -86,7 +86,7 @@ export interface AsyncDagTraversalRunner<
     TreeOrDagExecutionSnapshot<DagVisitorPhase>,
     'workCompletionCommitted' | 'subgraphCompletionCommitted'
   > {
-  readonly preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<
+  readonly livePreCommandDiscoveredGraphView: LivePreCommandDiscoveredGraphView<
     SourceVertexTypes,
     VertexId
   > | null;
@@ -132,7 +132,7 @@ export class InternalAsyncDagTraversalRunner<
     RewrittenVertexTypes,
     VertexId
   >;
-  readonly preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<
+  readonly livePreCommandDiscoveredGraphView: LivePreCommandDiscoveredGraphView<
     SourceVertexTypes,
     VertexId
   > | null;
@@ -192,7 +192,7 @@ export class InternalAsyncDagTraversalRunner<
         );
       }
       if (
-        (injectedContainer.preCommandDiscoveredGraphView !== null) !==
+        (injectedContainer.livePreCommandDiscoveredGraphView !== null) !==
         input.retainDiscoveredGraphBeforeVisitorCommands
       ) {
         throw new TypeError(
@@ -233,8 +233,8 @@ export class InternalAsyncDagTraversalRunner<
       this.resolvedGraphsContainer.liveResolvedGraphView.getVertexRefs()
         .length > 0,
     );
-    this.preCommandDiscoveredGraphView =
-      this.resolvedGraphsContainer.preCommandDiscoveredGraphView;
+    this.livePreCommandDiscoveredGraphView =
+      this.resolvedGraphsContainer.livePreCommandDiscoveredGraphView;
     const policy = new DagPolicy(this.state, this.resolvedGraphsContainer);
     const source =
       sourceMode === 'graph'
@@ -277,14 +277,14 @@ export class InternalAsyncDagTraversalRunner<
         this.icfg.workCompletionPolicy === undefined
           ? 'afterWorkReadyVisitorChain'
           : this.icfg.workCompletionPolicy,
-      ...(input.rootWorkPrerequisitePolicy === undefined
+      ...(input.rootWorkToWorkPrerequisitePolicy === undefined
         ? {}
-        : { rootWorkPrerequisitePolicy: input.rootWorkPrerequisitePolicy }),
-      ...(input.undeclaredWorkPrerequisitePolicy === undefined
+        : { rootWorkToWorkPrerequisitePolicy: input.rootWorkToWorkPrerequisitePolicy }),
+      ...(input.undeclaredWorkToWorkPrerequisitePolicy === undefined
         ? {}
         : {
-            undeclaredWorkPrerequisitePolicy:
-              input.undeclaredWorkPrerequisitePolicy,
+            undeclaredWorkToWorkPrerequisitePolicy:
+              input.undeclaredWorkToWorkPrerequisitePolicy,
           }),
       ...(acceptedCompletedWorkVertexIds === undefined
         ? {}
@@ -484,7 +484,7 @@ export class InternalAsyncDagTraversalRunner<
         call.metadata.previousCommittedVisitVertexHandleForSamePhase,
       ),
       liveResolvedGraphView: this.getLiveResolvedGraphView(),
-      preCommandDiscoveredGraphView: this.preCommandDiscoveredGraphView,
+      livePreCommandDiscoveredGraphView: this.livePreCommandDiscoveredGraphView,
       vertexHandle: createVertexHandleFacet(call.ref),
       visitorPhase: order,
       isVisibleSourceRoot: this.isVisibleSourceRootVertex(

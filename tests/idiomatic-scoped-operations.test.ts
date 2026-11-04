@@ -45,7 +45,7 @@ const graph = {
       vertexId: 'root',
     },
   }),
-  resolveChildHint: (id: string) => ({
+  resolveChildVertexFromHint: (id: string) => ({
     kind: 'vertexResolved' as const,
     resolvedVertexInput: {
       ...tree.resolveChildVertexFromHint(id).resolvedVertexInput,
@@ -60,7 +60,7 @@ for (const Constructor of [
 ]) {
   test(`${Constructor.name} accepts only subtree deletion`, async () => {
     const valid = new Constructor({ treeDiscoverySource: tree });
-    valid.registerVisitorCallbackForPhase(
+    valid.registerVisitorForPhase(
       DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
       () => ({
         commands: [
@@ -83,7 +83,7 @@ for (const Constructor of [
       'SET_VERTEX_VISITORS_CHAIN_STATE',
     ]) {
       const invalid = new Constructor({ treeDiscoverySource: tree });
-      invalid.registerVisitorCallbackForPhase(
+      invalid.registerVisitorForPhase(
         DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
         () => ({ commands: [{ commandName }] } as never),
       );
@@ -126,7 +126,7 @@ for (const Constructor of [
           ],
         },
       );
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
         (_vertex, context) => {
           seen.push(context.currentVertexPhaseChainState);
@@ -140,13 +140,13 @@ for (const Constructor of [
           };
         },
       );
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
         (_vertex, context) => {
           seen.push(context.currentVertexPhaseChainState);
         },
       );
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
         (_vertex, context) => {
           seen.push(context.currentVertexPhaseChainState);
@@ -184,7 +184,7 @@ for (const Constructor of [
     `${Constructor.name} rejects retired or missing state envelope %p`,
     async (commandArguments) => {
       const traversal = new Constructor({ treeDiscoverySource: tree });
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
         () =>
           ({
@@ -217,7 +217,7 @@ for (const Constructor of [
           ? { treeDiscoverySource: tree }
           : { dagDiscoverySource: graph };
       const valid = new Constructor(options);
-      valid.registerVisitorCallbackForPhase(
+      valid.registerVisitorForPhase(
         DagVisitorPhase.ON_WORK_READY,
         () => ({
           commands: [
@@ -232,7 +232,7 @@ for (const Constructor of [
       await runner.runUntilSuspendedOrTerminal();
       expect(runner.getLiveResolvedGraphView().getVertexHandles()).toEqual([]);
       const invalid = new Constructor(options);
-      invalid.registerVisitorCallbackForPhase(
+      invalid.registerVisitorForPhase(
         DagVisitorPhase.ON_WORK_READY,
         () =>
           ({
@@ -252,8 +252,8 @@ for (const Constructor of [
     },
   );
   test.each([
-    { rootWorkPrerequisitePolicy: 'ignore' },
-    { undeclaredWorkPrerequisitePolicy: 'none' },
+    { rootWorkToWorkPrerequisitePolicy: 'ignore' },
+    { undeclaredWorkToWorkPrerequisitePolicy: 'none' },
     { rootDependencies: 'honor' },
     { implicitParentDependency: false },
   ])(
@@ -281,8 +281,8 @@ for (const Constructor of [
   test.each([
     { rootDependencies: 'honor' },
     { implicitParentDependency: true },
-    { undeclaredWorkPrerequisitePolicy: true },
-    { rootWorkPrerequisitePolicy: 'bad' },
+    { undeclaredWorkToWorkPrerequisitePolicy: true },
+    { rootWorkToWorkPrerequisitePolicy: 'bad' },
   ])(
     `${Constructor.name} rejects invalid graph policy %p atomically`,
     async (policy) => {
@@ -301,7 +301,7 @@ for (const Constructor of [
         } as never),
       ).toThrow();
       const seen: string[] = [];
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         DagVisitorPhase.ON_WORK_READY,
         (vertex) => {
           seen.push(vertex.$vertexData);
@@ -364,7 +364,7 @@ for (const Constructor of [
   DepthFirstTreeTraversalBuilder<T>,
   AsyncDepthFirstTreeTraversalBuilder<T>,
 ]) {
-  test.each(['rootWorkPrerequisitePolicy', 'undeclaredWorkPrerequisitePolicy'])(
+  test.each(['rootWorkToWorkPrerequisitePolicy', 'undeclaredWorkToWorkPrerequisitePolicy'])(
     `${Constructor.name} rejects explicit nonenumerable tree policy %s`,
     (key) => {
       const options = Object.defineProperty(
@@ -526,7 +526,7 @@ test.each([undefined, NaN, Symbol('live'), {}])(
     expect(revised.validatedTopology.definition.entry).toEqual(
       definition.entry,
     );
-    expect(revised.changes.entryChanged).toBe(false);
+    expect(revised.declarationDiff.entryChanged).toBe(false);
     const sync = revised.validatedTopology
       .createIndependentRunnerFromValidatedTopology()
       .runUntilSuspendedOrTerminal();

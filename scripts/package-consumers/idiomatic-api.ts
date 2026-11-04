@@ -136,7 +136,7 @@ import {
   Vertex,
   MutableValueReference,
   runTreeDepthFirstUntilSuspendedOrTerminal,
-  type TreeVertexResolution,
+  type TreeSourceVertexResolution,
   type DagPrerequisiteLookupResult,
   type VisitorRegistrationDefinition,
   type DagSettlementOutcome,
@@ -168,12 +168,12 @@ declare const graph: LiveResolvedGraphView<LegacyT>;
 graph.getIdOf(new MutableValueReference(legacyVertex));
 // @ts-expect-error Removed graph forwarding alias.
 graph.getVertexById('id');
-const found: TreeVertexResolution<LegacyT> = {
+const found: TreeSourceVertexResolution<LegacyT> = {
   // @ts-expect-error Untagged source results are unsupported.
   vertexContentInput: legacyVertex,
 };
 // @ts-expect-error Untagged omission is unsupported.
-const omitted: TreeVertexResolution<LegacyT> = { vertexContentInput: null };
+const omitted: TreeSourceVertexResolution<LegacyT> = { vertexContentInput: null };
 // @ts-expect-error Missing prerequisite must be explicit.
 const missing: DagPrerequisiteLookupResult<LegacyT> = undefined;
 const visitor: VisitorRegistrationDefinition<() => void> = {

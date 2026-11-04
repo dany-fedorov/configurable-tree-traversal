@@ -167,7 +167,7 @@ test('preserves one-child and null-slot in-order options', async () => {
 test('resumes repeated mid-chain halts without repeating visitors', async () => {
   const t = traversal(node('root', node('leaf')));
   const visits: string[] = [];
-  t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, (vertex) => {
+  t.registerVisitorForPhase(Order.BEFORE_CHILD_EXPANSION, (vertex) => {
     visits.push(`halt:${vertex.getVertexData()}`);
     return {
       commands: [
@@ -175,7 +175,7 @@ test('resumes repeated mid-chain halts without repeating visitors', async () => 
       ],
     };
   });
-  t.registerVisitorCallbackForPhase(
+  t.registerVisitorForPhase(
     Order.BEFORE_CHILD_EXPANSION,
     async (vertex) => {
       visits.push(`after:${vertex.getVertexData()}`);
@@ -241,7 +241,7 @@ test('supports promised sorting and tree runner graph and vertex queries', async
     throw new Error('Expected a child');
   expect(runner.isTreeRootVertex(root)).toBe(true);
   expect(runner.isTreeRootVertex(root)).toBe(true);
-  expect(runner.hasSkippedPendingChildDiscovery(root)).toBe(false);
+  expect(runner.isPendingChildDiscoveryDisabled(root)).toBe(false);
   expect(
     !children[0].childVertexHandle
       .getCurrentVertexView()
@@ -253,7 +253,7 @@ test('retains saved original tree data through asynchronous mutations', async ()
   const t = traversal(node('root', node('leaf'))).patchOptionsForFutureRunners({
     retainDiscoveredTreeBeforeVisitorCommands: true,
   });
-  t.registerVisitorCallbackForPhase(
+  t.registerVisitorForPhase(
     Order.BEFORE_CHILD_EXPANSION,
     async (vertex) => ({
       commands: [
@@ -277,7 +277,7 @@ test('retains saved original tree data through asynchronous mutations', async ()
       .getVertexData(),
   ).toBe('ROOT');
   const saved =
-    runnerInternals(runner).resolvedTreesContainer.preCommandDiscoveredTreeView;
+    runnerInternals(runner).resolvedTreesContainer.livePreCommandDiscoveredTreeView;
   expect(
     saved?.getRootVertexReferenceOrNull()?.getReferencedValue().getVertexData(),
   ).toBe('root');
@@ -332,7 +332,7 @@ test('builder visitor operations are stable and runner snapshots are isolated', 
       },
     },
   ]);
-  t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, async () => {
+  t.registerVisitorForPhase(Order.BEFORE_CHILD_EXPANSION, async () => {
     seen.push('second');
   });
   expect(
@@ -342,7 +342,7 @@ test('builder visitor operations are stable and runner snapshots are isolated', 
   ).toHaveLength(2);
   const runner = t.createIndependentRunnerFromCurrentOptions();
   ranges.ranges[0]!.fromInclusive = 1;
-  t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, async () => {
+  t.registerVisitorForPhase(Order.BEFORE_CHILD_EXPANSION, async () => {
     seen.push('late');
   });
   await runner.runUntilSuspendedOrTerminal({ deliveredEventKinds: [] });

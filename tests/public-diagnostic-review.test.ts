@@ -13,7 +13,7 @@ const dagDiscoverySource = {
     omittedVertexIdentity: null,
     satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     kind: 'vertexIntentionallyOmitted' as const,
     omittedVertexIdentity: null,
     satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -51,12 +51,12 @@ test.each([
     'workCompletionPolicy must be afterWorkReadyVisitorChain or requireExternalWorkSettlement',
   ],
   [
-    'rootWorkPrerequisitePolicy',
-    'rootWorkPrerequisitePolicy must be honor or ignore',
+    'rootWorkToWorkPrerequisitePolicy',
+    'rootWorkToWorkPrerequisitePolicy must be honor or ignore',
   ],
   [
-    'undeclaredWorkPrerequisitePolicy',
-    'undeclaredWorkPrerequisitePolicy must be none or waitForDiscoveringParentWork',
+    'undeclaredWorkToWorkPrerequisitePolicy',
+    'undeclaredWorkToWorkPrerequisitePolicy must be none or waitForDiscoveringParentWork',
   ],
 ])('names the invalid DAG option %s', (option, message) => {
   expect(

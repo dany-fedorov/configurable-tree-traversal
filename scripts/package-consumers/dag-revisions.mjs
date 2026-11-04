@@ -47,13 +47,13 @@ for (const entry of entries) {
   );
   assert.equal(revision.kind, 'valid');
   assert.deepEqual(
-    revision.changes,
+    revision.declarationDiff,
     entry.diffDagDefinitionDeclarationsShallowly(
       result.validatedTopology.definition,
       revision.validatedTopology.definition,
     ),
   );
-  assert.deepEqual(revision.changes.changedVertexDeclarations, [
+  assert.deepEqual(revision.declarationDiff.changedVertexDeclarations, [
     { vertexId: 'task', changedDeclarationFields: ['data'] },
   ]);
   for (const fresh of [

@@ -35,7 +35,7 @@ test('visits a shared join once after all deferred prerequisites complete', asyn
     dagDiscoverySource: graphAdapter(diamond),
     maxConcurrentCallbackInvocations: 3,
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async (vertex, options) => {
       const data = vertex.getVertexData();
@@ -111,7 +111,7 @@ test('fails a hostile object-id stall without coercion, rejection, or hanging', 
             vertexId: 'root',
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexContentInput: {
@@ -151,11 +151,11 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
           },
         },
       }),
-      resolveChildHint: async (hint, options) => {
+      resolveChildVertexFromHint: async (hint, options) => {
         expect(
           options.liveResolvedGraphView.getDesignatedRootHandleOrNull(),
         ).not.toBeNull();
-        expect(options.preCommandDiscoveredGraphView).not.toBeNull();
+        expect(options.livePreCommandDiscoveredGraphView).not.toBeNull();
         return {
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
@@ -171,7 +171,7 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
     retainDiscoveredGraphBeforeVisitorCommands: true,
     maxConcurrentCallbackInvocations: 2,
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async (vertex) =>
       vertex.getVertexData() === 'a'
@@ -202,7 +202,7 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
   expect(values).toEqual(['root', 'changed', 'b']);
   expect(originalHints).toEqual(['b', 'a']);
   expect(
-    runner.preCommandDiscoveredGraphView
+    runner.livePreCommandDiscoveredGraphView
       ?.getVertexHandleByIdOrNull('a')
       ?.getCurrentVertexView()
       .getVertexData(),
@@ -242,7 +242,7 @@ test('supports an asynchronous tree source through the graph visitor facade', as
     },
   });
   const optionsSeen: string[] = [];
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async (vertex, options) => {
       optionsSeen.push(vertex.getVertexData());
@@ -356,7 +356,7 @@ test('isolates visitor configuration when making a runner', async () => {
       visitor: async () => void seen.push('first'),
     },
   ]);
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async () => void seen.push('second'),
     {
@@ -474,7 +474,7 @@ test('accepts a non-empty quiescent ready seed without scheduling during constru
           kind: 'vertexIntentionallyOmitted' as const,
         };
       },
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         kind: 'vertexIntentionallyOmitted' as const,
@@ -516,7 +516,7 @@ test.each([new Error('injected failure'), undefined])(
             kind: 'vertexIntentionallyOmitted' as const,
           };
         },
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted' as const,
@@ -560,7 +560,7 @@ test.each([new Error('live failure'), undefined])(
     });
     const source = {
       resolveRootVertex: () => root.promise,
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         kind: 'vertexIntentionallyOmitted' as const,
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -591,7 +591,7 @@ test.each([new Error('live failure'), undefined])(
         resolveRootVertex: () => {
           throw new Error('terminal reconstruction must not resolve source');
         },
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted' as const,

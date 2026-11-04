@@ -31,7 +31,7 @@ function setup() {
     index: number,
     parent: InternalVertexRef<TestGraph> = root,
   ) => ({
-    parentVertexHandle: parent,
+    parentVertexReference: parent,
     parentVertexAtChildResolution: parent.getReferencedValue(),
     discoveryDepthInEdges: 1,
     parentChildHintIndex: index,
@@ -248,7 +248,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => {
+        resolveChildVertexFromHint: (id) => {
           if (id === 'probe') snapshots.push(runner.captureProgressSnapshot());
           return id === 'probe'
             ? {
@@ -298,7 +298,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -315,7 +315,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) =>
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) =>
       vertex.getVertexData() === 'gate'
         ? {
             commands: [

@@ -261,7 +261,7 @@ const runner = new GraphWalkBuilder({
 const execution: import('../src').SyncTraversalExecution<
   Phase,
   GraphWalkEvent<string, number, undefined>,
-  import('../src').GraphWalkInspection
+  import('../src').GraphWalkExecutionSnapshot
 > = runner;
 const common: import('../src').SyncTraversalExecution<
   Phase,
@@ -373,7 +373,7 @@ void [
 ];
 
 const registered = new GraphWalkBuilder({ graphWalkDiscoverySource: source });
-const sameFactory: typeof registered = registered.addVisitorForObservationKind(
+const sameFactory: typeof registered = registered.registerVisitorForObservationKind(
   Phase.ADMITTED_EDGE_OCCURRENCE,
   (event, context) => {
     const phase: Phase.ADMITTED_EDGE_OCCURRENCE = context.observationKind;
@@ -388,7 +388,7 @@ const sameFactory: typeof registered = registered.addVisitorForObservationKind(
     return { commands: [{ commandName: Command.NO_OPERATION }] };
   },
 );
-registered.addVisitorGroupForObservationKind(Phase.ROUTE_PREFIX, {
+registered.appendVisitorGroupForObservationKind(Phase.ROUTE_PREFIX, {
   visitors: [
     (event) => {
       const data: string = event.verticesInRootToTargetOrder[0]!.vertexData;
@@ -398,7 +398,7 @@ registered.addVisitorGroupForObservationKind(Phase.ROUTE_PREFIX, {
     },
   ],
 });
-registered.replaceVisitorsForObservationKind(
+registered.replaceVisitorDefinitionsForObservationKind(
   Phase.VERTEX_OCCURRENCE,
   (event, context) => {
     const phase: Phase.VERTEX_OCCURRENCE = context.observationKind;
@@ -416,12 +416,12 @@ const exactRecords: import('../src/core/graph/types').VisitorRecord<
 >[] = registered.listVisitorRegistrationsForObservationKind(
   Phase.ADMITTED_EDGE_OCCURRENCE,
 );
-registered.addVisitorForObservationKind(
+registered.registerVisitorForObservationKind(
   Phase.VERTEX_OCCURRENCE,
   // @ts-expect-error Appending async visitors to a sync factory is forbidden.
   async () => undefined,
 );
-registered.addVisitorForObservationKind(Phase.ADMITTED_EDGE_OCCURRENCE, () => ({
+registered.registerVisitorForObservationKind(Phase.ADMITTED_EDGE_OCCURRENCE, () => ({
   commands: [
     {
       // @ts-expect-error Invalid return commands must not widen the registered phase.
@@ -430,7 +430,7 @@ registered.addVisitorForObservationKind(Phase.ADMITTED_EDGE_OCCURRENCE, () => ({
     },
   ],
 }));
-registered.addVisitorGroupForObservationKind(Phase.ADMITTED_EDGE_OCCURRENCE, {
+registered.appendVisitorGroupForObservationKind(Phase.ADMITTED_EDGE_OCCURRENCE, {
   visitors: [
     // @ts-expect-error Group callbacks cannot widen the registered phase.
     (
@@ -443,7 +443,7 @@ registered.addVisitorGroupForObservationKind(Phase.ADMITTED_EDGE_OCCURRENCE, {
     ) => undefined,
   ],
 });
-registered.replaceVisitorsForObservationKind(
+registered.replaceVisitorDefinitionsForObservationKind(
   Phase.ADMITTED_EDGE_OCCURRENCE,
   // @ts-expect-error Setter callbacks cannot widen the registered phase.
   (
@@ -461,7 +461,7 @@ const asyncWalk = new AsyncGraphWalkBuilder({
   graphWalkDiscoverySource: asyncSource,
 });
 const asyncRegistered: typeof asyncWalk =
-  asyncWalk.addVisitorForObservationKind(
+  asyncWalk.registerVisitorForObservationKind(
     Phase.ADMITTED_EDGE_OCCURRENCE,
     async (event, context) => {
       const kind: 'admittedEdgeOccurrence' = event.eventKind;
@@ -474,7 +474,7 @@ const asyncRegistered: typeof asyncWalk =
       return { commands: [{ commandName: Command.NO_OPERATION }] };
     },
   );
-asyncWalk.addVisitorGroupForObservationKind(Phase.ROUTE_PREFIX, {
+asyncWalk.appendVisitorGroupForObservationKind(Phase.ROUTE_PREFIX, {
   visitors: [
     async (event) => {
       const data: string = event.verticesInRootToTargetOrder[0]!.vertexData;
@@ -482,7 +482,7 @@ asyncWalk.addVisitorGroupForObservationKind(Phase.ROUTE_PREFIX, {
     },
   ],
 });
-asyncWalk.replaceVisitorsForObservationKind(
+asyncWalk.replaceVisitorDefinitionsForObservationKind(
   Phase.VERTEX_OCCURRENCE,
   async (event) => {
     const data: string = event.vertex.vertexData;
@@ -502,7 +502,7 @@ const asyncRecords: import('../src/core/graph/types').VisitorRecord<
 asyncWalk.patchOptionsForFutureRunners({
   routeEnumerationPolicy: 'allRoutePrefixesAllowingRepeatedVertices',
 });
-asyncWalk.replaceVisitorsForObservationKind(
+asyncWalk.replaceVisitorDefinitionsForObservationKind(
   Phase.VERTEX_OCCURRENCE,
   // @ts-expect-error Wrong-phase async callback cannot widen registration phase.
   async (
@@ -515,7 +515,7 @@ asyncWalk.replaceVisitorsForObservationKind(
   ) => undefined,
 );
 // @ts-expect-error Walking cannot accept topology commands.
-asyncWalk.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async () => ({
+asyncWalk.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, async () => ({
   commands: [
     {
       commandName:
@@ -527,7 +527,7 @@ const asyncRunner = asyncWalk.createIndependentRunnerFromCurrentOptions();
 const asyncCapability: import('../src').AsyncTraversalExecution<
   Phase,
   GraphWalkEvent<string, number, undefined>,
-  import('../src').GraphWalkInspection
+  import('../src').GraphWalkExecutionSnapshot
 > = asyncRunner;
 const asyncRunResult: Promise<typeof asyncRunner> =
   asyncRunner.runUntilSuspendedOrTerminal();
@@ -748,7 +748,7 @@ runner.captureProgressSnapshot().counts.steps;
 runner.captureExecutionSnapshot().iterableConfig;
 // @ts-expect-error Previous visitor coordinate is removed.
 runner.captureExecutionSnapshot().visitorChainPosition?.position;
-registered.addVisitorForObservationKind(
+registered.registerVisitorForObservationKind(
   Phase.ADMITTED_EDGE_OCCURRENCE,
   (event, context) => {
     const coordinates: readonly number[] = [

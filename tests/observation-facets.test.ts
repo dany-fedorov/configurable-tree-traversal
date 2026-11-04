@@ -140,7 +140,7 @@ for (const [Builder, phase] of [
           ),
         ).toBe(true);
         const saved =
-          context.preCommandDiscoveredTreeView?.getRootVertexHandleOrNull();
+          context.livePreCommandDiscoveredTreeView?.getRootVertexHandleOrNull();
         if (saved != null) {
           assertHandle(saved);
           expect(saved.getCurrentVertexView().getVertexData()).toBe(data);
@@ -152,7 +152,7 @@ for (const [Builder, phase] of [
           )!.vertexHandle,
         ).toBe(context.vertexHandle);
         const saved =
-          context.preCommandDiscoveredGraphView?.getDesignatedRootHandleOrNull();
+          context.livePreCommandDiscoveredGraphView?.getDesignatedRootHandleOrNull();
         if (saved != null) {
           assertHandle(saved);
           expect(saved.getCurrentVertexView().getVertexData()).toBe(data);
@@ -285,7 +285,7 @@ for (const Builder of [
               },
             },
           }),
-          resolveChildHint: (_hint, context) => {
+          resolveChildVertexFromHint: (_hint, context) => {
             expect('resolvedGraph' in context).toBe(false);
             observedParent =
               context.structuralChildResolution.parentVertexHandle!;
@@ -314,7 +314,7 @@ for (const Builder of [
       expect(
         runner.getLiveResolvedGraphView().getVertexHandleByIdOrNull(id),
       ).toBe(observedParent);
-      const saved = runner.preCommandDiscoveredGraphView!;
+      const saved = runner.livePreCommandDiscoveredGraphView!;
       const savedRoot = saved.getDesignatedRootHandleOrNull()!;
       assertHandle(savedRoot);
       expect(saved.requireVertexId(savedRoot)).toBe(id);
@@ -423,7 +423,7 @@ for (const Builder of [DagTraversalBuilder<T>, AsyncDagTraversalBuilder<T>]) {
             },
           },
         }),
-        resolveChildHint: (hint, context) => {
+        resolveChildVertexFromHint: (hint, context) => {
           contexts.push(context.structuralChildResolution);
           if (hint.label === 'entry') {
             expect(
@@ -432,10 +432,12 @@ for (const Builder of [DagTraversalBuilder<T>, AsyncDagTraversalBuilder<T>]) {
             expect(
               context.structuralChildResolution.parentVertexHandle,
             ).toBeNull();
-            expect(context.structuralChildResolution).toMatchObject({
+            expect(context.structuralChildResolution).toEqual({
               discoveryDepthInEdges: 1,
               parentChildHintIndex: 0,
               childDiscoveryHint: hint,
+              parentVertexAtChildResolution: null,
+              parentVertexHandle: null,
             });
           } else {
             expect(

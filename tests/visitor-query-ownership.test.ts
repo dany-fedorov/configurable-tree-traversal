@@ -36,7 +36,7 @@ const dagDiscoverySource = {
       ...treeDiscoverySource.resolveRootVertex().resolvedVertexInput,
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     omittedVertexIdentity: null,
     satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
     kind: 'vertexIntentionallyOmitted' as const,
@@ -127,7 +127,7 @@ const families = [
             },
           }),
         add: () =>
-          traversal.registerVisitorCallbackForPhase(
+          traversal.registerVisitorForPhase(
             F.BEFORE_CHILD_EXPANSION,
             () => {
               calls.push('added');
@@ -168,7 +168,7 @@ const families = [
             },
           }),
         add: () =>
-          traversal.registerVisitorCallbackForPhase(
+          traversal.registerVisitorForPhase(
             F.BEFORE_CHILD_EXPANSION,
             () => {
               calls.push('added');
@@ -209,7 +209,7 @@ const families = [
             },
           }),
         add: () =>
-          traversal.registerVisitorCallbackForPhase(
+          traversal.registerVisitorForPhase(
             B.AT_LEVEL_ORDER_VERTEX,
             () => {
               calls.push('added');
@@ -250,7 +250,7 @@ const families = [
             },
           }),
         add: () =>
-          traversal.registerVisitorCallbackForPhase(
+          traversal.registerVisitorForPhase(
             B.AT_LEVEL_ORDER_VERTEX,
             () => {
               calls.push('added');
@@ -291,7 +291,7 @@ const families = [
             },
           }),
         add: () =>
-          traversal.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => {
+          traversal.registerVisitorForPhase(D.ON_WORK_READY, () => {
             calls.push('added');
           }),
       };
@@ -329,7 +329,7 @@ const families = [
             },
           }),
         add: () =>
-          traversal.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => {
+          traversal.registerVisitorForPhase(D.ON_WORK_READY, () => {
             calls.push('added');
           }),
       };

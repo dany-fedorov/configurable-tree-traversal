@@ -272,6 +272,15 @@ assert.equal(Object.keys(pkg.exports).length, 10);
 assert(!Object.keys(pkg.exports).some((key) => key.includes('*')));
 // Guard the complete transitively reachable declaration surface, not only barrels.
 const retiredNames = new Set([
+  'PreCommandDiscoveredGraphView',
+  'GraphWalkInspection',
+  'FoundDagSourceVertex',
+  'TreeVertexResolutionFound',
+  'TreeVertexResolutionOmitted',
+  'TreeVertexResolution',
+  'DagDefinitionVertex',
+  'DagDefinitionVertexChange',
+  'InternalChildDiscoveryContext',
   'MaterializedDagSource',
   'materializeDagSourceFromRecords',
   'materializeDagSourceFromRoots',
@@ -298,13 +307,34 @@ const retiredNames = new Set([
   'DEFER_READY',
   'TraversalVisitorFunctionResolutionStyle',
 ]);
+const retiredMembers = new Set([
+  'hasSkippedPendingChildDiscovery',
+  'preCommandDiscoveredGraphView',
+  'preCommandDiscoveredTreeView',
+  'resolveChildHint',
+  'addVisitorForObservationKind',
+  'addVisitorGroupForObservationKind',
+  'replaceVisitorsForObservationKind',
+  'registerVisitorCallbackForPhase',
+  'prerequisiteVertexIdsInReport',
+  'rootWorkPrerequisitePolicy',
+  'undeclaredWorkPrerequisitePolicy',
+]);
 for (const declaration of allDeclarations) {
+  assert(
+    !/\b\w*Handle\s*:\s*MutableValueReference\b/.test(declaration.signature),
+    declaration.name + ' must name editable references as references',
+  );
   assert(
     !retiredNames.has(declaration.name) &&
       !/^(?:Legacy)|VisitorsSimple$/.test(declaration.name),
     declaration.name,
   );
   for (const member of [...declaration.members, ...declaration.staticMembers]) {
+    assert(
+      !retiredMembers.has(member.name),
+      declaration.name + '.' + member.name,
+    );
     assert(
       !/^(?:getId|getIdOf|getVertexById|getStatusOf|getRootPropertyFromInputObjectDefault|DELETE_VERTEX|DISABLE_SUBTREE_TRAVERSAL|SET_VERTEX_VISITORS_CHAIN_STATE|REWRITE_VERTEX_HINTS_ON_PRE_ORDER)$/.test(
         member.name,
@@ -316,6 +346,36 @@ for (const declaration of allDeclarations) {
     assert(!declaration.members.some((m) => m.name === 'delete'));
   if (declaration.name === 'ResolvedGraphVertexSnapshot')
     assert(!declaration.members.some((m) => m.name === 'status'));
+  if (
+    /^(?:Async)?(?:DepthFirstTreeTraversal|BreadthFirstTreeTraversal|DagTraversal|GraphWalk)Builder$/.test(
+      declaration.name,
+    )
+  ) {
+    const selection = /GraphWalk/.test(declaration.name)
+      ? 'ObservationKind'
+      : 'Phase';
+    for (const member of [
+      `registerVisitorFor${selection}`,
+      `appendVisitorGroupFor${selection}`,
+      `replaceVisitorDefinitionsFor${selection}`,
+    ])
+      assert(
+        declaration.members.some((m) => m.name === member),
+        declaration.name + '.' + member,
+      );
+  }
+  if (declaration.name === 'MutableTreeChildDiscoveryContext') {
+    assert(declaration.members.some((m) => m.name === 'parentVertexReference'));
+    assert(!declaration.members.some((m) => m.name === 'parentVertexHandle'));
+  }
+  if (declaration.name === 'DagRevisionResult') {
+    assert(/\bdeclarationDiff\s*:/.test(declaration.signature));
+    assert(!/\bchanges\s*:/.test(declaration.signature));
+  }
+  if (declaration.name === 'GraphWalkTerminalOutcome') {
+    assert(declaration.signature.includes('explorationExhausted'));
+    assert(!declaration.signature.includes('sourceRoutesExhausted'));
+  }
 }
 for (const binding of bindings)
   assert(!retiredNames.has(binding.name), binding.entry + ':' + binding.name);
@@ -325,6 +385,15 @@ assert.deepEqual(
   'No deprecated reachable declarations or members',
 );
 const canonicalNames = [
+  'LivePreCommandDiscoveredGraphView',
+  'GraphWalkExecutionSnapshot',
+  'ResolvedDagSourceVertex',
+  'ResolvedTreeSourceVertex',
+  'OmittedTreeSourceVertex',
+  'TreeSourceVertexResolution',
+  'DagVertexDeclaration',
+  'DagVertexDeclarationChange',
+  'MutableTreeChildDiscoveryContext',
   'MaterializedDagTraversalInput',
   'materializeMultiEntryDagInputFromRecordCatalog',
   'materializeDagInputFromRootRecords',

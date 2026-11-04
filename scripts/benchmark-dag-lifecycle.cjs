@@ -82,7 +82,7 @@ function createLifecycleInspection(library, fixture, completed, options) {
           },
         };
       },
-      resolveChildHint: (id) => {
+      resolveChildVertexFromHint: (id) => {
         counters.vertex++;
         return {
           kind: 'vertexResolved',
@@ -107,7 +107,7 @@ function createLifecycleInspection(library, fixture, completed, options) {
       ],
     };
   };
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     library.DagVisitorPhase.ON_WORK_READY,
     options.mode === 'async'
       ? async () => {

@@ -39,14 +39,14 @@ function resolveTask(id: string) {
 const traversal = new DagTraversalBuilder<Workflow>({
   dagDiscoverySource: {
     resolveRootVertex: () => resolveTask('root'),
-    resolveChildHint: resolveTask,
+    resolveChildVertexFromHint: resolveTask,
     tryGetVertexIdentityFromHint: (hint) => ({ vertexId: hint }),
   },
 });
 const readyTasks: string[] = [];
 const completedSubtrees: string[] = [];
 
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DagVisitorPhase.ON_WORK_READY,
   (vertex) => {
     const task = vertex.getVertexData();
@@ -59,7 +59,7 @@ traversal.registerVisitorCallbackForPhase(
     readyTasks.push(task);
   },
 );
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY,
   (vertex) => {
     completedSubtrees.push(vertex.getVertexData());

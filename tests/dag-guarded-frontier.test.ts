@@ -19,7 +19,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -139,7 +139,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
               },
             },
           }),
-          resolveChildHint: (index) => ({
+          resolveChildVertexFromHint: (index) => ({
             kind: 'vertexResolved' as const,
             resolvedVertexInput: {
               vertexId: ids[Number(index)],
@@ -211,7 +211,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: [] },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           kind: 'vertexIntentionallyOmitted' as const,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -274,7 +274,7 @@ test('async frontier excludes running and queued work until chains defer', async
           vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: ['b'] },
         },
       }),
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: 'b',
@@ -284,7 +284,7 @@ test('async frontier excludes running and queued work until chains defer', async
     },
     workCompletionPolicy: 'requireExternalWorkSettlement',
   })
-    .registerVisitorCallbackForPhase(Order.ON_WORK_READY, async () => {
+    .registerVisitorForPhase(Order.ON_WORK_READY, async () => {
       entered();
       await gate;
     })
@@ -322,7 +322,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -331,7 +331,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     })
-      .registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+      .registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
         if (vertex.getVertexData() === 'deleted')
           return {
             commands: [

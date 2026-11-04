@@ -11,7 +11,7 @@ import type {
   VertexId,
   InternalVertexRef,
 } from '@core/graph/types';
-import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext } from '@core/ResolvedTree';
 import type { EligibleVisit } from '@core/scheduling/types';
 import type { MakeVertexResult } from '@core/TraversableTree';
 import type {
@@ -65,8 +65,8 @@ export type KernelOptions<
   workCompletionPolicy?:
     | 'afterWorkReadyVisitorChain'
     | 'requireExternalWorkSettlement';
-  rootWorkPrerequisitePolicy?: 'honor' | 'ignore';
-  undeclaredWorkPrerequisitePolicy?: 'none' | 'waitForDiscoveringParentWork';
+  rootWorkToWorkPrerequisitePolicy?: 'honor' | 'ignore';
+  undeclaredWorkToWorkPrerequisitePolicy?: 'none' | 'waitForDiscoveringParentWork';
   acceptedCompletedWorkVertexIds?: ReadonlySet<VertexId>;
   dagSeed?: {
     dependencyEligiblePhaseVisits: readonly EligibleVisit<
@@ -94,7 +94,7 @@ export type FrameState<
   knownIndices: Set<number>;
   contexts: Map<
     number,
-    InternalChildDiscoveryContext<InputVertexTypes | RewrittenVertexTypes>
+    MutableTreeChildDiscoveryContext<InputVertexTypes | RewrittenVertexTypes>
   >;
   pendingIndices: Set<number>;
   identityOutcomes: Map<number, Outcome<ChildHintVertexIdentity | undefined>>;

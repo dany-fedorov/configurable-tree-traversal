@@ -18,7 +18,7 @@ async function main() {
           vertexContentInput: { $vertexData: 'task', $childDiscoveryHints: [] },
         },
       }),
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         kind: 'vertexIntentionallyOmitted',
         satisfiesWorkAndSubgraphCompletionPrerequisites: true,
@@ -26,7 +26,7 @@ async function main() {
     },
     workCompletionPolicy: 'requireExternalWorkSettlement',
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DagVisitorPhase.ON_WORK_READY,
     () => {
       workCallbacks++;

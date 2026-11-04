@@ -111,7 +111,7 @@ test('accepts prefetched children in dequeue order rather than settlement order'
 test('projects level-order events and asynchronous visitor metadata', async () => {
   const metadata: Array<[string, number, string | undefined]> = [];
   const t = traversal(node('root', node('child')));
-  t.registerVisitorCallbackForPhase(
+  t.registerVisitorForPhase(
     Order.AT_LEVEL_ORDER_VERTEX,
     async (vertex, options) => {
       metadata.push([
@@ -192,7 +192,7 @@ test('deleting the root skips prefetched children and clears the tree root', asy
     },
     maxConcurrentCallbackInvocations: 2,
   });
-  t.registerVisitorCallbackForPhase(Order.AT_LEVEL_ORDER_VERTEX, async () => ({
+  t.registerVisitorForPhase(Order.AT_LEVEL_ORDER_VERTEX, async () => ({
     commands: [
       {
         commandName:
@@ -216,7 +216,7 @@ test('deleting the root skips prefetched children and clears the tree root', asy
 test('preserves paused visitor outcomes through repeated resumptions', async () => {
   const seen: string[] = [];
   const t = traversal(node('root', node('child')));
-  t.registerVisitorCallbackForPhase(
+  t.registerVisitorForPhase(
     Order.AT_LEVEL_ORDER_VERTEX,
     async (vertex) => {
       seen.push(`halt:${vertex.getVertexData()}`);
@@ -227,7 +227,7 @@ test('preserves paused visitor outcomes through repeated resumptions', async () 
       };
     },
   );
-  t.registerVisitorCallbackForPhase(
+  t.registerVisitorForPhase(
     Order.AT_LEVEL_ORDER_VERTEX,
     async (vertex) => {
       seen.push(`after:${vertex.getVertexData()}`);
@@ -290,7 +290,7 @@ test('retains prefetched outcomes settled during halt and resumes in dequeue ord
     },
     maxConcurrentCallbackInvocations: 3,
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.AT_LEVEL_ORDER_VERTEX,
     async (vertex) =>
       vertex.getVertexData() === 'A'
@@ -341,7 +341,7 @@ test('retains prefetched outcomes settled during halt and resumes in dequeue ord
 test('uses new iterator filters when resuming after consumer closure', async () => {
   const visited: string[] = [];
   const t = traversal(node('root', node('child')));
-  t.registerVisitorCallbackForPhase(
+  t.registerVisitorForPhase(
     Order.AT_LEVEL_ORDER_VERTEX,
     async (vertex) => {
       visited.push(vertex.getVertexData());
@@ -385,7 +385,7 @@ test('directly exposes session iterator ownership and synchronous close control'
 test('an unopened iterator does not change later execution filters', async () => {
   const visited: string[] = [];
   const t = traversal(node('root'));
-  t.registerVisitorCallbackForPhase(
+  t.registerVisitorForPhase(
     Order.AT_LEVEL_ORDER_VERTEX,
     async (vertex) => {
       visited.push(vertex.getVertexData());
@@ -404,7 +404,7 @@ test('an unopened iterator does not change later execution filters', async () =>
 test('a lease-rejected iterator does not change resumed execution filters', async () => {
   const visited: string[] = [];
   const t = traversal(node('root', node('child')));
-  t.registerVisitorCallbackForPhase(
+  t.registerVisitorForPhase(
     Order.AT_LEVEL_ORDER_VERTEX,
     async (vertex) => {
       visited.push(vertex.getVertexData());
@@ -463,7 +463,7 @@ test('snapshots builder configuration and reuses injected tree storage and state
     ),
   ).toHaveLength(1);
   const runner = t.createIndependentRunnerFromCurrentOptions();
-  t.registerVisitorCallbackForPhase(Order.AT_LEVEL_ORDER_VERTEX, async () => {
+  t.registerVisitorForPhase(Order.AT_LEVEL_ORDER_VERTEX, async () => {
     visitors.push('late');
   });
 

@@ -117,7 +117,7 @@ export type TreeVisitorContext<
   liveResolvedTreeView: LiveResolvedTreeView<
     InputVertexTypes | RewrittenVertexTypes
   >;
-  preCommandDiscoveredTreeView: LiveResolvedTreeView<InputVertexTypes> | null;
+  livePreCommandDiscoveredTreeView: LiveResolvedTreeView<InputVertexTypes> | null;
   phaseVisitorChainIndex: number;
   visitorCallbackIndexInPhaseChain: number;
   previousCommittedVisitVertexHandleForSamePhase: VertexHandle<

@@ -32,7 +32,7 @@ export function graphAdapter(nodes: GraphFixture = diamond) {
       },
     };
   }
-  return { resolveRootVertex: () => result('root'), resolveChildHint: result };
+  return { resolveRootVertex: () => result('root'), resolveChildVertexFromHint: result };
 }
 
 export function deferred<T>() {

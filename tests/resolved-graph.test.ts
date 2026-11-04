@@ -370,7 +370,7 @@ test('uses authoritative tree records for compatibility graph queries', () => {
       childDiscoveryContext: {
         discoveryDepthInEdges: 1,
         parentVertexAtChildResolution: root.getReferencedValue(),
-        parentVertexHandle: root,
+        parentVertexReference: root,
         parentChildHintIndex: 0,
         childDiscoveryHint: 'child',
       },
@@ -589,7 +589,7 @@ test('tree paths preserve a dangling legacy parent as their origin', () => {
         childDiscoveryContext: {
           discoveryDepthInEdges: 1,
           parentVertexAtChildResolution: danglingParent.getReferencedValue(),
-          parentVertexHandle: danglingParent,
+          parentVertexReference: danglingParent,
           parentChildHintIndex: 0,
           childDiscoveryHint: 'child',
         },

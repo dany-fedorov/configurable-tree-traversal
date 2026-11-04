@@ -43,12 +43,12 @@ it('drains the admitted visitor chain on cooperative pause with emissions disabl
     graphWalkDiscoverySource: fixture.source,
     deliveredEventKinds: [],
   });
-  t.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, (event) => {
+  t.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, (event) => {
     seen.push(`first:${event.vertex.vertexId}`);
     expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(true);
     expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(false);
   });
-  t.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, (event) => {
+  t.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, (event) => {
     seen.push(`second:${event.vertex.vertexId}`);
   });
   const runner = t.createIndependentRunnerFromCurrentOptions();
@@ -69,16 +69,16 @@ it('keeps the admitted chain selection while applying a new delivery selector', 
   const t = new GraphWalkBuilder({
     graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
   });
-  t.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
+  t.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
     seen.push('halt');
     return {
       commands: [{ commandName: C.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY }],
     };
   });
-  t.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
+  t.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
     seen.push('remaining');
   });
-  t.addVisitorForObservationKind(Phase.ROUTE_PREFIX, () => {
+  t.registerVisitorForObservationKind(Phase.ROUTE_PREFIX, () => {
     seen.push('routePrefix');
   });
   const runner = t
@@ -186,7 +186,7 @@ it('rejects competing owners and reentrant run without corrupting the owning ite
     graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
   });
   const runner = t.createIndependentRunnerFromCurrentOptions();
-  t.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => undefined);
+  t.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => undefined);
   const owner = runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   expect(owner.next().value).toMatchObject({ eventKind: 'vertexOccurrence' });
   expect(() =>
@@ -204,7 +204,7 @@ it('rejects competing owners and reentrant run without corrupting the owning ite
   const reentrant = new GraphWalkBuilder({
     graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
   });
-  reentrant.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
+  reentrant.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, () => {
     expect(() => nested.runUntilSuspendedOrTerminal()).toThrow(
       'execution owner',
     );
@@ -295,7 +295,7 @@ it('emits the drained observation before acknowledging cooperative pause and pre
   const t = new GraphWalkBuilder({
     graphWalkDiscoverySource: idGraph(['A'], [['A', []]]),
   });
-  t.addVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
+  t.appendVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
     visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
     visitors: [
       () => {

@@ -56,7 +56,7 @@ it('keeps first admitted omissions while observing parallel links through the ex
     },
   ]);
   expect(runner.captureProgressSnapshot()).toMatchObject({
-    terminalOutcome: { kind: 'sourceRoutesExhausted' },
+    terminalOutcome: { kind: 'explorationExhausted' },
     counts: {
       resolvedFoundVertexIdCount: 1,
       resolvedOmittedVertexIdCount: 1,
