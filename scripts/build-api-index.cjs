@@ -5,6 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const packageName = 'configurable-tree-traversal';
+const packageVersion = require('../package.json').version;
 const anchor = (name) => `symbol-${name}`;
 const specifier = (entry) =>
   packageName + (entry === '.' ? '' : entry.slice(1));
@@ -396,7 +397,7 @@ function renderApiIndex(census, sources = loadExampleSources()) {
   text +=
     '[Documentation map](index.md) · [Behavior reference](reference.md) · [Explicit API migration](migration-explicit-api.md)\n\n';
   text +=
-    'These declarations describe the unreleased explicit API in this source checkout. The package version remains `0.12.0`; the released `0.12.0` API differs. See [checkout installation](../README.md#install) and the [migration guide](migration-explicit-api.md). Look up a current exported name below, then follow its owning contract and, where one exists, a runnable or related example. Public import routes are exhaustive for each symbol; declaration-module paths are not consumer imports.\n\n';
+    `These declarations describe the explicit API in CTT \`${packageVersion}\`. See [installation](../README.md#install) and the [0.12-to-0.13 migration](migration-explicit-api.md). Look up a current exported name below, then follow its owning contract and, where one exists, a runnable or related example. Public import routes are exhaustive for each symbol; declaration-module paths are not consumer imports.\n\n`;
   text += `Generated from the supported declaration census: **${names.length} public symbols**, **${census.bindings.length} export bindings**, **${routes.length} runtime entry points**. Run \`npm run docs:api\` to regenerate; package verification rejects stale output.\n\n`;
   text +=
     'Declaration excerpts preserve overloads and public members; referenced support types can be declaration-local and are not additional importable exports. Inline declaration-relative type imports are displayed by type name. These are declaration excerpts, not standalone programs; the linked guide examples are compiled and executed against the packed package. A runnable example or executable snippet names the symbol; a related example exercises the feature that produces or consumes it without naming it. Runtime failures/defaults belong to the linked behavior contract.\n\n';

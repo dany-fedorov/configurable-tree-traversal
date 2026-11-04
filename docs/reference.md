@@ -2,7 +2,7 @@
 
 [Documentation index](index.md) · [Agent workflow guide](agent-workflows.md) · [Quickstart](../README.md#quickstart-find-the-next-agent-tasks)
 
-Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts. Look up an exported name in the [public symbol index](api-index.md). These contracts describe the **unreleased breaking API in this checkout**, not the released `0.12.0` package; see [install](../README.md#install).
+Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts. Look up an exported name in the [public symbol index](api-index.md). These contracts describe the **0.13.0 public API**, which breaks compatibility with 0.12; see [install](../README.md#install).
 
 ## On this page
 
@@ -2443,7 +2443,7 @@ Full callback declarations are linked from the [public symbol index](api-index.m
 
 ## API compatibility
 
-The [explicit API migration](migration-explicit-api.md) covers this unreleased breaking surface. Historical release guides such as the [idiomatic API migration](migration-idiomatic-api.md) preserve the earlier removal checklist and corrected object contracts. The [API naming migration](migration-api-clarity.md) lists renamed symbols, removed public extension points and supported paths. The [uniform API migration guide](migration-uniform-api.md) covers removed inputs and behavior changes. `Vertex` owns enumerable `$vertexData`/`$childDiscoveryHints`; previous `$data`/`$childHints` and earlier `$d`/`$c` inputs/accessors are removed. Object spread, `Object.keys`, and JSON output use canonical names. `createEditableShallowCloneWithContentOverrides({ $vertexData: undefined })` explicitly replaces data. Mixed canonical/legacy content fields reject. Built-in object and resolved-tree source adapters emit canonical content; resolved-tree structural child references remain structural refs.
+The [explicit API migration](migration-explicit-api.md) covers the breaking changes from 0.12 to 0.13. Historical release guides such as the [idiomatic API migration](migration-idiomatic-api.md) preserve the earlier removal checklist and corrected object contracts. The [API naming migration](migration-api-clarity.md) lists renamed symbols, removed public extension points and supported paths. The [uniform API migration guide](migration-uniform-api.md) covers removed inputs and behavior changes. `Vertex` owns enumerable `$vertexData`/`$childDiscoveryHints`; previous `$data`/`$childHints` and earlier `$d`/`$c` inputs/accessors are removed. Object spread, `Object.keys`, and JSON output use canonical names. `createEditableShallowCloneWithContentOverrides({ $vertexData: undefined })` explicitly replaces data. Mixed canonical/legacy content fields reject. Built-in object and resolved-tree source adapters emit canonical content; resolved-tree structural child references remain structural refs.
 
 Since 0.11.0, CTT uses UUID 14 and requires Node 22.12.0+ for synchronous ESM dependency loading, or Bun 1.4.4. Public CJS/ESM entry points and TypeScript consumer compatibility are covered by packed checks (`npm run verify-package`) against the locked TypeScript 4.9.5 compiler; CI exercises only that version. The declared 4.7.4 minimum is checked only when `CTT_TYPESCRIPT_COMPILER` points the package verifier at that compiler.
 

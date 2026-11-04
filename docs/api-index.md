@@ -2,7 +2,7 @@
 
 [Documentation map](index.md) · [Behavior reference](reference.md) · [Explicit API migration](migration-explicit-api.md)
 
-These declarations describe the unreleased explicit API in this source checkout. The package version remains `0.12.0`; the released `0.12.0` API differs. See [checkout installation](../README.md#install) and the [migration guide](migration-explicit-api.md). Look up a current exported name below, then follow its owning contract and, where one exists, a runnable or related example. Public import routes are exhaustive for each symbol; declaration-module paths are not consumer imports.
+These declarations describe the explicit API in CTT `0.13.0`. See [installation](../README.md#install) and the [0.12-to-0.13 migration](migration-explicit-api.md). Look up a current exported name below, then follow its owning contract and, where one exists, a runnable or related example. Public import routes are exhaustive for each symbol; declaration-module paths are not consumer imports.
 
 Generated from the supported declaration census: **272 public symbols**, **542 export bindings**, **9 runtime entry points**. Run `npm run docs:api` to regenerate; package verification rejects stale output.
 

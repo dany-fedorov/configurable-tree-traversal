@@ -4,7 +4,7 @@
 
 CTT discovers graphs, schedules callbacks, and explains which prerequisites block work. Your host owns task meaning, agent dispatch, retries, claims, result acceptance, and durable storage.
 
-> **UNRELEASED breaking API.** These guides describe this source checkout. `package.json` still says `0.12.0`, but the explicit names below are not the API of the released `0.12.0` package. No new release is implied. Use the checkout instructions below and the [migration from released 0.12](docs/migration-explicit-api.md).
+> **0.13 is a breaking release.** Public names have changed without compatibility aliases. See the [migration from 0.12](docs/migration-explicit-api.md).
 
 ## Agent workflows
 
@@ -33,7 +33,11 @@ CTT keeps progress in memory. Tickets and settlement tokens are local capabiliti
 
 ## Install
 
-For this unreleased API, use a source checkout:
+```sh
+npm install configurable-tree-traversal@^0.13.0
+```
+
+Requires Node **22.12.0+**; see [runtime and compiler checks](docs/testing.md). To run the repository examples from source:
 
 ```sh
 git clone https://github.com/dany-fedorov/configurable-tree-traversal.git
@@ -42,7 +46,7 @@ npm ci
 npm run tsfile -- examples/quickstart-example.ts
 ```
 
-The checkout examples import source directly. The package-style imports shown in the guides describe the locally built package for this checkout; installing the released `0.12.0` package does not provide these new names. Requires Node **22.12.0+**; see [runtime and compiler checks](docs/testing.md).
+The repository examples import source directly; guide examples use the installed package.
 
 ## Quickstart: find the next agent tasks
 
@@ -149,7 +153,7 @@ The [reference](docs/reference.md#traverse-an-object) covers child-boundary and 
 - [Agent workflows](docs/agent-workflows.md): execution models, dispatch, recovery, and revisions.
 - [API reference](docs/reference.md): current behavior and exact ownership boundaries.
 - [Public symbol index](docs/api-index.md): supported names, signatures, and import paths.
-- [Explicit API migration](docs/migration-explicit-api.md): released 0.12 to this unreleased checkout.
+- [Explicit API migration](docs/migration-explicit-api.md): 0.12 to 0.13.
 - [Documentation map](docs/index.md): runnable examples and contributor guidance.
 - [Changelog](CHANGELOG.md): release history.
 

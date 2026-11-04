@@ -1,6 +1,6 @@
 # Testing
 
-[Documentation map](index.md) · [Agent workflow guide](agent-workflows.md) · [API reference](reference.md) · [Unreleased migration](migration-explicit-api.md)
+[Documentation map](index.md) · [Agent workflow guide](agent-workflows.md) · [API reference](reference.md) · [0.12-to-0.13 migration](migration-explicit-api.md)
 
 Run the complete verification from the repository root:
 
