@@ -22,7 +22,7 @@ const rootOnly = {
       vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: [] },
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     omittedVertexIdentity: null,
     kind: 'vertexIntentionallyOmitted' as const,
     satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -32,7 +32,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test(`${Constructor.name} settlement filters its committed event at delivery and discards buffered commands and remaining visitors`, async () => {
     const traversal = new Constructor<G>({ dagDiscoverySource: rootOnly });
     let visits = 0;
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_WORK_READY,
       () => ({
         commands: [
@@ -44,7 +44,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       }),
       { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
     );
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_WORK_READY,
       () => {
         visits++;
@@ -59,7 +59,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       },
       { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
     );
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => {
       throw Error('must skip');
     });
     const runner = traversal.createIndependentRunnerFromCurrentOptions();
@@ -96,7 +96,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
     `${Constructor.name} preserves settlement error %p and guards replay`,
     async (error) => {
       const traversal = new Constructor<G>({ dagDiscoverySource: rootOnly });
-      traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+      traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => ({
         commands: [
           {
             commandName:
@@ -145,7 +145,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
 
   test(`${Constructor.name} rejects completion deferral`, async () => {
     const traversal = new Constructor<G>({ dagDiscoverySource: rootOnly });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_SUBGRAPH_COMPLETION_READY,
       () => ({
         commands: [
@@ -177,7 +177,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -190,7 +190,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => ({
       commands: [
         {
           commandName:
@@ -246,7 +246,7 @@ test('tree visitors cannot use the DAG deferral sentinel', () => {
       }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
     () =>
       ({
@@ -288,7 +288,7 @@ test('settlement wakes an active async consumer while another physical callback 
           },
         },
       }),
-      resolveChildHint: (id) => ({
+      resolveChildVertexFromHint: (id) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: id,
@@ -298,7 +298,7 @@ test('settlement wakes an active async consumer while another physical callback 
       }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
     const id = vertex.getVertexData();
     seen.push(id);
     return id === 'b'
@@ -358,7 +358,7 @@ test('deleted orphan refuses a previously issued deferred generation', async () 
           },
         },
       }),
-      resolveChildHint: (id) => ({
+      resolveChildVertexFromHint: (id) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: id,
@@ -371,7 +371,7 @@ test('deleted orphan refuses a previously issued deferred generation', async () 
       }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async (vertex) => {
       if (vertex.getVertexData() === 'p') {
@@ -435,7 +435,7 @@ test('halt waits for a physical callback and retains deferred handles across res
           },
         },
       }),
-      resolveChildHint: (id) => ({
+      resolveChildVertexFromHint: (id) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: id,
@@ -444,7 +444,7 @@ test('halt waits for a physical callback and retains deferred handles across res
       }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) =>
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) =>
     vertex.getVertexData() === 'a'
       ? {
           commands: [
@@ -514,7 +514,7 @@ test('failure settlement cannot free a still-running callback permit or accept a
           },
         },
       }),
-      resolveChildHint: (id) => ({
+      resolveChildVertexFromHint: (id) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: id,
@@ -523,7 +523,7 @@ test('failure settlement cannot free a still-running callback permit or accept a
       }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) =>
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) =>
     vertex.getVertexData() === 'b'
       ? release.promise
       : {
@@ -586,7 +586,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
                 },
               },
             }),
-            resolveChildHint: (id) => ({
+            resolveChildVertexFromHint: (id) => ({
               kind: 'vertexResolved' as const,
               resolvedVertexInput: {
                 vertexId: id,
@@ -604,7 +604,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             }),
           },
         });
-        traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+        traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => ({
           commands: [
             {
               commandName:

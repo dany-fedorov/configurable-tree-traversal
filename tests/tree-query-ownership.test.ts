@@ -86,14 +86,14 @@ test('mutating query contexts cannot reparent a child or overwrite discovery met
   );
   expect(context.parentVertexAtChildResolution).toBe(root.getReferencedValue());
   expect(context.childDiscoveryHint).toBe(hint);
-  context.parentVertexHandle = unknown;
+  context.parentVertexReference = unknown;
   context.discoveryDepthInEdges = 99;
   context.parentChildHintIndex = 99;
   context.childDiscoveryHint = { label: 'foreign' };
 
   expect(tree.getDetachedChildDiscoveryContextOrNull(child)).toEqual({
     parentVertexAtChildResolution: root.getReferencedValue(),
-    parentVertexHandle: root,
+    parentVertexReference: root,
     discoveryDepthInEdges: 1,
     parentChildHintIndex: 0,
     childDiscoveryHint: hint,
@@ -210,7 +210,7 @@ for (const Constructor of [
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted' as const,
@@ -234,7 +234,7 @@ test('safe queries preserve saved topology while explicit active edits stay live
   const view = tree.getLiveReadOnlyTreeView();
   const saved =
     runnerInternals(runner).resolvedTreesContainer
-      .preCommandDiscoveredTreeView!;
+      .livePreCommandDiscoveredTreeView!;
   const savedView = saved.getLiveReadOnlyTreeView();
   const root = view.getRootVertexHandleOrNull()!;
   const child = view.getChildVertexHandlesOrNull(root)![0]!;
@@ -248,11 +248,11 @@ test('safe queries preserve saved topology while explicit active edits stay live
   saved.getDetachedChildReferenceListOrNull(internalRef(savedRoot))!.length = 0;
   saved.getDetachedChildDiscoveryContextOrNull(
     internalRef(savedChild),
-  )!.parentVertexHandle = internalRef(child);
+  )!.parentVertexReference = internalRef(child);
   tree.getDetachedChildReferenceListOrNull(internalRef(root))!.length = 0;
   tree.getDetachedChildDiscoveryContextOrNull(
     internalRef(child),
-  )!.parentVertexHandle = internalRef(savedRoot);
+  )!.parentVertexReference = internalRef(savedRoot);
   expect(savedView.getChildVertexHandlesOrNull(savedRoot)).toEqual([
     savedChild,
   ]);

@@ -40,7 +40,7 @@ const traversal = new DepthFirstTreeTraversalBuilder({
   treeDiscoverySource,
 });
 
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   (v) => {
     console.log(
@@ -55,7 +55,7 @@ traversal.registerVisitorCallbackForPhase(
     );
   },
 );
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
   (v) => {
     console.log(
@@ -81,7 +81,7 @@ traversal.registerVisitorCallbackForPhase(
     return {};
   },
 );
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
   (v) => {
     console.log(

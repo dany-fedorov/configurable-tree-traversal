@@ -57,7 +57,7 @@ const traversal = new DepthFirstTreeTraversalBuilder({
 // Every visitor callback that actually runs is recorded here as `PHASE:key`.
 const callbackLog: string[] = [];
 
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   (v) => {
     callbackLog.push(
@@ -77,7 +77,7 @@ traversal.registerVisitorCallbackForPhase(
     );
   },
 );
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
   (v) => {
     callbackLog.push(
@@ -108,7 +108,7 @@ traversal.registerVisitorCallbackForPhase(
     return {};
   },
 );
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
   (v) => {
     callbackLog.push(

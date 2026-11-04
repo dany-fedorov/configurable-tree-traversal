@@ -114,7 +114,7 @@ export class DagTraversalBuilder<
     return this;
   }
 
-  registerVisitorCallbackForPhase<Phase extends DagVisitorPhase>(
+  registerVisitorForPhase<Phase extends DagVisitorPhase>(
     order: Phase,
     visitor: DagVisitor<
       SourceVertexTypes,

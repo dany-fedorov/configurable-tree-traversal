@@ -12,11 +12,11 @@ import type {
   TreeDiscoverySource,
   VertexDataAndChildHintTypes,
   DagSourceVertexResolution,
-  FoundDagSourceVertex,
+  ResolvedDagSourceVertex,
   OmittedDagSourceVertex,
   ChildHintVertexIdentity,
   LiveResolvedGraphView,
-  PreCommandDiscoveredGraphView,
+  LivePreCommandDiscoveredGraphView,
   DagProgressSnapshot,
   DagVertexProgress,
   DagTraversalStallDiagnostics,
@@ -34,11 +34,11 @@ const source: DagDiscoverySource<W, W, string> = {
       workWaitsForSubgraphCompletionOf: ['c'],
     },
   }),
-  resolveChildHint: (id, options) => {
+  resolveChildVertexFromHint: (id, options) => {
     const graph: LiveResolvedGraphView<W, string> =
       options.liveResolvedGraphView;
-    const snapshot: PreCommandDiscoveredGraphView<W, string> | null =
-      options.preCommandDiscoveredGraphView;
+    const snapshot: LivePreCommandDiscoveredGraphView<W, string> | null =
+      options.livePreCommandDiscoveredGraphView;
     graph.getVertexHandleByIdOrNull(id);
     // @ts-expect-error Selected ID domain applies to source graph views.
     graph.getVertexHandleByIdOrNull(1);
@@ -105,7 +105,7 @@ new DagTraversalBuilder<W, W, string>({
   // @ts-expect-error Constructor completed work must use the selected ID domain.
   acceptedCompletedWorkVertexIds: new Set([{}]),
 });
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DagVisitorPhase.ON_WORK_READY,
   (_vertex, options) => {
     const view: LiveResolvedGraphView<W, string> =
@@ -168,7 +168,7 @@ async function asyncHelpers() {
   void [a, b];
 }
 
-const missingTagged: FoundDagSourceVertex<W, string> = {
+const missingTagged: ResolvedDagSourceVertex<W, string> = {
   kind: 'vertexResolved',
   // @ts-expect-error Typed found content cannot fall back to a generated UUID.
   resolvedVertexInput: {
@@ -203,7 +203,7 @@ const legacyOmitted: DagSourceVertexResolution<W, string> = {
   // @ts-expect-error Untagged graph omission is removed.
   vertexContentInput: null,
 };
-const wrongDependency: FoundDagSourceVertex<W, string> = {
+const wrongDependency: ResolvedDagSourceVertex<W, string> = {
   kind: 'vertexResolved',
   resolvedVertexInput: {
     vertexId: 'a',
@@ -212,7 +212,7 @@ const wrongDependency: FoundDagSourceVertex<W, string> = {
     workWaitsForWorkOf: [42],
   },
 };
-const wrongComplete: FoundDagSourceVertex<W, string> = {
+const wrongComplete: ResolvedDagSourceVertex<W, string> = {
   kind: 'vertexResolved' as const,
   resolvedVertexInput: {
     vertexId: 'a',
@@ -247,7 +247,7 @@ function arbitraryIds<ID>(id: ID) {
         vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: [] },
       },
     }),
-    resolveChildHint: () => ({
+    resolveChildVertexFromHint: () => ({
       omittedVertexIdentity: null,
       kind: 'vertexIntentionallyOmitted',
       satisfiesWorkAndSubgraphCompletionPrerequisites: true,
@@ -285,7 +285,7 @@ const unknownSource: DagDiscoverySource<W> = {
       vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: [] },
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     kind: 'vertexResolved',
     resolvedVertexInput: {
       vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: [] },
@@ -298,11 +298,11 @@ new DagTraversalBuilder({ dagDiscoverySource: unknownSource })
 new DagTraversalBuilder({ treeDiscoverySource: tree });
 const rewriteSource: DagDiscoverySource<W, R, string> = {
   resolveRootVertex: source.resolveRootVertex,
-  resolveChildHint: (hint, options) => {
+  resolveChildVertexFromHint: (hint, options) => {
     const rewrittenGraph: LiveResolvedGraphView<W | R, string> =
       options.liveResolvedGraphView;
-    const original: PreCommandDiscoveredGraphView<W, string> | null =
-      options.preCommandDiscoveredGraphView;
+    const original: LivePreCommandDiscoveredGraphView<W, string> | null =
+      options.livePreCommandDiscoveredGraphView;
     const data: string = hint;
     void [rewrittenGraph, original];
     return {
@@ -316,7 +316,7 @@ const rewriteSource: DagDiscoverySource<W, R, string> = {
 };
 new DagTraversalBuilder<W, R, string>({
   dagDiscoverySource: rewriteSource,
-}).registerVisitorCallbackForPhase(
+}).registerVisitorForPhase(
   DagVisitorPhase.ON_WORK_READY,
   (vertex, options) => {
     const data: string | number = vertex.$vertexData;
@@ -346,8 +346,8 @@ void [
 
 const containerGraph: LiveResolvedGraphView<W, string> =
   runner.getLiveResolvedGraphView();
-const containerSnapshot: PreCommandDiscoveredGraphView<W, string> | null =
-  runner.preCommandDiscoveredGraphView;
+const containerSnapshot: LivePreCommandDiscoveredGraphView<W, string> | null =
+  runner.livePreCommandDiscoveredGraphView;
 // @ts-expect-error Public graph lookups retain the ID domain.
 runner.getLiveResolvedGraphView().getVertexHandleByIdOrNull(42);
 // @ts-expect-error Raw container state is not a public capability.
@@ -355,7 +355,7 @@ runner.resolvedGraphsContainer;
 // @ts-expect-error The exposed snapshot alias retains the ID domain.
 containerSnapshot?.getVertexHandleByIdOrNull(42);
 // @ts-expect-error The runner snapshot retains the ID domain.
-runner.preCommandDiscoveredGraphView?.getVertexHandleByIdOrNull(42);
+runner.livePreCommandDiscoveredGraphView?.getVertexHandleByIdOrNull(42);
 new DagTraversalBuilder({
   dagDiscoverySource: source,
   // @ts-expect-error Inferred constructors cannot seed wrong-domain completed work.
@@ -394,12 +394,12 @@ const missingRoot: DagDiscoverySource<W, W, string> = {
       vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: [] },
     },
   }),
-  resolveChildHint: source.resolveChildHint,
+  resolveChildVertexFromHint: source.resolveChildVertexFromHint,
 };
 const missingChild: AsyncDagDiscoverySource<W, W, string> = {
   resolveRootVertex: source.resolveRootVertex,
   // @ts-expect-error Async legacy source child callbacks require an explicit live identity.
-  resolveChildHint: async () => ({
+  resolveChildVertexFromHint: async () => ({
     kind: 'vertexResolved' as const,
     resolvedVertexInput: {
       vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: [] },
@@ -410,7 +410,7 @@ const wrongSourceDependency: DagDiscoverySource<W, W, string> = {
   // prettier-ignore
   // @ts-expect-error Actual source callbacks reject wrong-domain dependencies.
   resolveRootVertex: () => ({ kind: "vertexResolved" as const, resolvedVertexInput: { vertexId: 'a', workWaitsForWorkOf: [42], vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: [] } } }),
-  resolveChildHint: source.resolveChildHint,
+  resolveChildVertexFromHint: source.resolveChildVertexFromHint,
 };
 declare const brandedSource: DagDiscoverySource<W, W, typeof branded>;
 const brandedRunner = new DagTraversalBuilder({
@@ -425,7 +425,7 @@ const rewriting = new DagTraversalBuilder({
 const rewritingIds: readonly string[] = rewriting
   .createIndependentRunnerFromCurrentOptions()
   .captureProgressSnapshot().workVisitorReadyOrWorkCompletionDeferredVertexIds;
-rewriting.registerVisitorCallbackForPhase(
+rewriting.registerVisitorForPhase(
   DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY,
   (_vertex, options) => {
     const view: LiveResolvedGraphView<W | R, string> =
@@ -451,7 +451,7 @@ if (ref !== null) {
 }
 
 // Canonical found results remain extensible object types.
-interface DefaultFoundResult extends FoundDagSourceVertex<W> {
+interface DefaultFoundResult extends ResolvedDagSourceVertex<W> {
   note?: string;
 }
 const extendedDefault: DefaultFoundResult = {

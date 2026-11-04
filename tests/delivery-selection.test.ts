@@ -35,7 +35,7 @@ const graph = {
       vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     omittedVertexIdentity: null,
     kind: 'vertexIntentionallyOmitted' as const,
     satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -77,7 +77,7 @@ describe.each(families)('$name buffered delivery', (family) => {
       const finish = deferred<void>();
       const calls: string[] = [];
       const traversal = family.make();
-      const add = traversal.registerVisitorCallbackForPhase.bind(traversal) as (
+      const add = traversal.registerVisitorForPhase.bind(traversal) as (
         phase: string,
         visitor: (vertex: VertexView<Data>) => Promise<void> | void,
       ) => unknown;
@@ -146,13 +146,13 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         dagDiscoverySource: graph,
         workCompletionPolicy: 'requireExternalWorkSettlement',
       });
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         DagVisitorPhase.ON_WORK_READY,
         () => {
           calls.push('work');
         },
       );
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY,
         () => {
           calls.push('complete');
@@ -218,7 +218,7 @@ for (const Constructor of [GraphWalkBuilder, AsyncGraphWalkBuilder]) {
       limits: { maxRouteHopDepth: 0 },
     });
     const { GraphWalkObservationKind } = await import('../src');
-    traversal.addVisitorForObservationKind(
+    traversal.registerVisitorForObservationKind(
       GraphWalkObservationKind.VERTEX_OCCURRENCE,
       () => {
         calls++;

@@ -30,7 +30,6 @@ function source(root = 'root'): DagDiscoverySource<T> & TreeDiscoverySource<T> {
   });
   return {
     resolveRootVertex: () => make(root),
-    resolveChildHint: make,
     resolveChildVertexFromHint: make,
     tryGetVertexIdentityFromHint: (vertexId) => ({ vertexId }),
   };
@@ -142,7 +141,7 @@ test('DAG options support both source choices, phases, and discovery configurati
   const runner = traverseDag({
     dagDiscoverySource: source(),
     transformChildHintsBeforeResolution: (hints) => hints.reverse(),
-    undeclaredWorkPrerequisitePolicy: 'waitForDiscoveringParentWork',
+    undeclaredWorkToWorkPrerequisitePolicy: 'waitForDiscoveringParentWork',
     visitors: {
       [D.ON_WORK_READY]: (vertex) => {
         visits.push(`ready:${vertex.getVertexData()}`);

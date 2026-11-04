@@ -17,8 +17,8 @@ export function validateAndPrepareDagDefinition<Data, VertexId = unknown>(
   return prepareDagSource(
     {
       ...definitionSource(definition),
-      rootWorkPrerequisitePolicy: 'honor',
-      undeclaredWorkPrerequisitePolicy: 'none',
+      rootWorkToWorkPrerequisitePolicy: 'honor',
+      undeclaredWorkToWorkPrerequisitePolicy: 'none',
     },
     definition,
   );

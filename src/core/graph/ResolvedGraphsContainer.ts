@@ -1,15 +1,15 @@
 import {
   liveResolvedGraphView,
-  preCommandDiscoveredGraphView,
+  livePreCommandDiscoveredGraphView,
 } from '../observationFacets';
 import type { LiveResolvedGraphView } from '../ResolvedGraphView';
 import { makeDagGraphView } from '../../traversals/dag-traversal/lib/DagGraphView';
 import type {
   InternalResolvedGraphView,
-  PreCommandDiscoveredGraphView,
+  LivePreCommandDiscoveredGraphView,
 } from '@core/ResolvedGraphView';
 import type {
-  InternalChildDiscoveryContext,
+  MutableTreeChildDiscoveryContext,
   MutableTreeVertexTopologyRecord,
 } from '@core/ResolvedTree';
 import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
@@ -76,7 +76,7 @@ export class ResolvedGraphsContainer<
     InputVertexTypes | RewrittenVertexTypes,
     VertexId | symbol
   >;
-  readonly preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<
+  readonly livePreCommandDiscoveredGraphView: LivePreCommandDiscoveredGraphView<
     InputVertexTypes,
     VertexId
   > | null;
@@ -136,11 +136,11 @@ export class ResolvedGraphsContainer<
       ? new StructuralGraphSnapshot<InputVertexTypes, RewrittenVertexTypes>()
       : null;
     // Snapshots preserve the exact identities accepted by this typed container.
-    this.preCommandDiscoveredGraphView = (
+    this.livePreCommandDiscoveredGraphView = (
       this.snapshot === null
         ? null
-        : preCommandDiscoveredGraphView(this.snapshot.graph)
-    ) as PreCommandDiscoveredGraphView<InputVertexTypes, VertexId> | null;
+        : livePreCommandDiscoveredGraphView(this.snapshot.graph)
+    ) as LivePreCommandDiscoveredGraphView<InputVertexTypes, VertexId> | null;
     this.originalGraphRefsMap = this.snapshot?.refsMap ?? null;
   }
 
@@ -178,7 +178,7 @@ export class ResolvedGraphsContainer<
     ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
     id: VertexId,
     workWaitsForWorkOf: readonly VertexId[],
-    context: InternalChildDiscoveryContext<
+    context: MutableTreeChildDiscoveryContext<
       InputVertexTypes | RewrittenVertexTypes
     >,
     workWaitsForSubgraphCompletionOf: readonly VertexId[] = [],
@@ -249,7 +249,7 @@ export class ResolvedGraphsContainer<
     const treeContainer = this.treeContainer;
     if (
       treeContainer !== null &&
-      treeContainer.preCommandDiscoveredTreeView !== null &&
+      treeContainer.livePreCommandDiscoveredTreeView !== null &&
       treeContainer.originalTreeRefsMap !== null &&
       !isAcknowledgment &&
       !legacyTopologyAlreadyLinked
@@ -264,7 +264,7 @@ export class ResolvedGraphsContainer<
         throw new Error('Could not find not mutated child ref');
       }
       const savedParent =
-        treeContainer.preCommandDiscoveredTreeView.getMutableVertexRecordOrNull(
+        treeContainer.livePreCommandDiscoveredTreeView.getMutableVertexRecordOrNull(
           savedParentRef,
         );
       if (savedParent === null) {

@@ -42,12 +42,12 @@ async function exercise(input: MaterializedDagTraversalInput<Item, string>) {
     ...input,
   });
   for (const traversal of [direct, spread, asyncDirect, asyncSpread]) {
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DagVisitorPhase.ON_WORK_READY,
       (vertex, context) => {
         const live: Item | string = vertex.getVertexData();
         const original: Item = context
-          .preCommandDiscoveredGraphView!.getVertexHandleByIdOrNull('task')!
+          .livePreCommandDiscoveredGraphView!.getVertexHandleByIdOrNull('task')!
           .getCurrentVertexView()
           .getVertexData();
         const id: string = context.liveResolvedGraphView.requireVertexId(
@@ -82,7 +82,7 @@ async function exercise(input: MaterializedDagTraversalInput<Item, string>) {
   const inferred = new DagTraversalBuilder(input);
   const inferredAsync = new AsyncDagTraversalBuilder({ ...input });
   for (const traversal of [inferred, inferredAsync]) {
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DagVisitorPhase.ON_WORK_READY,
       (vertex, context) => {
         const data: Item = vertex.getVertexData();
@@ -165,7 +165,7 @@ void allFourFactories;
 // Direct source calls retain input results under a disjoint live context.
 declare const input: MaterializedDagTraversalInput<Item, string>;
 declare const context: DagChildResolutionContext<Input, Output, string>;
-const resolution = input.dagDiscoverySource.resolveChildHint('task', context);
+const resolution = input.dagDiscoverySource.resolveChildVertexFromHint('task', context);
 if (resolution.kind === 'vertexResolved') {
   const item: Item =
     resolution.resolvedVertexInput.vertexContentInput.$vertexData;
@@ -209,7 +209,7 @@ const outputOnlyHints = () => ({
     },
   ],
 });
-differentTraversal.registerVisitorCallbackForPhase(
+differentTraversal.registerVisitorForPhase(
   DagVisitorPhase.ON_WORK_READY,
   // @ts-expect-error Polymorphic live contexts do not widen source-owned ID hints.
   outputOnlyHints,

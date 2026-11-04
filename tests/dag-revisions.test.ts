@@ -7,15 +7,15 @@ import {
   applyDagDefinitionRevisionBatch,
   type DagDefinition,
   type DagStructuralDiscoverySlot,
-  type DagDefinitionVertex,
+  type DagVertexDeclaration,
   type DagRevisionOperation,
 } from '../src';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
 const vertex = <ID>(
   vertexId: ID,
-  patch: Partial<DagDefinitionVertex<unknown, ID>> = {},
-): DagDefinitionVertex<unknown, ID> => ({
+  patch: Partial<DagVertexDeclaration<unknown, ID>> = {},
+): DagVertexDeclaration<unknown, ID> => ({
   vertexId,
   data: undefined,
   childDiscoverySlots: [],
@@ -25,7 +25,7 @@ const vertex = <ID>(
 });
 
 const definition = <ID>(
-  vertices: readonly DagDefinitionVertex<unknown, ID>[],
+  vertices: readonly DagVertexDeclaration<unknown, ID>[],
   patch: Partial<DagDefinition<unknown, ID>> = {},
 ): DagDefinition<unknown, ID> =>
   copyAndNormalizeDagDefinition({
@@ -458,7 +458,7 @@ describe('applyDagDefinitionRevisionBatch', () => {
 });
 
 const prepared = <ID>(
-  vertices: readonly DagDefinitionVertex<unknown, ID>[],
+  vertices: readonly DagVertexDeclaration<unknown, ID>[],
   patch: Partial<DagDefinition<unknown, ID>> = {},
 ) => {
   const result = validateAndPrepareDagDefinition(
@@ -501,7 +501,7 @@ describe('ordered atomic revisions', () => {
     expect(result.validatedTopology.definition.vertexDeclarations).toEqual([
       vertex('review'),
     ]);
-    expect(result.changes).toEqual({
+    expect(result.declarationDiff).toEqual({
       ...unchanged,
       removedVertexDeclarationIds: ['research'],
       changedVertexDeclarations: [
@@ -559,7 +559,7 @@ describe('ordered atomic revisions', () => {
       ['c', 2],
       ['b', 'new'],
     ]);
-    expect(result.changes).toEqual({
+    expect(result.declarationDiff).toEqual({
       ...unchanged,
       changedVertexDeclarations: [
         { vertexId: 'b', changedDeclarationFields: ['data'] },
@@ -605,7 +605,7 @@ describe('ordered atomic revisions', () => {
     expect(result.validatedTopology.definition.vertexDeclarations).toEqual([
       vertex('child'),
     ]);
-    expect(result.changes).toEqual({
+    expect(result.declarationDiff).toEqual({
       ...unchanged,
       removedVertexDeclarationIds: ['root'],
       vertexDeclarationSequenceChanged: true,
@@ -665,7 +665,7 @@ describe('ordered atomic revisions', () => {
       },
     ]);
     if (result.kind !== 'valid') throw new Error('Expected revision');
-    expect(result.changes).toEqual({
+    expect(result.declarationDiff).toEqual({
       ...unchanged,
       entryChanged: true,
       omittedVertexIdSequenceChanged: true,
@@ -689,7 +689,7 @@ describe('ordered atomic revisions', () => {
     expect(result.validatedTopology.definition.vertexDeclarations[0]).not.toBe(
       original.definition.vertexDeclarations[0],
     );
-    expect(result.changes).toEqual(unchanged);
+    expect(result.declarationDiff).toEqual(unchanged);
     expect(
       result.validatedTopology
         .createExternalWorkSession()
@@ -895,7 +895,7 @@ describe('ordered atomic revisions', () => {
     expect(
       result.validatedTopology.definition.vertexDeclarations[4]!.vertexId,
     ).toBe(other);
-    expect(result.changes.removedVertexDeclarationIds).toEqual([undefined]);
+    expect(result.declarationDiff.removedVertexDeclarationIds).toEqual([undefined]);
     expect(() =>
       applyDagDefinitionRevisionBatch(original, [
         { kind: 'addVertexDeclaration', vertexDeclaration: vertex(NaN) },
@@ -1109,7 +1109,7 @@ test('adds a new reachable vertex with explicit parent and prerequisite edits', 
     },
   ]);
   if (result.kind !== 'valid') throw new Error('Expected revision');
-  expect(result.changes).toEqual({
+  expect(result.declarationDiff).toEqual({
     ...unchanged,
     addedVertexDeclarationIds: ['new'],
     vertexDeclarationSequenceChanged: true,

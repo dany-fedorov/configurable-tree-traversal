@@ -15,7 +15,7 @@ export class WalkResources {
   ): void {
     this.opened.set(iterator, { iterator, runnerLocalVertexIdentityToken });
   }
-  sourceRoutesExhausted(iterator: SourceIterator): void {
+  markSourceIteratorExhausted(iterator: SourceIterator): void {
     this.opened.delete(iterator);
   }
   get size(): number {

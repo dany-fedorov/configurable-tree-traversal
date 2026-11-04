@@ -179,12 +179,12 @@ const wrongDagDeletion: import('configurable-tree-traversal').DagVisitor<
 // @ts-expect-error Graph work policies cannot apply to tree discovery.
 new ScopedDagTraversal({
   treeDiscoverySource: scopedTree,
-  rootWorkPrerequisitePolicy: 'ignore',
+  rootWorkToWorkPrerequisitePolicy: 'ignore',
 });
 // @ts-expect-error Async synchronous-source inference preserves policy restrictions.
 new ScopedAsyncDagTraversal({
   treeDiscoverySource: scopedTree,
-  undeclaredWorkPrerequisitePolicy: 'none',
+  undeclaredWorkToWorkPrerequisitePolicy: 'none',
 });
 const scopedMutation: ScopedMutationCommand<
   Tree,

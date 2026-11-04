@@ -57,7 +57,7 @@ describe('object callback and patch contracts', () => {
         expect(context.requirePropertyKeyPathFromRoot()).toEqual([outputKey]);
         expect(
           context
-            .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+            .livePreCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
             .getCurrentVertexView()
             .getVertexData(),
         ).toEqual({ propertyKey: 'input', propertyValue: 1 });
@@ -356,7 +356,7 @@ describe('independent key/value patch domains', () => {
           );
           expect(
             context
-              .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+              .livePreCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
               .getCurrentVertexView()
               .getVertexData(),
           ).toEqual({ propertyKey: 'input', propertyValue: 1 });
@@ -519,7 +519,7 @@ test('retains input metadata after a partial output patch through a generic trav
         bind(vertex, context);
         expect(
           context
-            .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+            .livePreCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
             .getCurrentVertexView()
             .getVertexData(),
         ).toEqual({

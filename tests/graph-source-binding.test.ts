@@ -1,5 +1,5 @@
 import { resolutionContextView } from '../src/core/observationFacets';
-import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
 import { getTreeGraphStore } from '../src/core/graph/treeStoreCapabilities';
 import type { AsyncTreeDiscoverySource } from '../src/core/AsyncTraversableTree';
 import { MutableValueReference } from '../src/core/CTTRef';
@@ -33,7 +33,7 @@ function childContext(
   return {
     discoveryDepthInEdges: 1,
     parentVertexAtChildResolution: parentVertexRef.getReferencedValue(),
-    parentVertexHandle: parentVertexRef,
+    parentVertexReference: parentVertexRef,
     parentChildHintIndex: 0,
     childDiscoveryHint: 'child',
   };
@@ -124,7 +124,7 @@ test('tree binding reuses the legacy facade and passes real tree options', () =>
     { kind: 'linked', hint: 'child', childRef: child },
   ]);
   expect(
-    treeContainer.preCommandDiscoveredTreeView!.getDetachedChildReferenceListOrNull(
+    treeContainer.livePreCommandDiscoveredTreeView!.getDetachedChildReferenceListOrNull(
       savedParent,
     ),
   ).toEqual([savedChild]);
@@ -241,12 +241,12 @@ test('graph binding passes graph options and forwards hint identity', () => {
       kind: 'vertexIntentionallyOmitted' as const,
       satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
     }),
-    resolveChildHint: (hint, options) => {
+    resolveChildVertexFromHint: (hint, options) => {
       expect(hint).toBe('child');
       expect(options).toEqual({
         structuralChildResolution: resolutionContextView(context),
         liveResolvedGraphView: container.publicResolvedGraph,
-        preCommandDiscoveredGraphView: container.preCommandDiscoveredGraphView,
+        livePreCommandDiscoveredGraphView: container.livePreCommandDiscoveredGraphView,
       });
       return {
         kind: 'vertexResolved' as const,
@@ -295,7 +295,7 @@ test('graph binding rejects a tree-mode container', () => {
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted' as const,
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted' as const,

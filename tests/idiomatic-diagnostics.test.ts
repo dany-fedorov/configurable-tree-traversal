@@ -66,7 +66,7 @@ test('DAG inspection names pending public operations without source IO or engine
         observe();
         return { vertexId: hint };
       },
-      resolveChildHint: (hint) => {
+      resolveChildVertexFromHint: (hint) => {
         observe();
         return {
           kind: 'vertexResolved',
@@ -102,7 +102,7 @@ test('DAG inspection names pending public operations without source IO or engine
         ownerStillValid: true,
       }),
       expect.objectContaining({
-        operation: 'resolveChildHint',
+        operation: 'resolveChildVertexFromHint',
         owner: expect.objectContaining({ ownerKind: 'vertexTraversalFrame' }),
         ownerStillValid: true,
       }),
@@ -181,7 +181,7 @@ for (const family of ['depth-first', 'breadth-first', 'dag'] as const) {
                 sourceCalls++;
                 return root;
               },
-              resolveChildHint: () => ({
+              resolveChildVertexFromHint: () => ({
                 omittedVertexIdentity: null,
                 kind: 'vertexIntentionallyOmitted',
                 satisfiesWorkAndSubgraphCompletionPrerequisites: true,
@@ -264,7 +264,7 @@ test('deferred work keeps the initial visit started after callbacks drain', () =
     workCompletionPolicy: 'requireExternalWorkSettlement',
     dagDiscoverySource: {
       resolveRootVertex: () => root,
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         kind: 'vertexIntentionallyOmitted',
         satisfiesWorkAndSubgraphCompletionPrerequisites: true,
@@ -305,7 +305,7 @@ test('completion diagnostics describe eligibility at callback admission, indepen
   const runner = new DagTraversalBuilder<G>({
     dagDiscoverySource: {
       resolveRootVertex: () => root,
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         kind: 'vertexIntentionallyOmitted',
         satisfiesWorkAndSubgraphCompletionPrerequisites: true,

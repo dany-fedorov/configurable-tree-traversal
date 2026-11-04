@@ -98,7 +98,7 @@ for (const Builder of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved',
           resolvedVertexInput: {
             vertexId: id,
@@ -163,7 +163,7 @@ for (const Builder of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => {
+        resolveChildVertexFromHint: () => {
           childResolutionCalls++;
           return {
             kind: 'vertexIntentionallyOmitted',

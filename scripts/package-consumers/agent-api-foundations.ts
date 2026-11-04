@@ -162,7 +162,7 @@ function captureExecutionSnapshot(event: DagCommittedMilestoneEvent<T, ID>) {
 
 const isTask = (data: Item): data is Task => data.kind === 'task';
 const traversal = new DagTraversalBuilder(source);
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DagVisitorPhase.ON_WORK_READY,
   createConditionalDagDataVisitor(isTask, (data, options) => {
     const narrowed: Task = data;
@@ -183,7 +183,7 @@ traversal.registerVisitorCallbackForPhase(
     };
   }),
 );
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY,
   createConditionalDagDataVisitor(isTask, () => ({
     commands: [
@@ -219,7 +219,7 @@ async function checkAsync() {
   await session.runUntilWorkBoundary();
   await coordinator.runUntilWorkBoundary();
   const asyncTraversal = new AsyncDagTraversalBuilder(await asyncForest);
-  asyncTraversal.registerVisitorCallbackForPhase(
+  asyncTraversal.registerVisitorForPhase(
     DagVisitorPhase.ON_WORK_READY,
     createConditionalAsyncDagDataVisitor(isTask, async (data, options) => {
       const task: Task = data;

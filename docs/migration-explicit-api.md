@@ -6,6 +6,34 @@
 
 The Previous columns below describe the released API. Current names and examples describe this checkout. There are no compatibility aliases. Update imports, type arguments, own option keys, discriminant strings, and consumers together; an old own key can reject even when its value is undefined. Earlier migration guides preserve their historical release context and are not additional steps for this change.
 
+### Updating an earlier explicit-API checkout
+
+These names also changed within the unreleased API. Apply the same replacements to async counterparts. Registration consistently uses `registerVisitorFor…`, `appendVisitorGroupFor…`, and `replaceVisitorDefinitionsFor…` across all eight builders; the suffix is `Phase` for tree/DAG and `ObservationKind` for walking.
+
+| Earlier checkout | Current |
+| --- | --- |
+| `rootWorkPrerequisitePolicy` | `rootWorkToWorkPrerequisitePolicy` |
+| `undeclaredWorkPrerequisitePolicy` | `undeclaredWorkToWorkPrerequisitePolicy` |
+| `hasSkippedPendingChildDiscovery` | `isPendingChildDiscoveryDisabled` |
+| `PreCommandDiscoveredGraphView` | `LivePreCommandDiscoveredGraphView` |
+| `preCommandDiscoveredTreeView`, `preCommandDiscoveredGraphView` | `livePreCommandDiscoveredTreeView`, `livePreCommandDiscoveredGraphView` |
+| `GraphWalkInspection` | `GraphWalkExecutionSnapshot` |
+| DAG source `resolveChildHint` | `resolveChildVertexFromHint` |
+| `FoundDagSourceVertex`, `TreeVertexResolutionFound` | `ResolvedDagSourceVertex`, `ResolvedTreeSourceVertex` |
+| `TreeVertexResolutionOmitted`, `TreeVertexResolution` | `OmittedTreeSourceVertex`, `TreeSourceVertexResolution` |
+| Tree/DAG `registerVisitorCallbackForPhase` | `registerVisitorForPhase` |
+| Walking `addVisitorForObservationKind` | `registerVisitorForObservationKind` |
+| Walking `addVisitorGroupForObservationKind` | `appendVisitorGroupForObservationKind` |
+| Walking `replaceVisitorsForObservationKind` | `replaceVisitorDefinitionsForObservationKind` |
+| `DagDefinitionVertex`, `DagDefinitionVertexChange` | `DagVertexDeclaration`, `DagVertexDeclarationChange` |
+| Revision result `changes` | `declarationDiff` |
+| Diagnostic `prerequisiteVertexIdsInReport` | `unmetPrerequisiteVertexIds` |
+| Walking outcome `sourceRoutesExhausted` | `explorationExhausted` |
+| Stored-tree `InternalChildDiscoveryContext` | `MutableTreeChildDiscoveryContext` |
+| Stored-tree context `parentVertexHandle` | `parentVertexReference` |
+
+`rootWorkToWorkPrerequisitePolicy` controls whether root work waits for other vertices' work completion. It does not suppress waits for subgraph completion. Read-only callback contexts retain `parentVertexHandle`; only editable storage contexts use `parentVertexReference`. `Live…View` denotes an updating view, while validated topology `liveVertexSummaries` is a frozen projection of retained, non-omitted vertices.
+
 ## Execution roles and observations
 
 | Previous                                                                                      | Current                                                                                                                                                       |
@@ -27,7 +55,7 @@ The Previous columns below describe the released API. Current names and examples
 
 Builders configure future runners and do not traverse. Each runner captures its own options/registration wrappers and owns separate progress. Both execution methods can return at suspension, including preparation, pause, or awaiting external settlement. Captures perform no source lookup, callback execution, scheduling, or ownership change. A pause request records intent; admitted callbacks drain without cancellation before acknowledgement.
 
-`TraversalExecutionSnapshot` is the common observational contract. Its fields distinguish `traversalLifecycleStatus`, `traversalStopReason`, `traversalAlgorithm`, `callbackExecutionMode`, `pauseRequested`, `inFlightInvocationCount`, and `bufferedDeliveryEventCount`. Tree/DAG detail is `TreeOrDagExecutionSnapshot`; walking detail is `GraphWalkInspection`. Per-vertex scheduling stage, callback activity, committed DAG milestones, and host-agent activity remain separate facts.
+`TraversalExecutionSnapshot` is the common observational contract. Its fields distinguish `traversalLifecycleStatus`, `traversalStopReason`, `traversalAlgorithm`, `callbackExecutionMode`, `pauseRequested`, `inFlightInvocationCount`, and `bufferedDeliveryEventCount`. Tree/DAG detail is `TreeOrDagExecutionSnapshot`; walking detail is `GraphWalkExecutionSnapshot`. Per-vertex scheduling stage, callback activity, committed DAG milestones, and host-agent activity remain separate facts.
 
 ## Callback selection, event delivery, and registration
 
@@ -40,8 +68,8 @@ Builders configure future runners and do not traverse. Each runner captures its 
 | Tree event `phase`, DAG/walking event `kind`                               | Top-level `eventKind`                                                                                                                                          |
 | Tree/DAG callback `phase`                                                  | `visitorPhase`                                                                                                                                                 |
 | Walking callback `phase`                                                   | `observationKind`                                                                                                                                              |
-| `addVisitorFor`, `addVisitorGroupFor`, `setVisitorsFor`, `listVisitorsFor` | Tree/DAG `registerVisitorCallbackForPhase`, `appendVisitorGroupForPhase`, `replaceVisitorDefinitionsForPhase`, `getDetachedVisitorRegistrationRecordsForPhase` |
-| Walking registration methods                                               | `addVisitorForObservationKind`, `addVisitorGroupForObservationKind`, `replaceVisitorsForObservationKind`, `listVisitorRegistrationsForObservationKind`         |
+| `addVisitorFor`, `addVisitorGroupFor`, `setVisitorsFor`, `listVisitorsFor` | Tree/DAG `registerVisitorForPhase`, `appendVisitorGroupForPhase`, `replaceVisitorDefinitionsForPhase`, `getDetachedVisitorRegistrationRecordsForPhase` |
+| Walking registration methods                                               | `registerVisitorForObservationKind`, `appendVisitorGroupForObservationKind`, `replaceVisitorDefinitionsForObservationKind`, `listVisitorRegistrationsForObservationKind`         |
 | `CommandCommitMode`, `commandCommitMode`                                   | `VisitorCommandCommitTiming`, `visitorCommandCommitTiming`                                                                                                     |
 | `afterEachVisitor`, `afterGroup`                                           | `afterEachVisitorCallback`, `afterContiguousVisitorBatch`                                                                                                      |
 | `priority`, `addedIndex`                                                   | `descendingExecutionPriorityWithinGroup`, `phaseRegistrationInsertionIndex`                                                                                    |
@@ -103,7 +131,7 @@ void asyncVisit;
 | `TreeSource`, `AsyncTreeSource`                                                 | `TreeDiscoverySource`, `AsyncTreeDiscoverySource`                                                                |
 | `traversableTree`, `traversableGraph`, walking `source`                         | `treeDiscoverySource`, `dagDiscoverySource`, `graphWalkDiscoverySource`                                          |
 | Tree `resolveRoot`, `resolveChild`                                              | `resolveRootVertex`, `resolveChildVertexFromHint`                                                                |
-| DAG `resolveRoot`, `resolveChild`, `resolvePrerequisite`, `getVertexIdFromHint` | `resolveRootVertex`, `resolveChildHint`, `resolvePrerequisiteByVertexId`, `tryGetVertexIdentityFromHint`         |
+| DAG `resolveRoot`, `resolveChild`, `resolvePrerequisite`, `getVertexIdFromHint` | `resolveRootVertex`, `resolveChildVertexFromHint`, `resolvePrerequisiteByVertexId`, `tryGetVertexIdentityFromHint`         |
 | Tree/DAG `{ kind: 'found', vertex: { vertexContent } }`                         | `{ kind: 'vertexResolved', resolvedVertexInput: { vertexContentInput } }`                                        |
 | Tree/DAG `kind: 'omitted'`                                                      | `kind: 'vertexIntentionallyOmitted'`                                                                             |
 | DAG omission `identity`, `satisfiesDependencies`                                | `omittedVertexIdentity`, `satisfiesWorkAndSubgraphCompletionPrerequisites: true`                                 |
@@ -117,7 +145,7 @@ void asyncVisit;
 | `getData()` / `getChildHints()`                                                 | `getVertexData()`; mutable Vertex `getMutableChildDiscoveryHints()`, observed `getDetachedChildDiscoveryHints()` |
 | `clone()` on Vertex / VertexView                                                | `createEditableShallowCloneWithContentOverrides()`                                                               |
 | `ResolvedTreeView` / `ResolvedGraphView`                                        | `LiveResolvedTreeView` / `LiveResolvedGraphView`                                                                 |
-| `originalTreeView` / `originalGraphView`                                        | `preCommandDiscoveredTreeView` / `preCommandDiscoveredGraphView`                                                 |
+| `originalTreeView` / `originalGraphView`                                        | `livePreCommandDiscoveredTreeView` / `livePreCommandDiscoveredGraphView`                                                 |
 | Retain-original options                                                         | `retainDiscoveredTreeBeforeVisitorCommands` / `retainDiscoveredGraphBeforeVisitorCommands`                       |
 
 Walking keeps its own `found`/`omitted` resolution tags and explicit targets; do not apply tree/DAG envelope replacements to walking. Tree sources still reject graph metadata. Typed live DAG resolutions require an own `vertexId`. A DAG omission's null wrapper differs from `{ vertexId: undefined }`. Only prerequisite lookup accepts `missing`.
@@ -149,7 +177,7 @@ const dagDiscoverySource: DagDiscoverySource<T, T, string> = {
       vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     kind: 'vertexIntentionallyOmitted',
     omittedVertexIdentity: null,
     satisfiesWorkAndSubgraphCompletionPrerequisites: true,
@@ -171,7 +199,7 @@ Views remain live while returned hint/topology collections and snapshot wrappers
 | `vertex.hasNoChildHints()`   | `!vertex.hasChildDiscoveryHints()`         |
 | `!vertex.hasNoChildHints()`  | `vertex.hasChildDiscoveryHints()`          |
 
-Invert every explicitly supplied boolean and every predicate use. Preserve undefined as undefined rather than turning it into false. Neither predicate identifies a resolved structural leaf. `hasSkippedPendingChildDiscovery` separately reports the skip policy.
+Invert every explicitly supplied boolean and every predicate use. Preserve undefined as undefined rather than turning it into false. Neither predicate identifies a resolved structural leaf. `isPendingChildDiscoveryDisabled` separately reports the skip policy.
 
 Tree path lookup is `requireStructuralAncestorPathTo`; graph lookup is `requireAllStructuralAncestorPathsTo`. Tree views query root/child/parent handles through `getRootVertexHandleOrNull`, `getChildVertexHandlesOrNull`, `getParentVertexHandleOrNull`, and `getChildDiscoveryContextOrNull`. Graph views use `getDesignatedRootHandleOrNull`, `getVertexHandles`, `getVertexHandleByIdOrNull`, `getVertexSnapshotOrNull`, `getDistinctStructuralParentHandlesOrNull`, and `getStructuralChildHandlesInSlotOrderOrNull`. Both have `containsVertexHandle`; required identity/path queries throw for absence.
 
@@ -207,7 +235,7 @@ Child-boundary visits can repeat for one parent and can visit a leaf; they are n
 | `workCompletion: 'afterWorkReadyChain'`                                     | `workCompletionPolicy: 'afterWorkReadyVisitorChain'`                                                             |
 | `workCompletion: 'externalSettlement'`                                      | `workCompletionPolicy: 'requireExternalWorkSettlement'`                                                          |
 | `discovery: 'lazy'` / `'eager'`                                             | `discoveryTiming: 'incrementalDuringTraversal'` / `'completeBeforeAnyVisitor'`                                   |
-| `rootWorkDependencies`, `dependsOnWorkDefault`                              | `rootWorkPrerequisitePolicy`, `undeclaredWorkPrerequisitePolicy`                                                 |
+| `rootWorkDependencies`, `dependsOnWorkDefault`                              | `rootWorkToWorkPrerequisitePolicy`, `undeclaredWorkToWorkPrerequisitePolicy`                                                 |
 | `discoveryParentWork`                                                       | `waitForDiscoveringParentWork`                                                                                   |
 | `completedWork`, `syntheticRoot`                                            | `acceptedCompletedWorkVertexIds`, `sourceRootIsHiddenEntryHolder`                                                |
 | Materializer `id`, `dependsOnWork`, `dependsOnSubgraphCompletion` selectors | `selectVertexId`, `selectWorkPrerequisiteVertexIds`, `selectSubgraphCompletionPrerequisiteVertexIds`             |
@@ -311,7 +339,7 @@ Output remains tagged `{ kind: 'present', value }` or `{ kind: 'absent' }`. Reta
 | Path `vertices`, `edges`                                | `verticesInRootToTargetOrder`, `edgesInRootToTargetOrder`                                                            |
 | `maxDepth`, `maxCandidates`, `maxCandidateReadAttempts` | `maxRouteHopDepth`, `maxAdmittedRootOrLinkTargetOccurrences`, `maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay` |
 | `close()`                                               | `closePermanentlyAndDisposeSourceIterators()`                                                                        |
-| Terminal `exhausted`, `limited`, `closed`               | `sourceRoutesExhausted`, `traversalLimitsReached`, `permanentlyClosedByCaller`                                       |
+| Terminal `exhausted`, `limited`, `closed`               | `explorationExhausted`, `traversalLimitsReached`, `permanentlyClosedByCaller`                                       |
 
 Walking does not consume arbitrary tree/DAG sources. Its first admitted resolution wins, including omission. A rejected link cannot seed the cache; a cached target requires prior admission. Route occurrences can repeat while resolver/adjacency I/O remains cached. The default policy observes parallel/self/back edges even when it does not repeat vertex/prefix observations.
 

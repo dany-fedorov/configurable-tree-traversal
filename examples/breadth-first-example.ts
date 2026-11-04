@@ -13,7 +13,7 @@ const traversal = new BreadthFirstTreeTraversalBuilder({
   treeDiscoverySource: new ObjectPropertyTreeSource(input),
 });
 
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
   (vertex) => console.log(vertex.getVertexData()),
 );

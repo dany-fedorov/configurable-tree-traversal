@@ -13,7 +13,7 @@ export type TreeChildResolverContext<
   liveResolvedTreeView: LiveResolvedTreeView<
     InputVertexTypes | RewrittenVertexTypes
   >;
-  preCommandDiscoveredTreeView: LiveResolvedTreeView<InputVertexTypes> | null;
+  livePreCommandDiscoveredTreeView: LiveResolvedTreeView<InputVertexTypes> | null;
 };
 
 /** Explicit ID domains cannot use the generated-reference identity fallback. */
@@ -35,7 +35,7 @@ export type MakeVertexResult<
 } & (RequiredGraphVertexIdentity<VertexId> | { vertexContent: null });
 
 /** A source deliberately supplied a resolvedVertexInput with non-null content. */
-export type FoundDagSourceVertex<
+export type ResolvedDagSourceVertex<
   InputVertexTypes extends VertexDataAndChildHintTypes,
   VertexId = unknown,
 > = {
@@ -61,7 +61,7 @@ export type DagSourceVertexResolution<
   InputVertexTypes extends VertexDataAndChildHintTypes,
   VertexId = unknown,
 > =
-  | FoundDagSourceVertex<InputVertexTypes, VertexId>
+  | ResolvedDagSourceVertex<InputVertexTypes, VertexId>
   | OmittedDagSourceVertex<VertexId>;
 
 export type DagPrerequisiteLookupResult<
@@ -82,7 +82,7 @@ type ForbiddenGraphMetadataOnTreeResolution = {
   satisfiesDependencies?: never;
 };
 
-export type TreeVertexResolutionFound<
+export type ResolvedTreeSourceVertex<
   InputVertexTypes extends VertexDataAndChildHintTypes,
 > = ForbiddenGraphMetadataOnTreeResolution & {
   kind: 'vertexResolved';
@@ -91,24 +91,24 @@ export type TreeVertexResolutionFound<
   };
 };
 
-export type TreeVertexResolutionOmitted =
+export type OmittedTreeSourceVertex =
   ForbiddenGraphMetadataOnTreeResolution & {
     kind: 'vertexIntentionallyOmitted';
   };
 
-export type TreeVertexResolution<
+export type TreeSourceVertexResolution<
   InputVertexTypes extends VertexDataAndChildHintTypes,
-> = TreeVertexResolutionFound<InputVertexTypes> | TreeVertexResolutionOmitted;
+> = ResolvedTreeSourceVertex<InputVertexTypes> | OmittedTreeSourceVertex;
 
 /** Input T owns discovery hints/results; callbacks must accept the full T | R live context. */
 export type TreeDiscoverySource<
   InputVertexTypes extends VertexDataAndChildHintTypes,
   RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > = {
-  resolveRootVertex: () => TreeVertexResolution<InputVertexTypes>;
+  resolveRootVertex: () => TreeSourceVertexResolution<InputVertexTypes>;
 
   resolveChildVertexFromHint: (
     vertexHint: InputVertexTypes['ChildHint'],
     options: TreeChildResolverContext<InputVertexTypes, RewrittenVertexTypes>,
-  ) => TreeVertexResolution<InputVertexTypes>;
+  ) => TreeSourceVertexResolution<InputVertexTypes>;
 };

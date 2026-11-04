@@ -40,7 +40,7 @@ for (const Factory of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           },
           ...(sourceKey === 'dagDiscoverySource'
             ? {
-                resolveChildHint: () => ({
+                resolveChildVertexFromHint: () => ({
                   omittedVertexIdentity: null,
                   kind: 'vertexIntentionallyOmitted' as const,
                   satisfiesWorkAndSubgraphCompletionPrerequisites:
@@ -58,7 +58,7 @@ for (const Factory of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       const replacement = source('replacement', replacementId);
       const seen: string[] = [];
       const traversal = new Factory<Data>({ [sourceKey]: original } as never);
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         Order.ON_WORK_READY,
         (vertex) => void seen.push(vertex.getVertexData()),
       );
@@ -175,7 +175,7 @@ for (const Factory of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         reads = 0;
         const constructed = new Factory<Data>(patch as never);
         expect(reads).toBe(1);
-        constructed.registerVisitorCallbackForPhase(
+        constructed.registerVisitorForPhase(
           Order.ON_WORK_READY,
           (vertex) => expect(vertex.getVertexData()).toBe('replacement'),
         );
@@ -317,7 +317,7 @@ for (const merge of [
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         kind: 'vertexIntentionallyOmitted' as const,
       }),
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         kind: 'vertexIntentionallyOmitted' as const,

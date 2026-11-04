@@ -127,7 +127,7 @@ describe('explicit object mutation and reconstruction policies', () => {
     const traversal = new AsyncDepthFirstTreeTraversalBuilder({
       treeDiscoverySource: new ObjectPropertyTreeSource([10, 20]),
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
       async (vertex, context) => ({
         commands: [

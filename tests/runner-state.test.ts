@@ -1,4 +1,4 @@
-import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
 import { MutableValueReference } from '../src/core/CTTRef';
 import type { TreeDiscoverySource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
@@ -37,7 +37,7 @@ const context = (
   discoveryDepthInEdges: 1,
   parentChildHintIndex: hintIndex,
   parentVertexAtChildResolution: parentVertexRef.getReferencedValue(),
-  parentVertexHandle: parentVertexRef,
+  parentVertexReference: parentVertexRef,
   childDiscoveryHint: node(data),
 });
 

@@ -10,7 +10,7 @@ import type { MaybePromise } from '@core/graph/types';
 export type MaterializedDagTraversalInput<Item, VertexId> = {
   dagDiscoverySource: {
     /** Captured catalog lookup accepts any rewritten live-data domain. */
-    resolveChildHint: <
+    resolveChildVertexFromHint: <
       RewrittenVertexTypes extends VertexDataAndChildHintTypes,
     >(
       hint: VertexId,

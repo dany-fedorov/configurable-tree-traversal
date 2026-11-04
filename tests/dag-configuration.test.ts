@@ -29,7 +29,7 @@ function source(): DagDiscoverySource<TestGraph> {
         vertexId: 'root',
       },
     }),
-    resolveChildHint: () => ({
+    resolveChildVertexFromHint: () => ({
       omittedVertexIdentity: null,
       kind: 'vertexIntentionallyOmitted' as const,
       satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -124,21 +124,21 @@ test('sorts duplicate priorities stably and isolates builders and runners', () =
   const traversal = new DagTraversalBuilder<TestGraph>({
     dagDiscoverySource: source(),
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     () => void calls.push('low'),
     {
       descendingExecutionPriorityWithinGroup: 1,
     },
   );
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     () => void calls.push('first'),
     {
       descendingExecutionPriorityWithinGroup: 2,
     },
   );
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     () => void calls.push('second'),
     {
@@ -167,7 +167,7 @@ test('configure copies visitor arrays and preserves existing registrations', () 
   const traversal = new DagTraversalBuilder<TestGraph>({
     dagDiscoverySource: source(),
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     () => void calls.push('existing'),
   );
@@ -194,11 +194,11 @@ test('filters visitor execution independently from event iteration', () => {
   const traversal = new DagTraversalBuilder<TestGraph>({
     dagDiscoverySource: source(),
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     () => void calls.push('ready'),
   );
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_SUBGRAPH_COMPLETION_READY,
     () => void calls.push('complete'),
   );
@@ -329,7 +329,7 @@ function haltedSeed() {
   container.acceptVertex(a, 'A', ['root'], {
     discoveryDepthInEdges: 1,
     parentVertexAtChildResolution: root.getReferencedValue(),
-    parentVertexHandle: root,
+    parentVertexReference: root,
     parentChildHintIndex: 0,
     childDiscoveryHint: 'A',
   });
@@ -337,7 +337,7 @@ function haltedSeed() {
   container.acceptVertex(b, 'B', ['root'], {
     discoveryDepthInEdges: 1,
     parentVertexAtChildResolution: root.getReferencedValue(),
-    parentVertexHandle: root,
+    parentVertexReference: root,
     parentChildHintIndex: 1,
     childDiscoveryHint: 'B',
   });
@@ -379,7 +379,7 @@ function acceptDetached(
   seed.container.acceptVertex(vertexHandle, id, workWaitsForWorkOf, {
     discoveryDepthInEdges: 1,
     parentVertexAtChildResolution: seed.root.getReferencedValue(),
-    parentVertexHandle: seed.root,
+    parentVertexReference: seed.root,
     parentChildHintIndex: 0,
     childDiscoveryHint: id,
   });
@@ -394,7 +394,7 @@ test('resumes ready and expansion work from a non-empty quiescent DAG seed', () 
       resolveRootVertex: () => {
         throw new Error('must not resolve root');
       },
-      resolveChildHint: (hint) => {
+      resolveChildVertexFromHint: (hint) => {
         resolutions.push(hint);
         return {
           kind: 'vertexResolved' as const,
@@ -742,7 +742,7 @@ test.each([
       resolveRootVertex: () => {
         throw new Error('must not resolve root');
       },
-      resolveChildHint: (hint) => ({
+      resolveChildVertexFromHint: (hint) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: hint,
@@ -778,7 +778,7 @@ test('restores discovered work blocked by a missing dependency', () => {
       resolveRootVertex: () => {
         throw new Error('must not resolve root');
       },
-      resolveChildHint: (hint) => ({
+      resolveChildVertexFromHint: (hint) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: hint,

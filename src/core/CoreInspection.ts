@@ -23,7 +23,6 @@ export type TraversalExecutionSelections<
 export type TreeOrDagCallbackOperation =
   | 'resolveRootVertex'
   | 'resolveChildVertexFromHint'
-  | 'resolveChildHint'
   | 'resolvePrerequisiteByVertexId'
   | 'transformChildHintsBeforeResolution'
   | 'tryGetVertexIdentityFromHint'

@@ -30,7 +30,7 @@ for (const api of [esm, cjs]) {
           },
         };
       },
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         kind: 'vertexIntentionallyOmitted',
         satisfiesWorkAndSubgraphCompletionPrerequisites: true,

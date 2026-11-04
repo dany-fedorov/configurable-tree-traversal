@@ -176,8 +176,8 @@ export class InternalAsyncBreadthFirstTreeRunner<
                   call.metadata.previousCommittedVisitVertexHandleForSamePhase,
                 ),
               liveResolvedTreeView: this.getLiveResolvedTreeView(),
-              preCommandDiscoveredTreeView:
-                this.resolvedTreesContainer.preCommandDiscoveredTreeView?.getLiveReadOnlyTreeView() ??
+              livePreCommandDiscoveredTreeView:
+                this.resolvedTreesContainer.livePreCommandDiscoveredTreeView?.getLiveReadOnlyTreeView() ??
                 null,
               isTreeRoot: this.isTreeRootVertex(
                 createVertexHandleFacet(call.ref),

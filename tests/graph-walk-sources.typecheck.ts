@@ -32,7 +32,7 @@ const namespaceTyped: typeof materializeGraphWalkSourceFromVertexRecords =
   graphWalk.materializeGraphWalkSourceFromVertexRecords;
 new GraphWalkBuilder({
   graphWalkDiscoverySource: source,
-}).addVisitorForObservationKind(
+}).registerVisitorForObservationKind(
   GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE,
   (event) => {
     const vertexId: symbol = event.edge.toVertexId;
@@ -101,7 +101,7 @@ const completion: GraphWalkDagDeclarationRelation = {
 };
 new GraphWalkBuilder({
   graphWalkDiscoverySource: dag,
-}).addVisitorForObservationKind(
+}).registerVisitorForObservationKind(
   GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE,
   (event) => {
     const vertexId: undefined = event.edge.toVertexId;

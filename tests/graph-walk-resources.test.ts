@@ -332,7 +332,7 @@ it('removes exhausted iterators without reading their return and preserves exhau
     await runner.runUntilSuspendedOrTerminal();
     await runner.closePermanentlyAndDisposeSourceIterators();
     expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
-      kind: 'sourceRoutesExhausted',
+      kind: 'explorationExhausted',
     });
     expect(runner.captureExecutionSnapshot().openSourceIteratorCount).toBe(0);
   }

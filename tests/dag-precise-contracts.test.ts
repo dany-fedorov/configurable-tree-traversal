@@ -103,7 +103,7 @@ for (const prepare of [
               },
             };
           },
-          resolveChildHint: (id) => (route === 'child' ? fail() : found(id)),
+          resolveChildVertexFromHint: (id) => (route === 'child' ? fail() : found(id)),
           tryGetVertexIdentityFromHint: (id) =>
             route === 'hint' ? fail() : { vertexId: id },
           resolvePrerequisiteByVertexId: () => fail(),
@@ -124,12 +124,12 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       const traversal = new Constructor<T, T, string>({
         dagDiscoverySource: {
           resolveRootVertex: () => found('a'),
-          resolveChildHint: (id) => found(id),
+          resolveChildVertexFromHint: (id) => found(id),
         },
         workCompletionPolicy: 'afterWorkReadyVisitorChain',
       });
       if (filtered)
-        traversal.registerVisitorCallbackForPhase(
+        traversal.registerVisitorForPhase(
           DagVisitorPhase.ON_WORK_READY,
           () => {
             throw Error('filtered visitor ran');
@@ -154,7 +154,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
     const input = {
       dagDiscoverySource: {
         resolveRootVertex: () => found('a'),
-        resolveChildHint: (id: string) => found(id),
+        resolveChildVertexFromHint: (id: string) => found(id),
       },
     };
     expect(
@@ -283,7 +283,7 @@ for (const prepare of [
             resolveRootVertex: () => {
               throw original;
             },
-            resolveChildHint: (id) => found(id),
+            resolveChildVertexFromHint: (id) => found(id),
           },
         }),
       ).rejects.toBe(original);

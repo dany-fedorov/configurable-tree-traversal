@@ -54,13 +54,13 @@ async function main() {
   ]);
   if (revised.kind !== 'valid') throw new Error('Invalid revision');
   assert.deepEqual(
-    revised.changes,
+    revised.declarationDiff,
     diffDagDefinitionDeclarationsShallowly(
       initial.validatedTopology.definition,
       revised.validatedTopology.definition,
     ),
   );
-  assert.deepEqual(revised.changes.changedVertexDeclarations, [
+  assert.deepEqual(revised.declarationDiff.changedVertexDeclarations, [
     { vertexId: 'review', changedDeclarationFields: ['data'] },
   ]);
   for (const fresh of [

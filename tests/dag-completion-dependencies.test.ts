@@ -20,7 +20,7 @@ function bundleGraph() {
         },
       },
     }),
-    resolveChildHint: (hint: string) => ({
+    resolveChildVertexFromHint: (hint: string) => ({
       kind: 'vertexResolved' as const,
       resolvedVertexInput: {
         vertexId: hint,
@@ -50,10 +50,10 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         discoveryTiming: discovery,
         dagDiscoverySource: bundleGraph(),
       });
-      traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (v) => {
+      traversal.registerVisitorForPhase(Order.ON_WORK_READY, (v) => {
         events.push(`W:${v.getVertexData()}`);
       });
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         Order.ON_SUBGRAPH_COMPLETION_READY,
         (v) => {
           events.push(`C:${v.getVertexData()}`);
@@ -104,7 +104,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
               },
             },
           }),
-          resolveChildHint: (id) => ({
+          resolveChildVertexFromHint: (id) => ({
             kind: 'vertexResolved' as const,
             resolvedVertexInput: {
               vertexId: id,
@@ -128,7 +128,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           }),
         },
       });
-      traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (v) => {
+      traversal.registerVisitorForPhase(Order.ON_WORK_READY, (v) => {
         events.push(v.getVertexData());
       });
       await expect(async () => {
@@ -157,7 +157,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: 'a',
@@ -200,7 +200,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
               },
             },
           }),
-          resolveChildHint: () => ({
+          resolveChildVertexFromHint: () => ({
             omittedVertexIdentity: null,
             kind: 'vertexIntentionallyOmitted' as const,
             satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -224,10 +224,10 @@ test('async completion admission and callback settlement do not release C until 
     maxConcurrentCallbackInvocations: 3,
     dagDiscoverySource: bundleGraph(),
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (v) => {
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, (v) => {
     events.push(v.getVertexData());
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_SUBGRAPH_COMPLETION_READY,
     async (v) => {
       if (v.getVertexData() === 'bundle') {
@@ -267,10 +267,10 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       acceptedCompletedWorkVertexIds: new Set(['bundle']),
       dagDiscoverySource: bundleGraph(),
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (v) => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, (v) => {
       events.push(`W:${v.getVertexData()}`);
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_SUBGRAPH_COMPLETION_READY,
       (v) => {
         events.push(`C:${v.getVertexData()}`);
@@ -302,7 +302,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: 'child',
@@ -315,10 +315,10 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (v) => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, (v) => {
       events.push(`W:${v.getVertexData()}`);
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_SUBGRAPH_COMPLETION_READY,
       (v) => {
         events.push(`C:${v.getVertexData()}`);
@@ -343,7 +343,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: 'child',
@@ -362,7 +362,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       diagnostics: {
         milestoneCycleVertexIdComponents: [['root', 'child']],
         blockedVertexPrerequisiteReports: [
-          { vertexId: 'child', prerequisiteVertexIdsInReport: ['root'] },
+          { vertexId: 'child', unmetPrerequisiteVertexIds: ['root'] },
         ],
         incompleteVertexIdsWithoutUnmetPrerequisites: ['root'],
       },
@@ -390,7 +390,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -402,7 +402,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (v) =>
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, (v) =>
       v.getVertexData() === 'join'
         ? undefined
         : {
@@ -484,7 +484,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -500,10 +500,10 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (v) => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, (v) => {
       events.push(`W:${v.getVertexData()}`);
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_SUBGRAPH_COMPLETION_READY,
       (v) => {
         events.push(`C:${v.getVertexData()}`);
@@ -522,7 +522,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test(`${Constructor.name} disabling bundle discovery closes C while retaining its dependent`, async () => {
     const events: string[] = [];
     const traversal = new Constructor<G>({ dagDiscoverySource: bundleGraph() });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (v) => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, (v) => {
       events.push(`W:${v.getVertexData()}`);
       return v.getVertexData() === 'bundle'
         ? {
@@ -535,7 +535,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           }
         : undefined;
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_SUBGRAPH_COMPLETION_READY,
       (v) => {
         events.push(`C:${v.getVertexData()}`);
@@ -559,10 +559,10 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       const traversal = new Constructor<G>({
         dagDiscoverySource: bundleGraph(),
       });
-      traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (v) => {
+      traversal.registerVisitorForPhase(Order.ON_WORK_READY, (v) => {
         seen.push(v.getVertexData());
       });
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         Order.ON_SUBGRAPH_COMPLETION_READY,
         (v) => {
           if (v.getVertexData() === 'bundle') throw error;
@@ -586,10 +586,10 @@ test('halt during held async C preserves pending completion and releases only af
     maxConcurrentCallbackInvocations: 3,
     dagDiscoverySource: bundleGraph(),
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (v) => {
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, (v) => {
     seen.push(v.getVertexData());
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_SUBGRAPH_COMPLETION_READY,
     async (v) => {
       if (v.getVertexData() === 'bundle') {

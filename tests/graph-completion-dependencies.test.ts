@@ -33,7 +33,7 @@ function setup() {
   const accept = (index: number, result: MakeVertexResult<TestGraph>) =>
     scheduling.acceptVertex(
       {
-        parentVertexHandle: root,
+        parentVertexReference: root,
         parentVertexAtChildResolution: root.getReferencedValue(),
         discoveryDepthInEdges: 1,
         parentChildHintIndex: index,
@@ -108,7 +108,7 @@ test('deleting a prerequisite cascades C dependents and tombstones later arrival
   expect(container.store.getIdState('future')).toEqual({ kind: 'deleted' });
   expect(container.liveResolvedGraphView.getChildrenOf(root)).toEqual([]);
   expect(
-    container.preCommandDiscoveredGraphView!.getVertexHandleByIdOrNull('join'),
+    container.livePreCommandDiscoveredGraphView!.getVertexHandleByIdOrNull('join'),
   ).not.toBeNull();
 });
 
@@ -231,7 +231,7 @@ test('an ordinary root gated on a deleted prerequisite is tombstoned before admi
   expect(scheduling.takeReady()).toBeNull();
   expect(container.store.getIdState('root')).toEqual({ kind: 'deleted' });
   expect(container.liveResolvedGraphView.getRoot()).toBeNull();
-  expect(container.preCommandDiscoveredGraphView!.getVertexHandles()).toEqual(
+  expect(container.livePreCommandDiscoveredGraphView!.getVertexHandles()).toEqual(
     [],
   );
 });

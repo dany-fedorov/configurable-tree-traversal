@@ -47,7 +47,7 @@ const index: number =
 const operation:
   | 'resolveRootVertex'
   | 'resolveChildVertexFromHint'
-  | 'resolveChildHint'
+  | 'resolveChildVertexFromHint'
   | 'resolvePrerequisiteByVertexId'
   | 'transformChildHintsBeforeResolution'
   | 'tryGetVertexIdentityFromHint'

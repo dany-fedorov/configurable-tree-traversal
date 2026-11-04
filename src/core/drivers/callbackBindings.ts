@@ -5,9 +5,9 @@ import {
 } from './normalizeSourceResult';
 import type {
   DagSourceVertexResolution,
-  TreeVertexResolution,
+  TreeSourceVertexResolution,
 } from '@core/TraversableTree';
-import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext } from '@core/ResolvedTree';
 import type {
   MakeVertexResult,
   TreeDiscoverySource,
@@ -41,7 +41,7 @@ export interface BoundSource<
   ): MaybePromise<MakeVertexResult<InputVertexTypes> | undefined>;
   resolveRoot(): MaybePromise<MakeVertexResult<InputVertexTypes>>;
   resolveChild(
-    context: InternalChildDiscoveryContext<
+    context: MutableTreeChildDiscoveryContext<
       InputVertexTypes | RewrittenVertexTypes
     >,
   ): MaybePromise<MakeVertexResult<InputVertexTypes>>;
@@ -76,7 +76,7 @@ function normalizeVertexResult<
 function validateTreeResult<
   InputVertexTypes extends VertexDataAndChildHintTypes,
 >(
-  result: MaybePromise<TreeVertexResolution<InputVertexTypes>>,
+  result: MaybePromise<TreeSourceVertexResolution<InputVertexTypes>>,
   runnerName?: string,
 ): MaybePromise<MakeVertexResult<InputVertexTypes>> {
   return mapSourceResult(
@@ -124,8 +124,8 @@ export function bindTreeSource<
             childDiscoveryContext: resolutionContextView(context)!,
             liveResolvedTreeView:
               treeContainer.resolvedTree.getLiveReadOnlyTreeView(),
-            preCommandDiscoveredTreeView:
-              treeContainer.preCommandDiscoveredTreeView?.getLiveReadOnlyTreeView() ??
+            livePreCommandDiscoveredTreeView:
+              treeContainer.livePreCommandDiscoveredTreeView?.getLiveReadOnlyTreeView() ??
               null,
           },
         ),
@@ -154,22 +154,24 @@ export function bindGraphSource<
       mapSourceResult(adapter.resolveRootVertex(), normalizeVertexResult),
     resolveChild: (context) =>
       mapSourceResult(
-        adapter.resolveChildHint(
+        adapter.resolveChildVertexFromHint(
           asInputHint<InputVertexTypes, RewrittenVertexTypes>(
             context.childDiscoveryHint,
           ),
           {
             structuralChildResolution:
-              context.parentVertexHandle === container.syntheticRootRef
+              context.parentVertexReference === container.syntheticRootRef
                 ? Object.freeze({
-                    ...context,
+                    discoveryDepthInEdges: context.discoveryDepthInEdges,
+                    parentChildHintIndex: context.parentChildHintIndex,
+                    childDiscoveryHint: context.childDiscoveryHint,
                     parentVertexAtChildResolution: null,
                     parentVertexHandle: null,
                   })
                 : resolutionContextView(context)!,
             liveResolvedGraphView: container.publicResolvedGraph,
-            preCommandDiscoveredGraphView:
-              container.preCommandDiscoveredGraphView,
+            livePreCommandDiscoveredGraphView:
+              container.livePreCommandDiscoveredGraphView,
           },
         ),
         normalizeVertexResult,

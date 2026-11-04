@@ -27,7 +27,7 @@ const source = {
       vertexContentInput: { $vertexData: '', $childDiscoveryHints: ['a', 'b'] },
     },
   }),
-  resolveChildHint: (id: string) => ({
+  resolveChildVertexFromHint: (id: string) => ({
     kind: 'vertexResolved' as const,
     resolvedVertexInput: {
       vertexId: id,
@@ -219,7 +219,7 @@ test('wrapping requires external settlement and does not claim or run the runner
 test('sync cooperative pause preserves callback continuation', () => {
   const traversal = new DagTraversalBuilder<G, G, string>(options);
   const visited: string[] = [];
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
     visited.push(vertex.getVertexData());
     expect(coordinator.requestPauseAfterAdmittedCallbacksDrain()).toBe(true);
     expect(coordinator.requestPauseAfterAdmittedCallbacksDrain()).toBe(false);
@@ -236,7 +236,7 @@ test('async pause drains admitted callbacks and concurrent advance keeps runner 
   const entered = deferred<void>();
   const release = deferred<void>();
   const traversal = new AsyncDagTraversalBuilder<G, G, string>(options);
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, async () => {
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, async () => {
     entered.resolve();
     await release.promise;
   });
@@ -274,7 +274,7 @@ test('deleted work rejects previously issued tickets as stale', () => {
           },
         },
       }),
-      resolveChildHint: (id) => ({
+      resolveChildVertexFromHint: (id) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: id,
@@ -288,7 +288,7 @@ test('deleted work rejects previously issued tickets as stale', () => {
     },
     discoveryTiming: 'completeBeforeAnyVisitor',
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) =>
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) =>
     vertex.getVertexData() === 'parent'
       ? {
           commands: [
@@ -329,7 +329,7 @@ for (const async of [false, true]) {
               },
             },
           }),
-          resolveChildHint: () => ({
+          resolveChildVertexFromHint: () => ({
             omittedVertexIdentity: null,
             kind: 'vertexIntentionallyOmitted' as const,
             satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -383,7 +383,7 @@ for (const async of [false, true]) {
       const traversal = async
         ? new AsyncDagTraversalBuilder<G>(input)
         : new DagTraversalBuilder<G>(input);
-      traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+      traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => {
         throw error;
       });
       const coordinator =

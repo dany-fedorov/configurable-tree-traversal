@@ -1,5 +1,5 @@
 import type { MutableValueReference } from '@core/CTTRef';
-import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
@@ -26,7 +26,7 @@ export class BreadthFirstTraversalRunnerState<
   InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
   RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > {
-  queue: InternalChildDiscoveryContext<
+  queue: MutableTreeChildDiscoveryContext<
     InputVertexTypes | RewrittenVertexTypes
   >[];
   queueIndex: number;

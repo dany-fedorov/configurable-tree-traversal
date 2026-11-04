@@ -130,13 +130,13 @@ const runner = new DagTraversalBuilder<T, T, string | undefined>({
       omittedVertexIdentity: { vertexId: undefined },
       satisfiesWorkAndSubgraphCompletionPrerequisites: true,
     }),
-    resolveChildHint: () => ({
+    resolveChildVertexFromHint: () => ({
       kind: 'vertexIntentionallyOmitted',
       omittedVertexIdentity: null,
       satisfiesWorkAndSubgraphCompletionPrerequisites: true,
     }),
   },
-  undeclaredWorkPrerequisitePolicy: 'none',
+  undeclaredWorkToWorkPrerequisitePolicy: 'none',
 }).createIndependentRunnerFromCurrentOptions();
 const explanation = runner
   .captureMilestoneSnapshot()

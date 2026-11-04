@@ -19,7 +19,7 @@ const traversal = new DagTraversalBuilder<Build>({
         },
       },
     }),
-    resolveChildHint: (id) => ({
+    resolveChildVertexFromHint: (id) => ({
       kind: 'vertexResolved' as const,
       resolvedVertexInput: {
         vertexId: id,
@@ -39,10 +39,10 @@ const traversal = new DagTraversalBuilder<Build>({
     }),
   },
 });
-traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
   events.push(`work:${vertex.getVertexData()}`);
 });
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   Order.ON_SUBGRAPH_COMPLETION_READY,
   (vertex) => {
     events.push(`complete:${vertex.getVertexData()}`);

@@ -1,5 +1,5 @@
 import type { MutableValueReference } from '@core/CTTRef';
-import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
@@ -33,7 +33,7 @@ type PopStackResult<
   | { stackIsEmpty: true; vertexContext: null }
   | {
       stackIsEmpty: false;
-      vertexContext: InternalChildDiscoveryContext<
+      vertexContext: MutableTreeChildDiscoveryContext<
         InputVertexTypes | RewrittenVertexTypes
       >;
     };
@@ -43,7 +43,7 @@ export class DepthFirstTraversalRunnerState<
   RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 > {
   STACK: Array<
-    InternalChildDiscoveryContext<InputVertexTypes | RewrittenVertexTypes>
+    MutableTreeChildDiscoveryContext<InputVertexTypes | RewrittenVertexTypes>
   >;
   postOrderNotVisitedChildrenCountMap: Map<
     MutableValueReference<Vertex<InputVertexTypes | RewrittenVertexTypes>>,
@@ -133,7 +133,7 @@ export class DepthFirstTraversalRunnerState<
     parentVertexRef: MutableValueReference<
       Vertex<InputVertexTypes | RewrittenVertexTypes>
     >,
-    newEntries: InternalChildDiscoveryContext<
+    newEntries: MutableTreeChildDiscoveryContext<
       InputVertexTypes | RewrittenVertexTypes
     >[],
   ): void {
@@ -145,22 +145,22 @@ export class DepthFirstTraversalRunnerState<
 
   popStack(): PopStackResult<InputVertexTypes, RewrittenVertexTypes> {
     while (this.STACK.length > 0) {
-      const vertexContext = this.STACK.pop() as InternalChildDiscoveryContext<
+      const vertexContext = this.STACK.pop() as MutableTreeChildDiscoveryContext<
         InputVertexTypes | RewrittenVertexTypes
       >;
       /**
        * Update ranges
        */
       const [i0] = this.vertexRefStackChildrenHintsRanges.get(
-        vertexContext.parentVertexHandle,
+        vertexContext.parentVertexReference,
       ) as [number, number];
       if (this.STACK.length <= i0) {
         this.vertexRefStackChildrenHintsRanges.delete(
-          vertexContext.parentVertexHandle,
+          vertexContext.parentVertexReference,
         );
       } else {
         this.vertexRefStackChildrenHintsRanges.set(
-          vertexContext.parentVertexHandle,
+          vertexContext.parentVertexReference,
           [i0, this.STACK.length],
         );
       }
@@ -168,7 +168,7 @@ export class DepthFirstTraversalRunnerState<
        * Check if it was disabled by a command
        */
       if (
-        this.subtreeTraversalDisabledRefs.has(vertexContext.parentVertexHandle)
+        this.subtreeTraversalDisabledRefs.has(vertexContext.parentVertexReference)
       ) {
         continue;
       }

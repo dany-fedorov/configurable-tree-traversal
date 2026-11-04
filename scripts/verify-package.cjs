@@ -102,10 +102,10 @@ try {
       discoveryTiming: "completeBeforeAnyVisitor", sourceRootIsHiddenEntryHolder: true, acceptedCompletedWorkVertexIds: new Set(['design']),
       dagDiscoverySource: {
         resolveRootVertex: () => ({ kind: "vertexResolved", resolvedVertexInput: { vertexContentInput: { $vertexData: '', $childDiscoveryHints: ['design', 'build'] } } }),
-        resolveChildHint: id => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: id, workWaitsForWorkOf: id === 'build' ? ['design'] : [], vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] } } }),
+        resolveChildVertexFromHint: id => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: id, workWaitsForWorkOf: id === 'build' ? ['design'] : [], vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] } } }),
       },
     });
-    progress.registerVisitorCallbackForPhase(dag.DagVisitorPhase.ON_WORK_READY, () => ({ commands: [{ commandName: lib.TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
+    progress.registerVisitorForPhase(dag.DagVisitorPhase.ON_WORK_READY, () => ({ commands: [{ commandName: lib.TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
     const progressRunner = progress.createIndependentRunnerFromCurrentOptions().runUntilSuspendedOrTerminal();
     assert.deepEqual(progressRunner.captureProgressSnapshot().workVisitorReadyOrWorkCompletionDeferredVertexIds, ['build']);
     const settlementToken = progressRunner.captureProgressSnapshot().progressByVertexId.get('build').settlementToken;
@@ -116,11 +116,11 @@ try {
 
     const completion = new dag.DagTraversalBuilder({ dagDiscoverySource: {
       resolveRootVertex: () => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: 'root', vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: ['join', 'bundle'] } } }),
-      resolveChildHint: id => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: id, ...(id === 'join' ? { workWaitsForSubgraphCompletionOf: ['bundle'] } : {}), vertexContentInput: { $vertexData: id, $childDiscoveryHints: id === 'bundle' ? ['compile'] : [] } } }),
+      resolveChildVertexFromHint: id => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: id, ...(id === 'join' ? { workWaitsForSubgraphCompletionOf: ['bundle'] } : {}), vertexContentInput: { $vertexData: id, $childDiscoveryHints: id === 'bundle' ? ['compile'] : [] } } }),
     } });
     const completeEvents = [];
-    completion.registerVisitorCallbackForPhase(dag.DagVisitorPhase.ON_WORK_READY, v => { completeEvents.push('W:' + v.getVertexData()); });
-    completion.registerVisitorCallbackForPhase(dag.DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY, v => { completeEvents.push('C:' + v.getVertexData()); });
+    completion.registerVisitorForPhase(dag.DagVisitorPhase.ON_WORK_READY, v => { completeEvents.push('W:' + v.getVertexData()); });
+    completion.registerVisitorForPhase(dag.DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY, v => { completeEvents.push('C:' + v.getVertexData()); });
     const completionRunner = completion.createIndependentRunnerFromCurrentOptions().runUntilSuspendedOrTerminal();
     assert(completeEvents.indexOf('W:join') > completeEvents.indexOf('C:bundle'));
     assert(completeEvents.indexOf('C:bundle') > completeEvents.indexOf('C:compile'));
@@ -130,7 +130,7 @@ try {
     const lookupCalls = [];
     const lookupRunner = new dag.DagTraversalBuilder({ dagDiscoverySource: {
       resolveRootVertex: () => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: 'app', workWaitsForSubgraphCompletionOf: ['parser'], vertexContentInput: { $vertexData: 'app', $childDiscoveryHints: [] } } }),
-      resolveChildHint: () => ({ omittedVertexIdentity: null, kind: "vertexIntentionallyOmitted", satisfiesWorkAndSubgraphCompletionPrerequisites: true }),
+      resolveChildVertexFromHint: () => ({ omittedVertexIdentity: null, kind: "vertexIntentionallyOmitted", satisfiesWorkAndSubgraphCompletionPrerequisites: true }),
       resolvePrerequisiteByVertexId: id => { lookupCalls.push(id); return { kind: "vertexResolved", resolvedVertexInput: { workWaitsForWorkOf: id === 'parser' ? ['lexer'] : [], vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] } } }; },
     } }).createIndependentRunnerFromCurrentOptions().runUntilSuspendedOrTerminal();
     assert.deepEqual(lookupCalls, ['parser', 'lexer']);
@@ -228,16 +228,16 @@ try {
         };
         const graph = {
           resolveRootVertex: () => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: 'app', workWaitsForSubgraphCompletionOf: ['build'], vertexContentInput: { $vertexData: 'app', $childDiscoveryHints: ['seed'] } } }),
-          resolveChildHint: id => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: id, vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] } } }),
+          resolveChildVertexFromHint: id => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: id, vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] } } }),
           resolvePrerequisiteByVertexId: mode === 'async' ? async id => resolved(id) : resolved,
         };
         const Constructor = mode === 'async' ? implementation.AsyncDagTraversalBuilder : implementation.DagTraversalBuilder;
         const traversal = new Constructor({ discoveryTiming: 'completeBeforeAnyVisitor', acceptedCompletedWorkVertexIds: new Set(['seed']), dagDiscoverySource: graph });
-        traversal.registerVisitorCallbackForPhase(implementation.DagVisitorPhase.ON_WORK_READY, vertex => {
+        traversal.registerVisitorForPhase(implementation.DagVisitorPhase.ON_WORK_READY, vertex => {
           events.push('W:' + vertex.getVertexData());
           if (vertex.getVertexData() === 'build') return { commands: [{ commandName: sentinel }] };
         });
-        traversal.registerVisitorCallbackForPhase(implementation.DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY, vertex => { events.push('C:' + vertex.getVertexData()); });
+        traversal.registerVisitorForPhase(implementation.DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY, vertex => { events.push('C:' + vertex.getVertexData()); });
         const runner = traversal.createIndependentRunnerFromCurrentOptions();
         const CjsBuilder = cjs[mode === 'async' ? 'AsyncDagTraversalBuilder' : 'DagTraversalBuilder'];
         const counterpart = new CjsBuilder({ dagDiscoverySource: graph }).createIndependentRunnerFromCurrentOptions();
@@ -260,8 +260,8 @@ try {
       }
     }
 
-    const deferredTraversal = new AsyncDagTraversalBuilder({ dagDiscoverySource: { resolveRootVertex: () => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: 'task', vertexContentInput: { $vertexData: 'task', $childDiscoveryHints: [] } } }), resolveChildHint: () => ({ omittedVertexIdentity: null, kind: "vertexIntentionallyOmitted", satisfiesWorkAndSubgraphCompletionPrerequisites: true }) } });
-    deferredTraversal.registerVisitorCallbackForPhase(DagVisitorPhase.ON_WORK_READY, () => ({ commands: [{ commandName: esm.TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
+    const deferredTraversal = new AsyncDagTraversalBuilder({ dagDiscoverySource: { resolveRootVertex: () => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: 'task', vertexContentInput: { $vertexData: 'task', $childDiscoveryHints: [] } } }), resolveChildVertexFromHint: () => ({ omittedVertexIdentity: null, kind: "vertexIntentionallyOmitted", satisfiesWorkAndSubgraphCompletionPrerequisites: true }) } });
+    deferredTraversal.registerVisitorForPhase(DagVisitorPhase.ON_WORK_READY, () => ({ commands: [{ commandName: esm.TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
     const deferredRunner = deferredTraversal.createIndependentRunnerFromCurrentOptions();
     await deferredRunner.runUntilSuspendedOrTerminal();
     assert.deepEqual(deferredRunner.captureProgressSnapshot().workCompletionDeferredVertexIds, ['task']);
@@ -272,20 +272,20 @@ try {
     const lookupEvents = [];
     const lookupTraversal = new AsyncDagTraversalBuilder({ dagDiscoverySource: {
       resolveRootVertex: () => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: 'app', workWaitsForWorkOf: ['parser'], vertexContentInput: { $vertexData: 'app', $childDiscoveryHints: [] } } }),
-      resolveChildHint: () => ({ omittedVertexIdentity: null, kind: "vertexIntentionallyOmitted", satisfiesWorkAndSubgraphCompletionPrerequisites: true }),
+      resolveChildVertexFromHint: () => ({ omittedVertexIdentity: null, kind: "vertexIntentionallyOmitted", satisfiesWorkAndSubgraphCompletionPrerequisites: true }),
       resolvePrerequisiteByVertexId: async id => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: id, vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] } } }),
     } });
-    lookupTraversal.registerVisitorCallbackForPhase(DagVisitorPhase.ON_WORK_READY, v => { lookupEvents.push(v.getVertexData()); });
+    lookupTraversal.registerVisitorForPhase(DagVisitorPhase.ON_WORK_READY, v => { lookupEvents.push(v.getVertexData()); });
     await lookupTraversal.createIndependentRunnerFromCurrentOptions().runUntilSuspendedOrTerminal();
     assert.deepEqual(lookupEvents, ['parser', 'app']);
 
     const completionEvents = [];
     const completionTraversal = new AsyncDagTraversalBuilder({ discoveryTiming: "completeBeforeAnyVisitor", dagDiscoverySource: {
       resolveRootVertex: () => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: 'bundle', workWaitsForSubgraphCompletionOf: ['compile'], vertexContentInput: { $vertexData: 'bundle', $childDiscoveryHints: ['compile'] } } }),
-      resolveChildHint: id => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: id, workWaitsForWorkOf: [], vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] } } }),
+      resolveChildVertexFromHint: id => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: id, workWaitsForWorkOf: [], vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] } } }),
     } });
-    completionTraversal.registerVisitorCallbackForPhase(DagVisitorPhase.ON_WORK_READY, v => { completionEvents.push('W:' + v.getVertexData()); });
-    completionTraversal.registerVisitorCallbackForPhase(DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY, async v => { await Promise.resolve(); completionEvents.push('C:' + v.getVertexData()); });
+    completionTraversal.registerVisitorForPhase(DagVisitorPhase.ON_WORK_READY, v => { completionEvents.push('W:' + v.getVertexData()); });
+    completionTraversal.registerVisitorForPhase(DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY, async v => { await Promise.resolve(); completionEvents.push('C:' + v.getVertexData()); });
     await completionTraversal.createIndependentRunnerFromCurrentOptions().runUntilSuspendedOrTerminal();
     assert.deepEqual(completionEvents, ['W:compile', 'C:compile', 'W:bundle', 'C:bundle']);
 
@@ -294,7 +294,7 @@ try {
         resolveRootVertex: async () => ({ kind: "vertexResolved", resolvedVertexInput: {
           vertexId: 'root', vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
         } }),
-        resolveChildHint: async () => ({ omittedVertexIdentity: null, kind: "vertexIntentionallyOmitted", satisfiesWorkAndSubgraphCompletionPrerequisites: true }),
+        resolveChildVertexFromHint: async () => ({ omittedVertexIdentity: null, kind: "vertexIntentionallyOmitted", satisfiesWorkAndSubgraphCompletionPrerequisites: true }),
       },
     }).createIndependentRunnerFromCurrentOptions();
     const orders = [];
@@ -341,7 +341,7 @@ try {
       resolveChildVertexFromHint: hint => hint === null ? { kind: "vertexIntentionallyOmitted" } : { kind: "vertexResolved", resolvedVertexInput: { vertexContentInput: hint } },
     };
     const abstractTraversal = new DepthFirstTreeTraversalBuilder({ treeDiscoverySource: abstractTree });
-    abstractTraversal.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, () => ({
+    abstractTraversal.registerVisitorForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, () => ({
       commands: [{
         commandName: TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA,
         commandArguments: { replacementVertexData: 'changed' },
@@ -385,7 +385,7 @@ try {
     for (const { vertex } of bfs.runAndIterateObservationEventsUntilSuspendedOrTerminal()) { const key: string | number | symbol = vertex.getVertexData().propertyKey; void key; }
     const graph: DagDiscoverySource<Tree> = {
       resolveRootVertex: () => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: 'root', workWaitsForSubgraphCompletionOf: [] as readonly VertexId[], vertexContentInput: abstractRoot } }),
-      resolveChildHint: hint => hint === null ? { omittedVertexIdentity: null, kind: "vertexIntentionallyOmitted", satisfiesWorkAndSubgraphCompletionPrerequisites: true } : { kind: "vertexResolved", resolvedVertexInput: { vertexId: hint, vertexContentInput: hint } },
+      resolveChildVertexFromHint: hint => hint === null ? { omittedVertexIdentity: null, kind: "vertexIntentionallyOmitted", satisfiesWorkAndSubgraphCompletionPrerequisites: true } : { kind: "vertexResolved", resolvedVertexInput: { vertexId: hint, vertexContentInput: hint } },
       tryGetVertexIdentityFromHint: hint => ({ vertexId: hint }),
       resolvePrerequisiteByVertexId: id => id === undefined ? { kind: 'missing' } : { kind: "vertexResolved", resolvedVertexInput: { vertexId: id, vertexContentInput: abstractRoot } },
     };
@@ -397,7 +397,7 @@ try {
     const asyncBreadth = new AsyncBreadthFirstTreeTraversalBuilder({ treeDiscoverySource: abstractTree }).createIndependentRunnerFromCurrentOptions();
     const asyncDag = new AsyncDagTraversalBuilder({ dagDiscoverySource: asyncGraph, maxConcurrentCallbackInvocations: 2 }).createIndependentRunnerFromCurrentOptions();
     const progressTraversal = new DagTraversalBuilder({ dagDiscoverySource: graph, acceptedCompletedWorkVertexIds: new Set<VertexId>(), discoveryTiming: "completeBeforeAnyVisitor", sourceRootIsHiddenEntryHolder: true });
-    progressTraversal.registerVisitorCallbackForPhase(DagVisitorPhase.ON_WORK_READY, () => ({ commands: [{ commandName: Command.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
+    progressTraversal.registerVisitorForPhase(DagVisitorPhase.ON_WORK_READY, () => ({ commands: [{ commandName: Command.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
     const progressRunner = progressTraversal.createIndependentRunnerFromCurrentOptions();
     const captureProgressSnapshot: DagProgressSnapshot = progressRunner.captureProgressSnapshot();
     const subpathSummary: SubpathSummary = asyncDag.captureProgressSnapshot();
@@ -412,7 +412,7 @@ try {
     const settlement: boolean = progressRunner.settleDeferredWork('root', outcome, settlementToken);
     const asyncSettlement: boolean = asyncDag.settleDeferredWork('root', { kind: 'workCompleted' }, settlementToken);
     // @ts-expect-error tree visitor return types remain narrow
-    abstractTraversal.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, () => ({ commands: [{ commandName: Command.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
+    abstractTraversal.registerVisitorForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, () => ({ commands: [{ commandName: Command.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
     void [subpathSummary, state, settlement, asyncSettlement];
     const inspection: TreeOrDagExecutionSnapshot = asyncDag.captureExecutionSnapshot();
     const publicTypes: [VertexId, ChildHintVertexIdentity, MaybePromise<string>, VertexVisitSchedulingStage, StructuralChildEdge<Tree> | null, ChildDiscoverySlot<Tree> | null, ResolvedGraphVertexSnapshot<Tree> | null, CoreVertexId, CoreHintVertexId, CoreMaybePromise<string>, CoreGraphVertexStatus, CoreGraphEdge<Tree> | null, CoreChildSlot<Tree> | null, CoreGraphVertex<Tree> | null] = ['id', { vertexId: 'id' }, 'value', 'INITIAL_VISIT_ELIGIBLE', null, null, null, 'core-id', { vertexId: 'core-id' }, Promise.resolve('value'), "COMPLETION_VISIT_COMMITTED", null, null, null];
@@ -458,7 +458,7 @@ try {
     const defaultCommands: typeof Command = namespace.TraversalVisitorCommandName;
     const graph: DagDiscoverySource<Tree> = {
       resolveRootVertex: () => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: 'app', workWaitsForSubgraphCompletionOf: ['build'] as readonly VertexId[], vertexContentInput: { $vertexData: 'app', $childDiscoveryHints: [] } } }),
-      resolveChildHint: id => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: id, vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] } } }),
+      resolveChildVertexFromHint: id => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: id, vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] } } }),
       resolvePrerequisiteByVertexId: id => ({ kind: "vertexResolved", resolvedVertexInput: { vertexId: id, vertexContentInput: { $vertexData: String(id), $childDiscoveryHints: [] } } }),
     };
     const asyncGraph: AsyncDagDiscoverySource<Tree> = { ...graph, resolvePrerequisiteByVertexId: async id => graph.resolvePrerequisiteByVertexId!(id) };
@@ -473,20 +473,20 @@ try {
     const fromEsmVertex: vertexCjs.Vertex<Tree> = new Vertex<Tree>({ $vertexData: '', $childDiscoveryHints: [] });
     const fromCjsVertex: CoreVertex<Tree> = new vertexCjs.Vertex<Tree>({ $vertexData: '', $childDiscoveryHints: [] });
     const coreVertex: core.Vertex<Tree> = fromCjsVertex;
-    fromCjs.registerVisitorCallbackForPhase(cjs.DagVisitorPhase.ON_WORK_READY, () => ({ commands: [{ commandName: Command.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
-    fromEsm.registerVisitorCallbackForPhase(DagVisitorPhase.ON_WORK_READY, () => ({ commands: [{ commandName: cjs.TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
+    fromCjs.registerVisitorForPhase(cjs.DagVisitorPhase.ON_WORK_READY, () => ({ commands: [{ commandName: Command.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
+    fromEsm.registerVisitorForPhase(DagVisitorPhase.ON_WORK_READY, () => ({ commands: [{ commandName: cjs.TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
     const asyncEsm: cjs.AsyncDagTraversalBuilder<Tree> = new AsyncDagTraversalBuilder({ dagDiscoverySource: asyncGraph });
     const asyncCjs: AsyncDagTraversalBuilder<Tree> = new cjs.AsyncDagTraversalBuilder({ dagDiscoverySource: asyncGraph });
-    asyncEsm.registerVisitorCallbackForPhase(DagVisitorPhase.ON_WORK_READY, async () => ({ commands: [{ commandName: cjs.TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
+    asyncEsm.registerVisitorForPhase(DagVisitorPhase.ON_WORK_READY, async () => ({ commands: [{ commandName: cjs.TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
     // @ts-expect-error sync resolvers cannot return promises
     const invalidGraph: DagDiscoverySource<Tree> = { ...graph, resolvePrerequisiteByVertexId: async id => graph.resolvePrerequisiteByVertexId!(id) };
     // @ts-expect-error arbitrary symbols are not visitor command results
-    fromEsm.registerVisitorCallbackForPhase(DagVisitorPhase.ON_WORK_READY, () => Symbol('DEFER_READY'));
+    fromEsm.registerVisitorForPhase(DagVisitorPhase.ON_WORK_READY, () => Symbol('DEFER_READY'));
     // @ts-expect-error sync visitors cannot return promises
-    fromEsm.registerVisitorCallbackForPhase(DagVisitorPhase.ON_WORK_READY, async () => ({ commands: [{ commandName: cjs.TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
+    fromEsm.registerVisitorForPhase(DagVisitorPhase.ON_WORK_READY, async () => ({ commands: [{ commandName: cjs.TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
     const treeTraversal = new DepthFirstTreeTraversalBuilder({ treeDiscoverySource: new ObjectPropertyTreeSource({ a: 1 }) });
     // @ts-expect-error tree visitors cannot defer DAG work
-    treeTraversal.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, () => ({ commands: [{ commandName: Command.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
+    treeTraversal.registerVisitorForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, () => ({ commands: [{ commandName: Command.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION }] }));
     void [esmCommands, cjsCommands, defaultCommands, fromSubpath, fromDefault, captureProgressSnapshot, cjsSummary, fromEsmVertex, coreVertex, asyncEsm, asyncCjs, invalidGraph];
   `,
   );

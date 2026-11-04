@@ -36,7 +36,7 @@ for (const traversal of [
   new DagTraversalBuilder(source),
   new AsyncDagTraversalBuilder(source),
 ]) {
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DagVisitorPhase.ON_WORK_READY,
     (vertex, options) => {
       const item: Item = vertex.getVertexData();

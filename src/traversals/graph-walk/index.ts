@@ -46,7 +46,7 @@ export type {
   GraphWalkTerminalOutcome,
   GraphWalkProgressSnapshot,
 } from './lib/GraphWalkSummary';
-export type { GraphWalkInspection } from './lib/GraphWalkInspection';
+export type { GraphWalkExecutionSnapshot } from './lib/GraphWalkExecutionSnapshot';
 export {
   materializeGraphWalkSourceFromVertexRecords,
   materializeSynchronousGraphWalkSourceFromAsyncRecords,

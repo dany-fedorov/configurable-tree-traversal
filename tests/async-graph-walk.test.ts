@@ -174,7 +174,7 @@ it.each([false, true])(
     expect(opened).toEqual(['A', 'B']);
     expect(resolved).toEqual(fallback ? ['B'] : []);
     expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
-      kind: 'sourceRoutesExhausted',
+      kind: 'explorationExhausted',
     });
   },
 );
@@ -242,7 +242,7 @@ it('registration and configure changes snapshot async callbacks and detach liste
     calls.push('old');
   };
   expect(
-    walk.addVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, visit, {
+    walk.registerVisitorForObservationKind(Phase.VERTEX_OCCURRENCE, visit, {
       descendingExecutionPriorityWithinGroup: 5,
     }),
   ).toBe(walk);
@@ -256,10 +256,10 @@ it('registration and configure changes snapshot async callbacks and detach liste
     walk.listVisitorRegistrationsForObservationKind(Phase.VERTEX_OCCURRENCE),
   ).toHaveLength(1);
   expect(
-    walk.replaceVisitorsForObservationKind(Phase.VERTEX_OCCURRENCE, []),
+    walk.replaceVisitorDefinitionsForObservationKind(Phase.VERTEX_OCCURRENCE, []),
   ).toBe(walk);
   expect(
-    walk.addVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
+    walk.appendVisitorGroupForObservationKind(Phase.VERTEX_OCCURRENCE, {
       visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
       visitors: [
         async () => {
@@ -329,7 +329,7 @@ it('accepts resolved thenables from async sources, predicates and visitors', asy
   await runner.runUntilSuspendedOrTerminal();
   expect(seen).toEqual(['A']);
   expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
 });
 

@@ -45,7 +45,7 @@ rewriteObject<number, string, number, unknown, symbol, string>(1, {
     // @ts-expect-error Live paths include output keys.
     const path: string[] = context.requirePropertyKeyPathFromRoot();
     const originalValue: number = context
-      .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+      .livePreCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
       .getCurrentVertexView()
       .getVertexData().propertyValue;
     const assembled: unknown = prop.assembledValueFromCurrentChildren;
@@ -287,7 +287,7 @@ const hybridResult = rewriteObject<
       void stringOnly;
     }
     const original: number = context
-      .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+      .livePreCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
       .getCurrentVertexView()
       .getVertexData().propertyValue;
     void original;
@@ -645,7 +645,7 @@ const assembledOutput: unknown = bindMetadata(
   ...metadataArgs,
 ).assembleCompositeFromCurrentChildren();
 const retainedMetadata: MetaInputProp = metadataArgs[1]
-  .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+  .livePreCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
   .getCurrentVertexView()
   .getVertexData();
 void [mixedValue, mixedKey, mixedMetadata, assembledOutput, retainedMetadata];

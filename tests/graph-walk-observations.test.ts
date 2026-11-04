@@ -42,7 +42,7 @@ it('observes vertices and every parallel/returning relationship in one pass', ()
   ]);
   expect(runner.captureProgressSnapshot()).toEqual({
     status: TraversalRunnerStatus.FINISHED,
-    terminalOutcome: { kind: 'sourceRoutesExhausted' },
+    terminalOutcome: { kind: 'explorationExhausted' },
     counts: {
       rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 14,
       admittedRootOrLinkTargetOccurrences: 8,
@@ -303,6 +303,6 @@ it('acknowledges an existing pause request when the iterator owner returns', () 
   expect(calls).toEqual(before);
   runner.runUntilSuspendedOrTerminal();
   expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
 });

@@ -32,7 +32,7 @@ const source: DagDiscoverySource<G, G, ID> = {
       vertexContentInput: { $vertexData: '', $childDiscoveryHints: [] },
     },
   }),
-  resolveChildHint: (vertexId) => ({
+  resolveChildVertexFromHint: (vertexId) => ({
     kind: 'vertexResolved' as const,
     resolvedVertexInput: {
       vertexId,

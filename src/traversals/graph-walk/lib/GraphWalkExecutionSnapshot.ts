@@ -8,7 +8,7 @@ import type { GraphWalkObservationKind } from '../GraphWalkPhase';
 import type { GraphWalkProgressCounts } from './GraphWalkSummary';
 import type { GraphWalkPendingInvocationOperation } from '../GraphWalkOperation';
 
-export interface GraphWalkInspection extends TraversalExecutionSnapshot {
+export interface GraphWalkExecutionSnapshot extends TraversalExecutionSnapshot {
   readonly traversalAlgorithm: 'graph-walk';
   readonly sourceMode: 'graph';
   readonly concurrency: 1;

@@ -23,10 +23,10 @@ function check(error: unknown) {
   expect(stall.message).toMatch(/^DAG traversal stalled:/);
   expect(stall.diagnostics).toEqual({
     blockedVertexPrerequisiteReports: [
-      { vertexId: 'A', prerequisiteVertexIdsInReport: ['B', 'unknown'] },
-      { vertexId: 'B', prerequisiteVertexIdsInReport: ['A'] },
-      { vertexId: 'C', prerequisiteVertexIdsInReport: ['A'] },
-      { vertexId: 'D', prerequisiteVertexIdsInReport: ['D'] },
+      { vertexId: 'A', unmetPrerequisiteVertexIds: ['B', 'unknown'] },
+      { vertexId: 'B', unmetPrerequisiteVertexIds: ['A'] },
+      { vertexId: 'C', unmetPrerequisiteVertexIds: ['A'] },
+      { vertexId: 'D', unmetPrerequisiteVertexIds: ['D'] },
     ],
     unresolvedPrerequisiteVertexIds: ['unknown'],
     milestoneCycleVertexIdComponents: [['A', 'B'], ['D']],
@@ -76,7 +76,7 @@ test('reports a missing prerequisite separately from its blocked vertex', () => 
   } catch (error) {
     expect((error as DagTraversalStallError).diagnostics).toEqual({
       blockedVertexPrerequisiteReports: [
-        { vertexId: 'task', prerequisiteVertexIdsInReport: ['absent'] },
+        { vertexId: 'task', unmetPrerequisiteVertexIds: ['absent'] },
       ],
       unresolvedPrerequisiteVertexIds: ['absent'],
       milestoneCycleVertexIdComponents: [],
@@ -97,7 +97,7 @@ test('detaches reports and retains hostile and SameValueZero IDs without coercio
     blockedVertexPrerequisiteReports: [
       {
         vertexId: hostile,
-        prerequisiteVertexIdsInReport: [undefined, null, NaN, -0],
+        unmetPrerequisiteVertexIds: [undefined, null, NaN, -0],
       },
     ],
     unresolvedPrerequisiteVertexIds: [undefined, null, NaN, -0],
@@ -106,7 +106,7 @@ test('detaches reports and retains hostile and SameValueZero IDs without coercio
     incompleteVertexIdsWithoutUnmetPrerequisites: [hostile],
   };
   const error = new DagTraversalStallError(diagnostics);
-  diagnostics.blockedVertexPrerequisiteReports[0]!.prerequisiteVertexIdsInReport.length = 0;
+  diagnostics.blockedVertexPrerequisiteReports[0]!.unmetPrerequisiteVertexIds.length = 0;
   diagnostics.unresolvedPrerequisiteVertexIds.length = 0;
   diagnostics.milestoneCycleVertexIdComponents[0]!.length = 0;
   diagnostics.nonCyclePrerequisiteBlockedVertexIds.length = 0;
@@ -114,7 +114,7 @@ test('detaches reports and retains hostile and SameValueZero IDs without coercio
   expect(error.diagnostics.blockedVertexPrerequisiteReports).toEqual([
     {
       vertexId: hostile,
-      prerequisiteVertexIdsInReport: [undefined, null, NaN, -0],
+      unmetPrerequisiteVertexIds: [undefined, null, NaN, -0],
     },
   ]);
   expect(error.diagnostics.unresolvedPrerequisiteVertexIds).toEqual([
@@ -161,7 +161,7 @@ test('diagnoses a deep dependency chain without using the call stack', () => {
           },
         },
       }),
-      resolveChildHint: (id: number) => ({
+      resolveChildVertexFromHint: (id: number) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: id,
@@ -202,7 +202,7 @@ test('scheduler diagnostics preserve arbitrary missing and cyclic IDs', () => {
           },
         },
       }),
-      resolveChildHint: (id: unknown) => ({
+      resolveChildVertexFromHint: (id: unknown) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: id,
@@ -247,7 +247,7 @@ test('keeps undefined first when its cycle was discovered first', () => {
           },
         },
       }),
-      resolveChildHint: (id: unknown) => ({
+      resolveChildVertexFromHint: (id: unknown) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: id,

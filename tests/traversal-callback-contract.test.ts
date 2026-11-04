@@ -88,7 +88,7 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
   });
 
   for (const order of Object.values(DepthFirstTreeVisitPhase)) {
-    traversal.registerVisitorCallbackForPhase(order, (vertex) => {
+    traversal.registerVisitorForPhase(order, (vertex) => {
       trace.push(`visitor:${order}:${vertex.getVertexData()}`);
       if (
         order ===

@@ -161,7 +161,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       }),
     );
     let pending: unknown;
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_SUBGRAPH_COMPLETION_READY,
       () => {
         pending = captureDagMilestoneSnapshot(runner).explainMilestone({
@@ -217,7 +217,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           omittedVertexIdentity: { vertexId: undefined },
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           kind: 'vertexIntentionallyOmitted' as const,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -243,7 +243,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         selectVertexId: (v) => v.id,
       }),
     );
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => ({
       commands: [
         {
           commandName:
@@ -293,7 +293,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (hint: string) => {
+        resolveChildVertexFromHint: (hint: string) => {
           calls++;
           return {
             kind: 'vertexResolved' as const,
@@ -308,7 +308,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         },
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => ({
       commands: [
         { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
       ],
@@ -383,7 +383,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             workWaitsForWorkOf: ['omitted', 'unresolved'],
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           kind: 'vertexIntentionallyOmitted' as const,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -576,7 +576,7 @@ test('a closed vertex does not inherit global discovery incompleteness from anot
           },
         },
       }),
-      resolveChildHint: async (hint: string) => {
+      resolveChildVertexFromHint: async (hint: string) => {
         if (hint === 'pending') {
           pending();
           await gate;

@@ -168,7 +168,7 @@ describe('object rewriting', () => {
     const tree = new ObjectPropertyTreeSource({ a: shared, b: shared });
     const traversal = new BreadthFirstTreeTraversalBuilder({ treeDiscoverySource: tree });
     let visits = 0;
-    traversal.registerVisitorCallbackForPhase(BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX, () => {
+    traversal.registerVisitorForPhase(BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX, () => {
       visits += 1;
       if (visits > 20) {
         throw new Error('cycle test guard exceeded');
@@ -186,7 +186,7 @@ describe('object rewriting', () => {
     const tree = new ObjectPropertyTreeSource(input);
     const traversal = new DepthFirstTreeTraversalBuilder({ treeDiscoverySource: tree });
     let visits = 0;
-    traversal.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, (vertex) => {
+    traversal.registerVisitorForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, (vertex) => {
       visits += 1;
       if (visits > 20) {
         throw new Error('cycle test guard exceeded');
@@ -220,7 +220,7 @@ describe('object rewriting', () => {
       treeDiscoverySource: tree,
     });
     let visits = 0;
-    firstTraversal.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, () => {
+    firstTraversal.registerVisitorForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, () => {
       visits += 1;
       if (visits > 20) {
         throw new Error('cycle test guard exceeded');

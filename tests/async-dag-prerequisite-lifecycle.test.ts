@@ -38,7 +38,7 @@ test('held lookup respects halt and iterator return, stores its reply and resume
           vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
         },
       }),
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         kind: 'vertexIntentionallyOmitted' as const,
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -78,7 +78,7 @@ test('held lookup respects halt and iterator return, stores its reply and resume
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted' as const,
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted' as const,
@@ -124,7 +124,7 @@ for (const removeAll of [false, true]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -139,7 +139,7 @@ for (const removeAll of [false, true]) {
         },
       },
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_SUBGRAPH_COMPLETION_READY,
       async (v) => {
         if (v.getVertexData() === 'a') {
@@ -191,7 +191,7 @@ test('deleting the root invalidates held lookup errors without resurrecting deta
           vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
         },
       }),
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         kind: 'vertexIntentionallyOmitted' as const,
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -202,7 +202,7 @@ test('deleting the root invalidates held lookup errors without resurrecting deta
       },
     },
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_SUBGRAPH_COMPLETION_READY,
     async () => {
       await remove.promise;
@@ -243,7 +243,7 @@ for (const hinted of [false, true]) {
         ...(hinted
           ? { tryGetVertexIdentityFromHint: (id: string) => ({ vertexId: id }) }
           : {}),
-        resolveChildHint: (id) => {
+        resolveChildVertexFromHint: (id) => {
           calls.push(id);
           return {
             kind: 'vertexResolved' as const,
@@ -271,7 +271,7 @@ for (const hinted of [false, true]) {
               }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (v) => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, (v) => {
       events.push(v.getVertexData());
     });
     const runner = traversal.createIndependentRunnerFromCurrentOptions();
@@ -309,7 +309,7 @@ test('resolver calls share the finite callback concurrency ceiling', async () =>
           vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
         },
       }),
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         kind: 'vertexIntentionallyOmitted' as const,
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -353,7 +353,7 @@ for (const error of [undefined, null, { rejected: true }]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           kind: 'vertexIntentionallyOmitted' as const,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -394,7 +394,7 @@ test('fatal lookup failure invalidates queued and started sibling lookups', asyn
           vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
         },
       }),
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         kind: 'vertexIntentionallyOmitted' as const,
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -440,7 +440,7 @@ for (const lookupSource of [false, true]) {
               },
             },
           }),
-          resolveChildHint: (id) =>
+          resolveChildVertexFromHint: (id) =>
             id === 'external'
               ? acceptance.promise
               : {
@@ -459,10 +459,10 @@ for (const lookupSource of [false, true]) {
             : {}),
         },
       });
-      traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (v) =>
+      traversal.registerVisitorForPhase(Order.ON_WORK_READY, (v) =>
         v.getVertexData() === 'dead' ? removed : undefined,
       );
-      traversal.registerVisitorCallbackForPhase(
+      traversal.registerVisitorForPhase(
         Order.ON_SUBGRAPH_COMPLETION_READY,
         async (v) => {
           if (v.getVertexData() === 'consumer') {
@@ -521,7 +521,7 @@ for (const omittedFirst of [false, true]) {
             },
           },
         }),
-        resolveChildHint: (id) =>
+        resolveChildVertexFromHint: (id) =>
           omittedFirst
             ? {
                 kind: 'vertexIntentionallyOmitted',

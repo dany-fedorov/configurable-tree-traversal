@@ -38,7 +38,7 @@ const tree: AsyncTreeDiscoverySource<Input, Output> = {
     void [
       input,
       options.liveResolvedTreeView,
-      options.preCommandDiscoveredTreeView,
+      options.livePreCommandDiscoveredTreeView,
     ];
     return Promise.resolve({ kind: 'vertexIntentionallyOmitted' as const });
   },
@@ -87,7 +87,7 @@ const visitor: AsyncTreeVertexPhaseVisitorCallback<
     ],
   };
 };
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   visitor,
 );
@@ -135,7 +135,7 @@ const breadthVisitor: AsyncTreeVertexPhaseVisitorCallback<
     },
   ],
 });
-breadthTraversal.registerVisitorCallbackForPhase(
+breadthTraversal.registerVisitorForPhase(
   BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
   breadthVisitor,
 );
@@ -159,7 +159,7 @@ const breadthIterable: AsyncGenerator =
   breadthRunner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
 const breadthResult: Promise<typeof breadthRunner> =
   breadthRunner.runUntilSuspendedOrTerminal();
-breadthTraversal.registerVisitorCallbackForPhase(
+breadthTraversal.registerVisitorForPhase(
   BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
   // @ts-expect-error Async BFS visitors must rewrite to the output data type.
   async () => ({
@@ -171,7 +171,7 @@ breadthTraversal.registerVisitorCallbackForPhase(
     ],
   }),
 );
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   // @ts-expect-error Async DFS visitors must rewrite to the output data type.
   async () => ({

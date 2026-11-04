@@ -6,7 +6,7 @@ import type {
 } from './GraphWalkEvent';
 import type { GraphWalkObservationKind } from './GraphWalkPhase';
 import { AsyncWalkSession } from './lib/AsyncWalkSession';
-import type { GraphWalkInspection } from './lib/GraphWalkInspection';
+import type { GraphWalkExecutionSnapshot } from './lib/GraphWalkExecutionSnapshot';
 import type { GraphWalkProgressSnapshot } from './lib/GraphWalkSummary';
 import type { GraphWalkResolvedOptions } from './lib/normalizeWalkOptions';
 import { WalkKernel } from './lib/WalkKernel';
@@ -15,7 +15,7 @@ export interface AsyncGraphWalkRunner<VertexData, EdgeData, VertexId>
   extends AsyncTraversalExecution<
     GraphWalkObservationKind,
     GraphWalkEvent<VertexData, EdgeData, VertexId>,
-    GraphWalkInspection,
+    GraphWalkExecutionSnapshot,
     `${GraphWalkObservationKind}`
   > {
   runAndIterateObservationEventsUntilSuspendedOrTerminal: {

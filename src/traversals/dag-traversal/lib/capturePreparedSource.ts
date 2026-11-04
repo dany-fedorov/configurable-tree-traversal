@@ -107,9 +107,9 @@ export function capturePreparedSource<
           >;
         },
       ),
-    resolveChildHint: (hint, options) =>
+    resolveChildVertexFromHint: (hint, options) =>
       call(
-        () => source.resolveChildHint(hint, options),
+        () => source.resolveChildVertexFromHint(hint, options),
         (value) =>
           record(value, false)! as DagSourceVertexResolution<
             SourceVertexTypes,

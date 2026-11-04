@@ -51,21 +51,21 @@ const syncFamilies = [
     name: 'DFS',
     make: (tree: ReturnType<typeof source>, visit: () => void) =>
       new DepthFirstTreeTraversalBuilder<Tree>({ treeDiscoverySource: tree })
-        .registerVisitorCallbackForPhase(DFS.BEFORE_CHILD_EXPANSION, visit)
+        .registerVisitorForPhase(DFS.BEFORE_CHILD_EXPANSION, visit)
         .createIndependentRunnerFromCurrentOptions(),
   },
   {
     name: 'BFS',
     make: (tree: ReturnType<typeof source>, visit: () => void) =>
       new BreadthFirstTreeTraversalBuilder<Tree>({ treeDiscoverySource: tree })
-        .registerVisitorCallbackForPhase(BFS.AT_LEVEL_ORDER_VERTEX, visit)
+        .registerVisitorForPhase(BFS.AT_LEVEL_ORDER_VERTEX, visit)
         .createIndependentRunnerFromCurrentOptions(),
   },
   {
     name: 'DAG tree',
     make: (tree: ReturnType<typeof source>, visit: () => void) =>
       new DagTraversalBuilder<Tree>({ treeDiscoverySource: tree })
-        .registerVisitorCallbackForPhase(DAG.ON_WORK_READY, visit)
+        .registerVisitorForPhase(DAG.ON_WORK_READY, visit)
         .createIndependentRunnerFromCurrentOptions(),
   },
   {
@@ -74,10 +74,10 @@ const syncFamilies = [
       new DagTraversalBuilder<Tree>({
         dagDiscoverySource: {
           resolveRootVertex: () => tree.resolveRootVertex(),
-          resolveChildHint: (hint) => tree.resolveChildVertexFromHint(hint),
+          resolveChildVertexFromHint: (hint) => tree.resolveChildVertexFromHint(hint),
         },
       })
-        .registerVisitorCallbackForPhase(DAG.ON_WORK_READY, visit)
+        .registerVisitorForPhase(DAG.ON_WORK_READY, visit)
         .createIndependentRunnerFromCurrentOptions(),
   },
 ];
@@ -88,7 +88,7 @@ const asyncFamilies = [
       new AsyncDepthFirstTreeTraversalBuilder<Tree>({
         treeDiscoverySource: tree,
       })
-        .registerVisitorCallbackForPhase(DFS.BEFORE_CHILD_EXPANSION, visit)
+        .registerVisitorForPhase(DFS.BEFORE_CHILD_EXPANSION, visit)
         .createIndependentRunnerFromCurrentOptions(),
   },
   {
@@ -97,14 +97,14 @@ const asyncFamilies = [
       new AsyncBreadthFirstTreeTraversalBuilder<Tree>({
         treeDiscoverySource: tree,
       })
-        .registerVisitorCallbackForPhase(BFS.AT_LEVEL_ORDER_VERTEX, visit)
+        .registerVisitorForPhase(BFS.AT_LEVEL_ORDER_VERTEX, visit)
         .createIndependentRunnerFromCurrentOptions(),
   },
   {
     name: 'DAG tree',
     make: (tree: ReturnType<typeof source>, visit: () => Promise<void>) =>
       new AsyncDagTraversalBuilder<Tree>({ treeDiscoverySource: tree })
-        .registerVisitorCallbackForPhase(DAG.ON_WORK_READY, visit)
+        .registerVisitorForPhase(DAG.ON_WORK_READY, visit)
         .createIndependentRunnerFromCurrentOptions(),
   },
   {
@@ -113,10 +113,10 @@ const asyncFamilies = [
       new AsyncDagTraversalBuilder<Tree>({
         dagDiscoverySource: {
           resolveRootVertex: () => tree.resolveRootVertex(),
-          resolveChildHint: (hint) => tree.resolveChildVertexFromHint(hint),
+          resolveChildVertexFromHint: (hint) => tree.resolveChildVertexFromHint(hint),
         },
       })
-        .registerVisitorCallbackForPhase(DAG.ON_WORK_READY, visit)
+        .registerVisitorForPhase(DAG.ON_WORK_READY, visit)
         .createIndependentRunnerFromCurrentOptions(),
   },
 ];
@@ -272,7 +272,7 @@ test('async pause drains admitted chains and retains undelivered events for the 
       B: { children: [], dependencies: ['root'] },
     }),
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     DAG.ON_WORK_READY,
     async (vertex) => {
       const id = vertex.getVertexData();
@@ -287,7 +287,7 @@ test('async pause drains admitted chains and retains undelivered events for the 
       }
     },
   );
-  traversal.registerVisitorCallbackForPhase(DAG.ON_WORK_READY, (vertex) => {
+  traversal.registerVisitorForPhase(DAG.ON_WORK_READY, (vertex) => {
     visits.push(`${vertex.getVertexData()}:second`);
   });
   const runner = traversal.createIndependentRunnerFromCurrentOptions();
@@ -363,7 +363,7 @@ test.each(queuedSourceFamilies)(
             maxConcurrentCallbackInvocations: 2,
             dagDiscoverySource: {
               resolveRootVertex: () => tree.resolveRootVertex(),
-              resolveChildHint: (hint) => tree.resolveChildVertexFromHint(hint),
+              resolveChildVertexFromHint: (hint) => tree.resolveChildVertexFromHint(hint),
             },
           }).createIndependentRunnerFromCurrentOptions()
         : new TreeTraversal({

@@ -149,10 +149,10 @@ class DagTerminalObservation implements ObservationSource {
           : {
               blockedVertexPrerequisiteReports:
                 invalidDependencyTopologyDiagnostics.blockedVertexPrerequisiteReports.map(
-                  ({ vertexId, prerequisiteVertexIdsInReport }) => ({
+                  ({ vertexId, unmetPrerequisiteVertexIds }) => ({
                     vertexId,
-                    prerequisiteVertexIdsInReport:
-                      prerequisiteVertexIdsInReport.slice(),
+                    unmetPrerequisiteVertexIds:
+                      unmetPrerequisiteVertexIds.slice(),
                   }),
                 ),
               unresolvedPrerequisiteVertexIds:

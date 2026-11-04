@@ -17,10 +17,10 @@ const main = () => {
   const t = new DepthFirstTreeTraversalBuilder({
     treeDiscoverySource: tree,
   });
-  t.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, (v) => {
+  t.registerVisitorForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, (v) => {
     console.log('BEFORE_CHILD_EXPANSION', v.getVertexData());
   });
-  t.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES, (v) => {
+  t.registerVisitorForPhase(DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES, (v) => {
     console.log('AFTER_CHILD_SUBTREES', v.getVertexData());
     if (v.getVertexData().propertyKey === 'a') {
       return {
@@ -33,7 +33,7 @@ const main = () => {
     }
     return {};
   });
-  t.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES, (v) => {
+  t.registerVisitorForPhase(DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES, (v) => {
     console.log('AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES', v.getVertexData());
   });
   // t.run();

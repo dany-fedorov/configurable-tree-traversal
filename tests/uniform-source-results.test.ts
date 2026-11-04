@@ -164,7 +164,7 @@ for (const Constructor of [
                         },
                       },
                     },
-              resolveChildHint: () => badResult,
+              resolveChildVertexFromHint: () => badResult,
               resolvePrerequisiteByVertexId: () => badResult,
             },
           }).createIndependentRunnerFromCurrentOptions();

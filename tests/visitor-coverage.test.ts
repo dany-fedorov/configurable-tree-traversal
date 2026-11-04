@@ -46,7 +46,7 @@ describe.each(['depth-first', 'breadth-first'] as const)(
         visitorCommandCommitTiming: VisitorCommandCommitTiming,
       ) => {
         if (traversal instanceof DepthFirstTreeTraversalBuilder) {
-          traversal.registerVisitorCallbackForPhase(
+          traversal.registerVisitorForPhase(
             DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
             visitor,
             {
@@ -54,7 +54,7 @@ describe.each(['depth-first', 'breadth-first'] as const)(
             },
           );
         } else {
-          traversal.registerVisitorCallbackForPhase(
+          traversal.registerVisitorForPhase(
             BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
             visitor,
             {

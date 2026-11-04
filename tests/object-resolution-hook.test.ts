@@ -75,7 +75,7 @@ test('canonical found preserves exact data and child hint identity', () => {
   } as Options);
   const seen: unknown[] = [];
   new DepthFirstTreeTraversalBuilder({ treeDiscoverySource: tree })
-    .registerVisitorCallbackForPhase(
+    .registerVisitorForPhase(
       DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
       (vertex) => {
         seen.push(vertex.getVertexData());

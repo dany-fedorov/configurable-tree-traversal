@@ -1,12 +1,12 @@
 import type { SchedulingOwnerValidityToken } from '@core/effects/types';
 import type { InternalVertexRef } from '@core/graph/types';
-import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext } from '@core/ResolvedTree';
 import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 
 export type BreadthFirstPolicyState<
   InputVertexTypes extends VertexDataAndChildHintTypes,
 > = {
-  queue: InternalChildDiscoveryContext<InputVertexTypes>[];
+  queue: MutableTreeChildDiscoveryContext<InputVertexTypes>[];
   queueIndex: number;
 };
 
@@ -23,7 +23,7 @@ type BreadthFirstResolution<
   InputVertexTypes extends VertexDataAndChildHintTypes,
 > = {
   owner: SchedulingOwnerValidityToken;
-  context: InternalChildDiscoveryContext<InputVertexTypes>;
+  context: MutableTreeChildDiscoveryContext<InputVertexTypes>;
 };
 
 type ParentProgress = {
@@ -34,7 +34,7 @@ type ParentProgress = {
 export type InjectedBreadthFirstFrontier<
   InputVertexTypes extends VertexDataAndChildHintTypes,
 > = {
-  contexts: readonly InternalChildDiscoveryContext<InputVertexTypes>[];
+  contexts: readonly MutableTreeChildDiscoveryContext<InputVertexTypes>[];
   consumedHintIndices: ReadonlySet<number>;
 };
 
@@ -53,7 +53,7 @@ export type BreadthFirstWork<
     }
   | {
       kind: 'MAKE_VERTEX';
-      context: InternalChildDiscoveryContext<InputVertexTypes>;
+      context: MutableTreeChildDiscoveryContext<InputVertexTypes>;
     }
   | { kind: 'CLEAR_QUEUE' };
 
@@ -69,7 +69,7 @@ export class BreadthFirstPolicy<
   private readonly injectedFrontiers = new Map<
     InternalVertexRef<InputVertexTypes>,
     {
-      contexts: InternalChildDiscoveryContext<InputVertexTypes>[];
+      contexts: MutableTreeChildDiscoveryContext<InputVertexTypes>[];
       consumedHintIndices: Set<number>;
     }
   >();
@@ -82,16 +82,16 @@ export class BreadthFirstPolicy<
   ) {
     for (let index = 0; index < state.queue.length; index += 1) {
       const context = state.queue[index]!;
-      let frontier = this.injectedFrontiers.get(context.parentVertexHandle);
+      let frontier = this.injectedFrontiers.get(context.parentVertexReference);
       if (frontier === undefined) {
         frontier = { contexts: [], consumedHintIndices: new Set() };
-        this.injectedFrontiers.set(context.parentVertexHandle, frontier);
+        this.injectedFrontiers.set(context.parentVertexReference, frontier);
       }
       frontier.contexts.push(context);
       if (index < state.queueIndex) {
         frontier.consumedHintIndices.add(context.parentChildHintIndex);
       } else {
-        this.addParentProgress(context.parentVertexHandle, 1, false);
+        this.addParentProgress(context.parentVertexReference, 1, false);
       }
     }
   }
@@ -159,12 +159,12 @@ export class BreadthFirstPolicy<
       while (this.state.queueIndex < this.state.queue.length) {
         const context = this.state.queue[this.state.queueIndex++]!;
         if (
-          hasVertex(context.parentVertexHandle) &&
-          !isDisabled(context.parentVertexHandle)
+          hasVertex(context.parentVertexReference) &&
+          !isDisabled(context.parentVertexReference)
         ) {
           return { kind: 'MAKE_VERTEX', context };
         }
-        this.consumeParentProgress(context.parentVertexHandle);
+        this.consumeParentProgress(context.parentVertexReference);
       }
       return this.state.queue.length > 0 ? { kind: 'CLEAR_QUEUE' } : null;
     }
@@ -182,7 +182,7 @@ export class BreadthFirstPolicy<
         discoveryDepthInEdges: expansion.depth + 1,
         parentVertexAtChildResolution:
           expansion.vertexHandle.getReferencedValue(),
-        parentVertexHandle: expansion.vertexHandle,
+        parentVertexReference: expansion.vertexHandle,
         parentChildHintIndex: hintIndex,
         childDiscoveryHint: hints[hintIndex]!,
       });
@@ -206,7 +206,7 @@ export class BreadthFirstPolicy<
 
   startResolution(
     owner: SchedulingOwnerValidityToken,
-    context: InternalChildDiscoveryContext<InputVertexTypes>,
+    context: MutableTreeChildDiscoveryContext<InputVertexTypes>,
   ): void {
     if (this.pendingResolution !== null) {
       throw new Error('Breadth-first resolution is already pending');
@@ -215,7 +215,7 @@ export class BreadthFirstPolicy<
   }
 
   completeResolution(owner: SchedulingOwnerValidityToken): {
-    context: InternalChildDiscoveryContext<InputVertexTypes>;
+    context: MutableTreeChildDiscoveryContext<InputVertexTypes>;
     closeParent: boolean;
   } {
     if (
@@ -228,7 +228,7 @@ export class BreadthFirstPolicy<
     this.pendingResolution = null;
     return {
       context,
-      closeParent: this.consumeParentProgress(context.parentVertexHandle),
+      closeParent: this.consumeParentProgress(context.parentVertexReference),
     };
   }
 
@@ -258,7 +258,7 @@ export class BreadthFirstPolicy<
           ...expansions,
           {
             owner: resolution.owner,
-            vertexHandle: resolution.context.parentVertexHandle,
+            vertexHandle: resolution.context.parentVertexReference,
             stage: 'resolve' as const,
             pendingIndices: [resolution.context.parentChildHintIndex],
           },

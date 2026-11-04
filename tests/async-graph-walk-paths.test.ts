@@ -273,7 +273,7 @@ it.each(policies)(
         admittedRootOrLinkTargetOccurrences: 9,
         rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 19,
       },
-      terminalOutcome: { kind: 'sourceRoutesExhausted' },
+      terminalOutcome: { kind: 'explorationExhausted' },
     });
   },
 );
@@ -376,7 +376,7 @@ it.each(policies)(
           .runUntilSuspendedOrTerminal()
       ).captureProgressSnapshot().terminalOutcome,
     ).toEqual({
-      kind: 'sourceRoutesExhausted',
+      kind: 'explorationExhausted',
     });
     factory
       .patchOptionsForFutureRunners({ replaceLimits: { maxRouteHopDepth: 1 } })

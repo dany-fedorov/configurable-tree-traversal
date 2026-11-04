@@ -261,7 +261,7 @@ describe('canonical vertex content', () => {
               },
             },
           }),
-          resolveChildHint: (hint) => ({
+          resolveChildVertexFromHint: (hint) => ({
             kind: 'vertexResolved' as const,
             resolvedVertexInput: {
               vertexId: childId,

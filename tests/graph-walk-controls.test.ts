@@ -72,7 +72,7 @@ it('filters before inline hydration and target lookup, keeping link indices', ()
     .createIndependentRunnerFromCurrentOptions()
     .runUntilSuspendedOrTerminal();
   expect(inline.captureProgressSnapshot().terminalOutcome).toEqual({
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
 });
 
@@ -110,7 +110,7 @@ it('emits pruned occurrences before expansion and retains the first pruning deci
   expect(expanded).toEqual(['A', 'E', 'B', 'C', 'D']);
   expect(calls).not.toContain('outgoing:B');
   expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
 });
 
@@ -203,6 +203,6 @@ it('detaches predicate wrappers from subsequent observations and expansion', () 
     },
   ]);
   expect(runner.captureProgressSnapshot().terminalOutcome).toEqual({
-    kind: 'sourceRoutesExhausted',
+    kind: 'explorationExhausted',
   });
 });

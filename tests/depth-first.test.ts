@@ -88,7 +88,7 @@ describe('depth-first traversal', () => {
       node('root', node('branch', node('leaf'), null), node('last')),
     );
     const post: string[] = [];
-    t.registerVisitorCallbackForPhase(Order.AFTER_CHILD_SUBTREES, (v) => {
+    t.registerVisitorForPhase(Order.AFTER_CHILD_SUBTREES, (v) => {
       post.push(v.getVertexData());
     });
     t.createIndependentRunnerFromCurrentOptions().runUntilSuspendedOrTerminal();
@@ -113,7 +113,7 @@ describe('depth-first traversal', () => {
     const t = traversal(node('root'));
     const visits: Order[] = [];
     for (const order of Object.values(Order))
-      t.registerVisitorCallbackForPhase(order, (_v, o) => {
+      t.registerVisitorForPhase(order, (_v, o) => {
         visits.push(o.visitorPhase);
       });
     t.createIndependentRunnerFromCurrentOptions().runUntilSuspendedOrTerminal({
@@ -130,7 +130,7 @@ describe('depth-first traversal', () => {
   test('halts even if the halted order is not yielded and resumes remaining visitors', () => {
     const t = traversal(node('root', node('leaf')));
     const visits: string[] = [];
-    t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, (v) => {
+    t.registerVisitorForPhase(Order.BEFORE_CHILD_EXPANSION, (v) => {
       visits.push(`first:${v.getVertexData()}`);
       if (v.getVertexData() === 'root')
         return {
@@ -140,7 +140,7 @@ describe('depth-first traversal', () => {
         };
       return undefined;
     });
-    t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, (v) => {
+    t.registerVisitorForPhase(Order.BEFORE_CHILD_EXPANSION, (v) => {
       visits.push(`second:${v.getVertexData()}`);
     });
     const runner = t.createIndependentRunnerFromCurrentOptions();
@@ -182,7 +182,7 @@ describe('depth-first traversal', () => {
     const t = traversal(
       node('root', node('branch', node('hidden')), node('leaf')),
     );
-    t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, (v) =>
+    t.registerVisitorForPhase(Order.BEFORE_CHILD_EXPANSION, (v) =>
       v.getVertexData() === 'branch'
         ? {
             commands: [
@@ -206,7 +206,7 @@ describe('depth-first traversal', () => {
     const t = traversal(
       node('root', node('branch', node('old')), node('sibling')),
     );
-    t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, (v) =>
+    t.registerVisitorForPhase(Order.BEFORE_CHILD_EXPANSION, (v) =>
       v.getVertexData() === 'branch'
         ? {
             commands: [
@@ -234,7 +234,7 @@ describe('depth-first traversal', () => {
     const t = traversal(node('root', node('leaf')));
     const seen: unknown[] = [];
     for (let i = 0; i < 2; i++)
-      t.registerVisitorCallbackForPhase(
+      t.registerVisitorForPhase(
         Order.BEFORE_CHILD_EXPANSION,
         (_v, o) => {
           seen.push([
@@ -258,7 +258,7 @@ describe('depth-first traversal', () => {
   test('concurrent visitors see original data; sequential visitors see commands and chain state', () => {
     const t = traversal(node('root'));
     const seen: unknown[] = [];
-    t.registerVisitorCallbackForPhase(
+    t.registerVisitorForPhase(
       Order.BEFORE_CHILD_EXPANSION,
       (v) => {
         seen.push(v.getVertexData());
@@ -273,14 +273,14 @@ describe('depth-first traversal', () => {
       },
       { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
     );
-    t.registerVisitorCallbackForPhase(
+    t.registerVisitorForPhase(
       Order.BEFORE_CHILD_EXPANSION,
       (v) => {
         seen.push(v.getVertexData());
       },
       { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
     );
-    t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, (v) => {
+    t.registerVisitorForPhase(Order.BEFORE_CHILD_EXPANSION, (v) => {
       seen.push(v.getVertexData());
       return {
         commands: [
@@ -291,7 +291,7 @@ describe('depth-first traversal', () => {
         ],
       };
     });
-    t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, (_v, o) => {
+    t.registerVisitorForPhase(Order.BEFORE_CHILD_EXPANSION, (_v, o) => {
       seen.push(o.currentVertexPhaseChainState);
     });
     t.createIndependentRunnerFromCurrentOptions().runUntilSuspendedOrTerminal();
@@ -301,14 +301,14 @@ describe('depth-first traversal', () => {
   test('configure preserves added visitors and runner visitors are isolated', () => {
     const t = traversal(node('root'));
     const seen: string[] = [];
-    t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, () => {
+    t.registerVisitorForPhase(Order.BEFORE_CHILD_EXPANSION, () => {
       seen.push('first');
     });
     t.patchOptionsForFutureRunners({
       transformChildHintsBeforeResolution: null,
     });
     const runner = t.createIndependentRunnerFromCurrentOptions();
-    t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, () => {
+    t.registerVisitorForPhase(Order.BEFORE_CHILD_EXPANSION, () => {
       seen.push('late');
     });
     runner.runUntilSuspendedOrTerminal();
@@ -319,7 +319,7 @@ describe('depth-first traversal', () => {
     const t = traversal(
       node('root', node('branch', node('hidden')), node('sibling')),
     );
-    t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, (v) =>
+    t.registerVisitorForPhase(Order.BEFORE_CHILD_EXPANSION, (v) =>
       v.getVertexData() === 'branch'
         ? {
             commands: [
@@ -349,7 +349,7 @@ describe('depth-first traversal', () => {
     for (let i = 19999; i >= 0; i--) root = node(String(i), root);
     const t = traversal(root);
     let count = 0;
-    t.registerVisitorCallbackForPhase(Order.AFTER_CHILD_SUBTREES, () => {
+    t.registerVisitorForPhase(Order.AFTER_CHILD_SUBTREES, () => {
       count++;
     });
     t.createIndependentRunnerFromCurrentOptions().runUntilSuspendedOrTerminal({
@@ -362,7 +362,7 @@ describe('depth-first traversal', () => {
 test('passes chain state from concurrent commands to the first sequential visitor', () => {
   const t = traversal(node('root'));
   let seen: unknown;
-  t.registerVisitorCallbackForPhase(
+  t.registerVisitorForPhase(
     Order.BEFORE_CHILD_EXPANSION,
     () => ({
       commands: [
@@ -374,7 +374,7 @@ test('passes chain state from concurrent commands to the first sequential visito
     }),
     { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const },
   );
-  t.registerVisitorCallbackForPhase(
+  t.registerVisitorForPhase(
     Order.BEFORE_CHILD_EXPANSION,
     (_vertex, options) => {
       seen = options.currentVertexPhaseChainState;
@@ -396,7 +396,7 @@ test('retains equal-priority registration order after replacing visitor records'
       },
     },
   ]);
-  t.registerVisitorCallbackForPhase(Order.BEFORE_CHILD_EXPANSION, () => {
+  t.registerVisitorForPhase(Order.BEFORE_CHILD_EXPANSION, () => {
     seen.push('new');
   });
   t.createIndependentRunnerFromCurrentOptions().runUntilSuspendedOrTerminal();

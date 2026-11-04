@@ -1,4 +1,4 @@
-import type { PreCommandDiscoveredGraphView } from '@core/ResolvedGraphView';
+import type { LivePreCommandDiscoveredGraphView } from '@core/ResolvedGraphView';
 import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 
 /** True when exactly one resolved vertex has no structural children.
@@ -6,7 +6,7 @@ import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
  */
 export function hasExactlyOneResolvedStructuralLeaf<
   SourceVertexTypes extends VertexDataAndChildHintTypes,
->(graph: PreCommandDiscoveredGraphView<SourceVertexTypes>): boolean {
+>(graph: LivePreCommandDiscoveredGraphView<SourceVertexTypes>): boolean {
   let count = 0;
   for (const ref of graph.getVertexHandles()) {
     if (

@@ -1,5 +1,5 @@
 import { createVertexHandleFacet } from '../src/core/observationFacets';
-import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
 import { MutableValueReference } from '../src/core/CTTRef';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
@@ -28,7 +28,7 @@ function context(
   return {
     discoveryDepthInEdges: 1,
     parentVertexAtChildResolution: parentVertexRef.getReferencedValue(),
-    parentVertexHandle: parentVertexRef,
+    parentVertexReference: parentVertexRef,
     parentChildHintIndex: hintIndex,
     childDiscoveryHint: parentVertexRef
       .getReferencedValue()
@@ -68,7 +68,7 @@ test('the original graph retains first-accepted content and shared topology', ()
   container.acceptEdge(left, 0, shared);
   container.acceptEdge(right, 0, shared);
 
-  const snapshot = container.preCommandDiscoveredGraphView!;
+  const snapshot = container.livePreCommandDiscoveredGraphView!;
   const refs = new Map(
     [...container.originalGraphRefsMap!].map(([active, saved]) => [
       active,
@@ -126,7 +126,7 @@ test('a rejected active edge does not mutate the original snapshot', () => {
 
   expect(() => container.acceptEdge(child, 0, root)).toThrow(/cycle/i);
 
-  const snapshot = container.preCommandDiscoveredGraphView!;
+  const snapshot = container.livePreCommandDiscoveredGraphView!;
   const refs = new Map(
     [...container.originalGraphRefsMap!].map(([active, saved]) => [
       active,
@@ -170,7 +170,7 @@ test('tree acceptance uses supplied graph ids and dependencies', () => {
     context(root, 0),
   );
 
-  const snapshot = container.preCommandDiscoveredGraphView!;
+  const snapshot = container.livePreCommandDiscoveredGraphView!;
   const savedRoot = createVertexHandleFacet(
     container.originalGraphRefsMap!.get(root)!,
   );
@@ -234,7 +234,7 @@ test('tree acceptance validates saved parent mappings before graph insertion', (
   ).toBeNull();
   expect(container.originalGraphRefsMap!.has(child)).toBe(false);
   expect(
-    container.preCommandDiscoveredGraphView!.getVertexHandleByIdOrNull('child'),
+    container.livePreCommandDiscoveredGraphView!.getVertexHandleByIdOrNull('child'),
   ).toBeNull();
 
   savedRefs.set(root, savedRoot);
@@ -291,7 +291,7 @@ test.each([
     'parent record',
     ({ root, treeContainer }: ReturnType<typeof treeEdgeContainer>) => {
       const savedRoot = treeContainer.originalTreeRefsMap!.get(root)!;
-      treeContainer.preCommandDiscoveredTreeView!.deleteSubtree(savedRoot);
+      treeContainer.livePreCommandDiscoveredTreeView!.deleteSubtree(savedRoot);
     },
   ],
 ] as const)(
@@ -314,7 +314,7 @@ test('tree edge acknowledgment does not append saved topology twice', () => {
   container.acceptEdge(root, 0, child);
   const savedRoot = treeContainer.originalTreeRefsMap!.get(root)!;
   expect(
-    treeContainer.preCommandDiscoveredTreeView!.getDetachedChildReferenceListOrNull(
+    treeContainer.livePreCommandDiscoveredTreeView!.getDetachedChildReferenceListOrNull(
       savedRoot,
     ),
   ).toHaveLength(1);

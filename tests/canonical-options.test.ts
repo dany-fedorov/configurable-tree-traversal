@@ -68,7 +68,7 @@ for (const Builder of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         };
       },
-      resolveChildHint: () => {
+      resolveChildVertexFromHint: () => {
         calls++;
         return {
           omittedVertexIdentity: null,
@@ -150,7 +150,7 @@ test('DAG coordination requires the registered runner identity', () => {
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         kind: 'vertexIntentionallyOmitted' as const,
       }),
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         kind: 'vertexIntentionallyOmitted' as const,

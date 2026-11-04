@@ -20,7 +20,7 @@ export type DagMilestoneConstraint<VertexId = unknown> = {
 export type DagTraversalStallDiagnostics<VertexId = unknown> = {
   blockedVertexPrerequisiteReports: Array<{
     vertexId: VertexId;
-    prerequisiteVertexIdsInReport: VertexId[];
+    unmetPrerequisiteVertexIds: VertexId[];
   }>;
   unresolvedPrerequisiteVertexIds: VertexId[];
   /** Strongly connected component membership, not ordered cycle witnesses. */
@@ -51,9 +51,9 @@ export class DagTraversalStallError<VertexId = unknown> extends Error {
       >,
   ) {
     const ids = diagnostics.blockedVertexPrerequisiteReports.flatMap(
-      ({ vertexId, prerequisiteVertexIdsInReport }) => [
+      ({ vertexId, unmetPrerequisiteVertexIds }) => [
         vertexId,
-        ...prerequisiteVertexIdsInReport,
+        ...unmetPrerequisiteVertexIds,
       ],
     );
     const detail =
@@ -65,10 +65,10 @@ export class DagTraversalStallError<VertexId = unknown> extends Error {
     this.diagnostics = {
       blockedVertexPrerequisiteReports:
         diagnostics.blockedVertexPrerequisiteReports.map(
-          ({ vertexId, prerequisiteVertexIdsInReport }) => ({
+          ({ vertexId, unmetPrerequisiteVertexIds }) => ({
             vertexId,
-            prerequisiteVertexIdsInReport:
-              prerequisiteVertexIdsInReport.slice(),
+            unmetPrerequisiteVertexIds:
+              unmetPrerequisiteVertexIds.slice(),
           }),
         ),
       unresolvedPrerequisiteVertexIds:

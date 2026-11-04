@@ -20,7 +20,7 @@ import type {
   TreeDiscoverySource,
   DagDiscoverySource,
   DagSourceVertexResolution,
-  FoundDagSourceVertex,
+  ResolvedDagSourceVertex,
   DagPrerequisiteLookupMissing,
   DagPrerequisiteLookupResult,
   VertexContent,
@@ -45,7 +45,7 @@ const data: string | undefined = vertex.$vertexData;
 const alias: string | undefined = vertex.$vertexData;
 // @ts-expect-error mixed vertex spellings are ambiguous
 new core.Vertex<T>({ $vertexData: '', $c: [] });
-const found: FoundDagSourceVertex<T> = {
+const found: ResolvedDagSourceVertex<T> = {
   kind: 'vertexResolved',
   resolvedVertexInput: { vertexId: undefined, vertexContentInput: canonical },
 };
@@ -68,7 +68,7 @@ const tree: TreeDiscoverySource<T> = {
 };
 const graph: DagDiscoverySource<T> = {
   resolveRootVertex: () => source,
-  resolveChildHint: () => omitted,
+  resolveChildVertexFromHint: () => omitted,
   resolvePrerequisiteByVertexId: () => lookup,
 };
 const common: TreeVertexPhaseVisitorCallback<T, T, string> = (
@@ -87,7 +87,7 @@ const dagCommon: DagVisitor<T> = () => ({
   commands: [{ commandName: C.NO_OPERATION }],
 });
 const depth = new DepthFirstTreeTraversalBuilder({ treeDiscoverySource: tree });
-depth.registerVisitorCallbackForPhase(F.AFTER_CHILD_SUBTREES, common);
+depth.registerVisitorForPhase(F.AFTER_CHILD_SUBTREES, common);
 depth.patchOptionsForFutureRunners({
   visitors: {
     [F.AFTER_CHILD_SUBTREES]: [
@@ -101,7 +101,7 @@ depth.replaceVisitorDefinitionsForPhase(F.AFTER_CHILD_SUBTREES, [
 const callback = depth.getDetachedVisitorRegistrationRecordsForPhase(
   F.AFTER_CHILD_SUBTREES,
 )[0]!.visitor;
-depth.registerVisitorCallbackForPhase(
+depth.registerVisitorForPhase(
   F.BEFORE_CHILD_EXPANSION,
   (_v, options) => {
     const phase: F.BEFORE_CHILD_EXPANSION = options.visitorPhase;
@@ -117,10 +117,10 @@ depth.registerVisitorCallbackForPhase(
   },
   { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' },
 );
-depth.registerVisitorCallbackForPhase(F.BEFORE_CHILD_EXPANSION, common, {
+depth.registerVisitorForPhase(F.BEFORE_CHILD_EXPANSION, common, {
   visitorCommandCommitTiming: 'afterContiguousVisitorBatch',
 });
-depth.registerVisitorCallbackForPhase(F.AFTER_CHILD_SUBTREES, () => ({
+depth.registerVisitorForPhase(F.AFTER_CHILD_SUBTREES, () => ({
   commands: [
     {
       // @ts-expect-error hint rewriting is invalid after children complete
@@ -132,10 +132,10 @@ depth.registerVisitorCallbackForPhase(F.AFTER_CHILD_SUBTREES, () => ({
 }));
 const dag = new DagTraversalBuilder({
   dagDiscoverySource: graph,
-  rootWorkPrerequisitePolicy: 'honor',
-  undeclaredWorkPrerequisitePolicy: 'none',
+  rootWorkToWorkPrerequisitePolicy: 'honor',
+  undeclaredWorkToWorkPrerequisitePolicy: 'none',
 });
-dag.registerVisitorCallbackForPhase(D.ON_WORK_READY, (_v, options) => {
+dag.registerVisitorForPhase(D.ON_WORK_READY, (_v, options) => {
   const phase: D.ON_WORK_READY = options.visitorPhase;
   void phase;
   return {
@@ -144,7 +144,7 @@ dag.registerVisitorCallbackForPhase(D.ON_WORK_READY, (_v, options) => {
     ],
   };
 });
-dag.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => ({
+dag.registerVisitorForPhase(D.ON_WORK_READY, () => ({
   commands: [
     {
       commandName:
@@ -152,14 +152,14 @@ dag.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => ({
     },
   ],
 }));
-dag.registerVisitorCallbackForPhase(D.ON_SUBGRAPH_COMPLETION_READY, dagCommon);
-dag.registerVisitorCallbackForPhase(D.ON_SUBGRAPH_COMPLETION_READY, () => ({
+dag.registerVisitorForPhase(D.ON_SUBGRAPH_COMPLETION_READY, dagCommon);
+dag.registerVisitorForPhase(D.ON_SUBGRAPH_COMPLETION_READY, () => ({
   commands: [
     // @ts-expect-error completion visitors cannot defer
     { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
   ],
 }));
-dag.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => ({
+dag.registerVisitorForPhase(D.ON_WORK_READY, () => ({
   commands: [
     // @ts-expect-error deferral must be the only command
     { commandName: C.NO_OPERATION },
@@ -241,7 +241,7 @@ traverseDag({
   },
 });
 const asyncDag = new AsyncDagTraversalBuilder({ dagDiscoverySource: graph });
-asyncDag.registerVisitorCallbackForPhase(D.ON_WORK_READY, async () => ({
+asyncDag.registerVisitorForPhase(D.ON_WORK_READY, async () => ({
   commands: [
     { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
   ],
@@ -260,9 +260,9 @@ void [
 ];
 // All new contracts compile through both declaration loader branches.
 import type {
-  TreeVertexResolution,
-  TreeVertexResolutionFound,
-  TreeVertexResolutionOmitted,
+  TreeSourceVertexResolution,
+  ResolvedTreeSourceVertex,
+  OmittedTreeSourceVertex,
   TraversalExecutionSelectionPatch,
   TraversalStopReason,
   VisitorDefinitionsForPhase,
@@ -277,15 +277,15 @@ import {
   ObjectPropertyTreeSource,
   rewriteObject,
 } from 'configurable-tree-traversal';
-const treeFound: TreeVertexResolutionFound<T> = {
+const treeFound: ResolvedTreeSourceVertex<T> = {
   kind: 'vertexResolved',
   resolvedVertexInput: { vertexContentInput: canonical },
 };
-const treeOmitted: TreeVertexResolutionOmitted = {
+const treeOmitted: OmittedTreeSourceVertex = {
   kind: 'vertexIntentionallyOmitted',
 };
 // @ts-expect-error Tree omissions cannot acknowledge graph milestones.
-const graphOmissionAsTree: TreeVertexResolutionOmitted = omitted;
+const graphOmissionAsTree: OmittedTreeSourceVertex = omitted;
 // @ts-expect-error Graph omissions require explicit acknowledgement.
 const treeOmissionAsGraph: DagSourceVertexResolution<T> = treeOmitted;
 const undefinedAcknowledgement = {
@@ -294,16 +294,16 @@ const undefinedAcknowledgement = {
   satisfiesDependencies: undefined,
 };
 // @ts-expect-error Even present undefined is graph metadata.
-const undefinedOmissionAsTree: TreeVertexResolutionOmitted =
+const undefinedOmissionAsTree: OmittedTreeSourceVertex =
   undefinedAcknowledgement;
 void [graphOmissionAsTree, treeOmissionAsGraph, undefinedOmissionAsTree];
-const treeResult: TreeVertexResolution<T> = treeFound;
-const oldTreeResult: TreeVertexResolution<T> = {
+const treeResult: TreeSourceVertexResolution<T> = treeFound;
+const oldTreeResult: TreeSourceVertexResolution<T> = {
   // @ts-expect-error Untagged tree results are removed.
   vertexContentInput: canonical,
 };
 // @ts-expect-error tree sources do not accept graph identity
-const wrongTree: TreeVertexResolution<T> = found;
+const wrongTree: TreeSourceVertexResolution<T> = found;
 const execution: TraversalExecutionSelectionPatch<F> = {
   deliveredEventKinds: [],
   admittedVisitorCallbackPhases: { exclude: [] },

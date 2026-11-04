@@ -27,7 +27,7 @@ for (const TreeTraversal of [
           },
         },
       }),
-      resolveChildHint: (id) => ({
+      resolveChildVertexFromHint: (id) => ({
         kind: 'vertexResolved',
         resolvedVertexInput: {
           vertexId: id,
@@ -57,7 +57,7 @@ for (const TreeTraversal of [
     await runner.runUntilSuspendedOrTerminal();
     expect(lookups).toEqual([prerequisite]);
     const graph = runner.getLiveResolvedGraphView();
-    const snapshot = runner.preCommandDiscoveredGraphView!;
+    const snapshot = runner.livePreCommandDiscoveredGraphView!;
     for (const id of [root, undefined, NaN]) {
       const ref = graph.getVertexHandleByIdOrNull(id)!;
       expect(graph.requireVertexId(ref)).toBe(id);
@@ -117,14 +117,14 @@ for (const asynchronous of [false, true]) {
                     },
                   },
                 },
-          resolveChildHint: result,
+          resolveChildVertexFromHint: result,
           resolvePrerequisiteByVertexId: result,
         };
         const runner = asynchronous
           ? new AsyncDagTraversalBuilder<NumericTask, NumericTask, number>({
               dagDiscoverySource: {
                 resolveRootVertex: async () => source.resolveRootVertex(),
-                resolveChildHint: async () => result(),
+                resolveChildVertexFromHint: async () => result(),
                 resolvePrerequisiteByVertexId: async () => result(),
               },
             }).createIndependentRunnerFromCurrentOptions()
@@ -165,7 +165,7 @@ for (const TreeTraversal of [
               kind: 'vertexResolved',
               resolvedVertexInput: vertex,
             }),
-            resolveChildHint: () => ({
+            resolveChildVertexFromHint: () => ({
               omittedVertexIdentity: null,
               satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
               kind: 'vertexIntentionallyOmitted',
@@ -197,7 +197,7 @@ for (const TreeTraversal of [
               kind: 'vertexResolved',
               resolvedVertexInput: vertex,
             }),
-            resolveChildHint: () => ({
+            resolveChildVertexFromHint: () => ({
               omittedVertexIdentity: null,
               satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
               kind: 'vertexIntentionallyOmitted',
@@ -235,7 +235,7 @@ for (const TreeTraversal of [
             return reads === 1 ? original : inherited;
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted',

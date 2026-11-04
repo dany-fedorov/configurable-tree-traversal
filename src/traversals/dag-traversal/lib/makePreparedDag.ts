@@ -38,7 +38,7 @@ export function makePreparedDag<
     VertexId
   >,
   candidates: ReadonlySet<VertexId>,
-  rootWorkPrerequisitePolicy: 'honor' | 'ignore',
+  rootWorkToWorkPrerequisitePolicy: 'honor' | 'ignore',
   authoredDefinition?: DagDefinition<SourceVertexTypes['VertexData'], VertexId>,
 ): ValidatedReusableDagTopology<SourceVertexTypes['VertexData'], VertexId> {
   type Data = SourceVertexTypes['VertexData'];
@@ -76,8 +76,8 @@ export function makePreparedDag<
     return new DagTraversalBuilder<Replay, Replay, VertexId>({
       ...options,
       ...definitionSource(definition),
-      rootWorkPrerequisitePolicy,
-      undeclaredWorkPrerequisitePolicy: 'none',
+      rootWorkToWorkPrerequisitePolicy,
+      undeclaredWorkToWorkPrerequisitePolicy: 'none',
     })
       .createIndependentRunnerFromCurrentOptions()
       .discoverValidateAndFreezeTopology();
@@ -92,8 +92,8 @@ export function makePreparedDag<
     return new AsyncDagTraversalBuilder<Replay, Replay, VertexId>({
       ...options,
       ...definitionSource(definition),
-      rootWorkPrerequisitePolicy,
-      undeclaredWorkPrerequisitePolicy: 'none',
+      rootWorkToWorkPrerequisitePolicy,
+      undeclaredWorkToWorkPrerequisitePolicy: 'none',
     })
       .createIndependentRunnerFromCurrentOptions()
       .discoverValidateAndFreezeTopology();

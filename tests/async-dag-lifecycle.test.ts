@@ -29,7 +29,7 @@ test('halts the requester between visitors without repeating the first visitor',
       root: { children: [], dependencies: [] },
     }),
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, async () => {
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, async () => {
     calls.push('first');
     await halt.promise;
     return {
@@ -38,7 +38,7 @@ test('halts the requester between visitors without repeating the first visitor',
       ],
     };
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, async () => {
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, async () => {
     calls.push('second');
   });
   const runner = traversal.createIndependentRunnerFromCurrentOptions();
@@ -74,7 +74,7 @@ test('delivers another started chain once while the requester halts', async () =
     dagDiscoverySource: twoBranches(),
     maxConcurrentCallbackInvocations: 2,
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async (vertex) => {
       const data = vertex.getVertexData();
@@ -91,7 +91,7 @@ test('delivers another started chain once while the requester halts', async () =
       return undefined;
     },
   );
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async (vertex) => {
       calls.push(`${vertex.getVertexData()}:second`);
@@ -149,7 +149,7 @@ test('loop close waits for a pending visitor and preserves its buffered event', 
       child: { children: [], dependencies: ['root'] },
     }),
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async (vertex) => {
       if (vertex.getVertexData() === 'child') {
@@ -206,7 +206,7 @@ test('a committed buffered event obeys the resumed delivery selector', async () 
       child: { children: [], dependencies: ['root'] },
     }),
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async (vertex) => {
       if (vertex.getVertexData() === 'child') {
@@ -248,7 +248,7 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
       child: { children: [], dependencies: ['root'] },
     }),
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async (vertex) => {
       const data = vertex.getVertexData();
@@ -265,7 +265,7 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
       };
     },
   );
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async (vertex) => {
       calls.push(`${vertex.getVertexData()}:after`);
@@ -351,7 +351,7 @@ test('shared DAG objects retain one runner owner through halt and release at fin
       },
     });
   const ownerTraversal = makeTraversal();
-  ownerTraversal.registerVisitorCallbackForPhase(
+  ownerTraversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async () => {
       await halt.promise;
@@ -424,7 +424,7 @@ test('close does not await a pending resolver and reuses its result on resume', 
           },
         },
       }),
-      resolveChildHint: () => {
+      resolveChildVertexFromHint: () => {
         resolutions++;
         return child.promise;
       },
@@ -482,7 +482,7 @@ test('cascade deletion invalidates running dependents and all late outcomes', as
     }),
     maxConcurrentCallbackInvocations: 3,
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async (vertex) => {
       const data = vertex.getVertexData();
@@ -492,7 +492,7 @@ test('cascade deletion invalidates running dependents and all late outcomes', as
       return undefined;
     },
   );
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_SUBGRAPH_COMPLETION_READY,
     async (vertex) => {
       if (vertex.getVertexData() !== 'A') return undefined;
@@ -561,7 +561,7 @@ test('retains the first live failure and ignores later sibling settlement', asyn
     dagDiscoverySource: twoBranches(),
     maxConcurrentCallbackInvocations: 2,
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
     if (vertex.getVertexData() === 'A') return aVisit.promise;
     if (vertex.getVertexData() === 'B') return bVisit.promise;
     return undefined;
@@ -609,7 +609,7 @@ test('consumer error escapes while a draining traversal failure is retained', as
     dagDiscoverySource: twoBranches(),
     maxConcurrentCallbackInvocations: 2,
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_WORK_READY,
     async (vertex) => {
       if (vertex.getVertexData() === 'A') await finishA.promise;
@@ -666,14 +666,14 @@ test('inspection is detached and inert during pending, halting, and failed work'
           },
         };
       },
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         kind: 'vertexIntentionallyOmitted' as const,
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
       }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, async () => {
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, async () => {
     started.resolve();
     await pendingVisit.promise;
     throw failure;
@@ -714,7 +714,7 @@ test('retains undefined as the exact traversal failure sentinel', async () => {
   const runner = new AsyncDagTraversalBuilder<TestGraph>({
     dagDiscoverySource: {
       resolveRootVertex: () => root.promise,
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         kind: 'vertexIntentionallyOmitted' as const,

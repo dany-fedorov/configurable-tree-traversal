@@ -1,6 +1,6 @@
 import type {
   GraphWalkPendingInvocationOperation,
-  GraphWalkInspection,
+  GraphWalkExecutionSnapshot,
   VertexDataAndChildHintTypes,
   DepthFirstTreeTraversalBuilderOptions,
   AsyncDagTraversalBuilderOptionsPatch,
@@ -21,7 +21,7 @@ const operations: GraphWalkPendingInvocationOperation[] = [
   'returnSourceIteratorForDisposal',
 ];
 const operation: GraphWalkPendingInvocationOperation = (
-  null as unknown as GraphWalkInspection
+  null as unknown as GraphWalkExecutionSnapshot
 ).pendingInvocationRequests[0]!.operation;
 // @ts-expect-error Walking callback diagnostics use visit.
 const retiredVisitOperation: GraphWalkPendingInvocationOperation = 'visitor';

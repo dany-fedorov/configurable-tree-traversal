@@ -25,7 +25,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (hint) => ({
+        resolveChildVertexFromHint: (hint) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: hint,
@@ -39,7 +39,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       Order.ON_WORK_READY,
       Order.ON_SUBGRAPH_COMPLETION_READY,
     ])
-      traversal.registerVisitorCallbackForPhase(order, (vertex, options) => {
+      traversal.registerVisitorForPhase(order, (vertex, options) => {
         seen.push(vertex.getVertexData());
         expect(options.isVisibleSourceRoot).toBe(false);
         expect(options.isVisibleSourceRoot).toBe(false);
@@ -65,7 +65,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
     expect(seen.sort()).toEqual(events);
     for (const graph of [
       runner.getLiveResolvedGraphView(),
-      runner.preCommandDiscoveredGraphView!,
+      runner.livePreCommandDiscoveredGraphView!,
     ]) {
       expect(graph.getDesignatedRootHandleOrNull()).toBeNull();
       expect(
@@ -105,7 +105,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
               },
             },
           }),
-          resolveChildHint: (hint) => ({
+          resolveChildVertexFromHint: (hint) => ({
             kind: 'vertexResolved' as const,
             resolvedVertexInput: {
               ...(invalid === 'duplicate' ? { vertexId: hint } : {}),
@@ -138,7 +138,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted' as const,
@@ -173,7 +173,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
               },
             },
           }),
-          resolveChildHint: (hint, options) => {
+          resolveChildVertexFromHint: (hint, options) => {
             expect(
               options.liveResolvedGraphView.getDesignatedRootHandleOrNull(),
             ).toBeNull();
@@ -206,7 +206,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       );
       for (const graph of [
         runner.getLiveResolvedGraphView(),
-        runner.preCommandDiscoveredGraphView!,
+        runner.livePreCommandDiscoveredGraphView!,
       ]) {
         const shared = graph.getVertexHandleByIdOrNull('shared')!;
         const a = graph.getVertexHandleByIdOrNull('a')!;
@@ -261,7 +261,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           },
         }),
         tryGetVertexIdentityFromHint: (hint) => ({ vertexId: hint }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexContentInput: { $vertexData: 'a', $childDiscoveryHints: [] },
@@ -269,7 +269,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => {
       visited = true;
     });
     await expect(async () => {
@@ -296,7 +296,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (hint) => ({
+        resolveChildVertexFromHint: (hint) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: hint,
@@ -307,7 +307,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => {
       visited = true;
     });
     await expect(async () => {
@@ -333,7 +333,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: 'a',
@@ -371,7 +371,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted' as const,
@@ -413,7 +413,7 @@ test('synthetic catalog preserves arbitrary IDs without freezing or consuming it
       tryGetVertexIdentityFromHint: async (hint) => ({
         vertexId: ids[Number(hint)],
       }),
-      resolveChildHint: async (hint) => ({
+      resolveChildVertexFromHint: async (hint) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
@@ -422,7 +422,7 @@ test('synthetic catalog preserves arbitrary IDs without freezing or consuming it
     },
   });
   const seen: string[] = [];
-  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+  traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
     seen.push(vertex.getVertexData());
   });
   const runner = traversal.createIndependentRunnerFromCurrentOptions();
@@ -454,7 +454,7 @@ test.each([undefined, null, NaN])(
           },
         }),
         tryGetVertexIdentityFromHint: () => ({ vertexId: id }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           kind: 'vertexIntentionallyOmitted' as const,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,

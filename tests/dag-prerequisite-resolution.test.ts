@@ -27,7 +27,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           kind: 'vertexIntentionallyOmitted' as const,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -54,7 +54,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         discoveryTiming: discovery,
         retainDiscoveredGraphBeforeVisitorCommands: true,
       });
-      traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (v) => {
+      traversal.registerVisitorForPhase(Order.ON_WORK_READY, (v) => {
         events.push(v.getVertexData());
       });
       const runner = traversal.createIndependentRunnerFromCurrentOptions();
@@ -103,7 +103,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           kind: 'vertexIntentionallyOmitted' as const,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -162,7 +162,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           },
         },
       }),
-      resolveChildHint: (id: string) => ({
+      resolveChildVertexFromHint: (id: string) => ({
         kind: 'vertexResolved' as const,
         resolvedVertexInput: {
           vertexId: id,
@@ -211,7 +211,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -251,7 +251,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           kind: 'vertexIntentionallyOmitted' as const,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -287,7 +287,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -306,7 +306,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       Order.ON_SUBGRAPH_COMPLETION_READY,
       (v) => {
         events.push(v.getVertexData());
@@ -333,7 +333,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
     ).toBe(3);
     const saved =
       runnerInternals(runner).resolvedGraphsContainer
-        .preCommandDiscoveredGraphView!;
+        .livePreCommandDiscoveredGraphView!;
     const originalParser = saved.getVertexHandleByIdOrNull('parser')!;
     expect(
       saved.getDistinctStructuralParentHandlesOrNull(originalParser),
@@ -359,7 +359,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
               },
             },
           }),
-          resolveChildHint: () => ({
+          resolveChildVertexFromHint: () => ({
             omittedVertexIdentity: null,
             kind: 'vertexIntentionallyOmitted' as const,
             satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -389,7 +389,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           kind: 'vertexIntentionallyOmitted' as const,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -426,7 +426,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -473,7 +473,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           kind: 'vertexIntentionallyOmitted' as const,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -528,7 +528,7 @@ for (const kind of ['promise', 'getter', 'call'] as const) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           kind: 'vertexIntentionallyOmitted' as const,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,

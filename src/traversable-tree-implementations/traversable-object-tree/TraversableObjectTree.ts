@@ -11,9 +11,9 @@ import {
 } from '@core/drivers/normalizeSourceResult';
 import type {
   TreeDiscoverySource,
-  TreeVertexResolutionFound,
+  ResolvedTreeSourceVertex,
   TreeChildResolverContext,
-  TreeVertexResolution,
+  TreeSourceVertexResolution,
 } from '@core/TraversableTree';
 import { normalizeVertexContent } from '@core/Vertex';
 import { enumerateOwnEnumerableChildProperties } from '@traversable-object-tree/lib/getChildrenOfPropertyDefault';
@@ -213,7 +213,7 @@ export class ObjectPropertyTreeSource<
   static createObjectPropertyMutationHelperBinder =
     createObjectPropertyMutationHelperBinder;
 
-  resolveRootVertex(): TreeVertexResolutionFound<
+  resolveRootVertex(): ResolvedTreeSourceVertex<
     ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>
   > {
     const { enumerateChildPropertyHints, mapInputToRootProperty } = this.icfg;
@@ -249,12 +249,12 @@ export class ObjectPropertyTreeSource<
         >
       >
     >,
-  ): TreeVertexResolution<
+  ): TreeSourceVertexResolution<
     ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>
   > {
     const canonicalHook = this.icfg.resolveChildPropertyOrUseDefault;
     let result:
-      | TreeVertexResolution<
+      | TreeSourceVertexResolution<
           ObjectPropertyTreeVertexTypes<InputPropertyKey, InputPropertyValue>
         >
       | undefined;

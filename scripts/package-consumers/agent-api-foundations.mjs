@@ -243,7 +243,7 @@ for (const api of [cjs, esm]) {
         ],
       };
     };
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       api.DagVisitorPhase.ON_WORK_READY,
       asyncMode
         ? api.createConditionalAsyncDagDataVisitor(

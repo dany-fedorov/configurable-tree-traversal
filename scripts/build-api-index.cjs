@@ -24,7 +24,7 @@ const cell = (text) =>
 // Semantic exceptions precede filename grouping: callbacks, observations and
 // source protocols can share declaration files while owning different contracts.
 const graphSourceResults = new Set([
-  'FoundDagSourceVertex',
+  'ResolvedDagSourceVertex',
   'OmittedDagSourceVertex',
   'DagSourceVertexResolution',
   'DagPrerequisiteLookupResult',
@@ -34,9 +34,9 @@ const graphSourceResults = new Set([
 // symbol, otherwise promotes an example program or reference snippet that does,
 // and otherwise labels the preferred family target as merely related.
 const symbolContracts = {
-  TreeVertexResolutionFound: ['abstract-trees', 'reference.md#abstract-trees'],
-  TreeVertexResolution: ['abstract-trees', 'reference.md#abstract-trees'],
-  TreeVertexResolutionOmitted: [
+  ResolvedTreeSourceVertex: ['abstract-trees', 'reference.md#abstract-trees'],
+  TreeSourceVertexResolution: ['abstract-trees', 'reference.md#abstract-trees'],
+  OmittedTreeSourceVertex: [
     'abstract-trees',
     'migration-uniform-api.md#source-resolution',
   ],

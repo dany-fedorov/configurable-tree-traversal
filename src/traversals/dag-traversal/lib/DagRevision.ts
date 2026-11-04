@@ -1,7 +1,7 @@
 import type {
   DagDefinition,
   DagDefinitionIssue,
-  DagDefinitionVertex,
+  DagVertexDeclaration,
 } from './DagDefinition';
 import type { ValidatedReusableDagTopology } from './PreparedDag';
 
@@ -9,11 +9,11 @@ import type { ValidatedReusableDagTopology } from './PreparedDag';
 export type DagRevisionOperation<Data, VertexId = unknown> =
   | {
       readonly kind: 'addVertexDeclaration';
-      readonly vertexDeclaration: DagDefinitionVertex<Data, VertexId>;
+      readonly vertexDeclaration: DagVertexDeclaration<Data, VertexId>;
     }
   | {
       readonly kind: 'replaceVertexDeclaration';
-      readonly vertexDeclaration: DagDefinitionVertex<Data, VertexId>;
+      readonly vertexDeclaration: DagVertexDeclaration<Data, VertexId>;
     }
   | { readonly kind: 'removeVertexDeclaration'; readonly vertexId: VertexId }
   | {
@@ -29,7 +29,7 @@ export type DagRevisionResult<Data, VertexId = unknown> =
   | {
       kind: 'valid';
       validatedTopology: ValidatedReusableDagTopology<Data, VertexId>;
-      changes: DagDefinitionDiff<VertexId>;
+      declarationDiff: DagDefinitionDiff<VertexId>;
     }
   | { kind: 'invalid'; issues: readonly DagDefinitionIssue<VertexId>[] };
 
@@ -40,7 +40,7 @@ export type DagDefinitionChangeAspect =
   | 'workWaitsForWorkOf'
   | 'workWaitsForSubgraphCompletionOf';
 
-export type DagDefinitionVertexChange<VertexId = unknown> = {
+export type DagVertexDeclarationChange<VertexId = unknown> = {
   readonly vertexId: VertexId;
   readonly changedDeclarationFields: readonly DagDefinitionChangeAspect[];
 };
@@ -49,7 +49,7 @@ export type DagDefinitionVertexChange<VertexId = unknown> = {
 export type DagDefinitionDiff<VertexId = unknown> = {
   readonly addedVertexDeclarationIds: readonly VertexId[];
   readonly removedVertexDeclarationIds: readonly VertexId[];
-  readonly changedVertexDeclarations: readonly DagDefinitionVertexChange<VertexId>[];
+  readonly changedVertexDeclarations: readonly DagVertexDeclarationChange<VertexId>[];
   /** True whenever the ordered live ID sequence differs, including add/remove. */
   readonly vertexDeclarationSequenceChanged: boolean;
   readonly entryChanged: boolean;

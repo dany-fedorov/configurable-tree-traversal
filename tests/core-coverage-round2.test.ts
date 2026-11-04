@@ -1,5 +1,5 @@
 import { createVertexHandleFacet } from '../src/core/observationFacets';
-import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
 import { MutableValueReference } from '../src/core/CTTRef';
 import { GraphStore } from '../src/core/graph/GraphStore';
 import { createVertexIdLabeler } from '../src/core/graph/identity';
@@ -26,7 +26,7 @@ function context(
   return {
     discoveryDepthInEdges: 1,
     parentVertexAtChildResolution: parentVertexHandle.getReferencedValue(),
-    parentVertexHandle: parentVertexHandle,
+    parentVertexReference: parentVertexHandle,
     parentChildHintIndex: hintIndex,
     childDiscoveryHint: `child-${hintIndex}`,
   };
@@ -162,11 +162,11 @@ test('depth runner leaf checks include explicit subtree disabling', () => {
   const branch = ref('branch', ['child']);
   expect(!leaf.getReferencedValue().hasChildDiscoveryHints()).toBe(true);
   expect(
-    runner.hasSkippedPendingChildDiscovery(createVertexHandleFacet(branch)),
+    runner.isPendingChildDiscoveryDisabled(createVertexHandleFacet(branch)),
   ).toBe(false);
   runnerInternals(runner).state.subtreeTraversalDisabledRefs.add(branch);
   expect(
-    runner.hasSkippedPendingChildDiscovery(createVertexHandleFacet(branch)),
+    runner.isPendingChildDiscoveryDisabled(createVertexHandleFacet(branch)),
   ).toBe(true);
 });
 

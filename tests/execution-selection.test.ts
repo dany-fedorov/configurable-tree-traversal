@@ -53,7 +53,7 @@ const tree = {
 };
 const graph = {
   ...tree,
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     omittedVertexIdentity: null,
     kind: 'vertexIntentionallyOmitted' as const,
     satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -119,7 +119,7 @@ function create(family: typeof families[number], halt = false) {
   const calls: string[] = [];
   const traversal = family.make();
   const phase = family.phase;
-  const add = traversal.registerVisitorCallbackForPhase.bind(traversal) as (
+  const add = traversal.registerVisitorForPhase.bind(traversal) as (
     phase: string,
     visitor: (vertex: VertexView<TestGraph>) => void | {
       commands: {

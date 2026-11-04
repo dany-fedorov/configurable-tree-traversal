@@ -68,7 +68,7 @@ const graph: DagDiscoverySource<Tree> = {
     kind: 'vertexResolved',
     resolvedVertexInput: { vertexId: 'root', vertexContentInput: root },
   }),
-  resolveChildHint: (hint) =>
+  resolveChildVertexFromHint: (hint) =>
     hint === null
       ? {
           omittedVertexIdentity: null,
@@ -87,7 +87,7 @@ const graph: DagDiscoverySource<Tree> = {
 const traversal = new DepthFirstTreeTraversalBuilder({
   treeDiscoverySource: tree,
 });
-traversal.registerVisitorCallbackForPhase(
+traversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   () => ({
     commands: [
@@ -319,7 +319,7 @@ void mixedContent;
 void duplicateContent;
 void duplicateLegacy;
 
-const canonicalFound: import('../src').FoundDagSourceVertex<Tree> = {
+const canonicalFound: import('../src').ResolvedDagSourceVertex<Tree> = {
   kind: 'vertexResolved',
   resolvedVertexInput: {
     vertexId: undefined,
@@ -336,14 +336,14 @@ const canonicalMissing: import('../src').DagPrerequisiteLookupResult<Tree> = {
 };
 const canonicalSource: import('../src').DagDiscoverySource<Tree> = {
   resolveRootVertex: () => canonicalFound,
-  resolveChildHint: () => canonicalOmitted,
+  resolveChildVertexFromHint: () => canonicalOmitted,
   resolvePrerequisiteByVertexId: () => canonicalMissing,
 };
 const missingRoot: import('../src').DagSourceVertexResolution<Tree> = {
   // @ts-expect-error A missing lookup is not a root/hint source result.
   kind: 'missing',
 };
-const nullFound: import('../src').FoundDagSourceVertex<Tree> = {
+const nullFound: import('../src').ResolvedDagSourceVertex<Tree> = {
   kind: 'vertexResolved',
   // @ts-expect-error Found content must be non-null.
   resolvedVertexInput: { vertexContentInput: null },
@@ -399,15 +399,15 @@ new DagTraversalBuilder({
 });
 void [stopReason, coreStopReason, inspectionStopReason];
 
-const canonicalTreeOmitted: import('../src').TreeVertexResolutionOmitted = {
+const canonicalTreeOmitted: import('../src').OmittedTreeSourceVertex = {
   kind: 'vertexIntentionallyOmitted',
 };
-const canonicalCoreTreeOmitted: import('../src/core').TreeVertexResolutionOmitted =
+const canonicalCoreTreeOmitted: import('../src/core').OmittedTreeSourceVertex =
   canonicalTreeOmitted;
 // @ts-expect-error Graph callbacks must explicitly acknowledge milestone satisfaction.
 const treeOmittedAsGraph: import('../src').OmittedDagSourceVertex =
   canonicalTreeOmitted;
 // @ts-expect-error Graph acknowledgement is unsupported tree metadata.
-const graphOmittedAsTree: import('../src').TreeVertexResolutionOmitted =
+const graphOmittedAsTree: import('../src').OmittedTreeSourceVertex =
   canonicalOmitted;
 void [canonicalCoreTreeOmitted, treeOmittedAsGraph, graphOmittedAsTree];

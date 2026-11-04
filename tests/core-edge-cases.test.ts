@@ -1,6 +1,6 @@
 import { createVertexHandleFacet } from '../src/core/observationFacets';
 import { internalTreeStore } from './internal-runner-fixtures';
-import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
+import type { MutableTreeChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
 import type { DepthFirstTraversalResolvedTreesContainer } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 import {
   DepthFirstTreeVisitPhase,
@@ -73,7 +73,7 @@ function makeContext(
   return {
     discoveryDepthInEdges: depth,
     parentVertexAtChildResolution: parentVertexHandle.getReferencedValue(),
-    parentVertexHandle: parentVertexHandle,
+    parentVertexReference: parentVertexHandle,
     parentChildHintIndex: 0,
     childDiscoveryHint: childDiscoveryHint,
   };
@@ -85,7 +85,7 @@ function getSavedParts(
   tree: MutableResolvedTreeStore<TestTTP>;
   refs: NonNullable<typeof container.originalTreeRefsMap>;
 } {
-  const tree = container.preCommandDiscoveredTreeView;
+  const tree = container.livePreCommandDiscoveredTreeView;
   const refs = container.originalTreeRefsMap;
   if (tree === null || refs === null) {
     throw new Error('Expected original resolved-tree capture to be enabled');
@@ -272,8 +272,8 @@ describe('saved resolved-tree consistency', () => {
       }),
     ).resolvedTreesContainer;
     expect(injected.resolvedTree).toBe(source.resolvedTree);
-    expect(injected.preCommandDiscoveredTreeView).toBe(
-      source.preCommandDiscoveredTreeView,
+    expect(injected.livePreCommandDiscoveredTreeView).toBe(
+      source.livePreCommandDiscoveredTreeView,
     );
     expect(injected.originalTreeRefsMap).toBe(source.originalTreeRefsMap);
 
@@ -305,7 +305,7 @@ describe('saved resolved-tree consistency', () => {
       node('keep'),
     );
     const traversal = makeTraversal(root, true);
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
       (vertex) => {
         switch (vertex.getVertexData()) {
@@ -443,7 +443,7 @@ describe('saved resolved-tree consistency', () => {
     const savedRootRef =
       runnerInternals(
         runner,
-      ).resolvedTreesContainer.preCommandDiscoveredTreeView?.getRootVertexReferenceOrNull();
+      ).resolvedTreesContainer.livePreCommandDiscoveredTreeView?.getRootVertexReferenceOrNull();
     if (activeRootRef === null || savedRootRef == null) {
       throw new Error('Expected active and saved roots');
     }

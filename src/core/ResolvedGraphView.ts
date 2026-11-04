@@ -69,7 +69,8 @@ export interface LiveResolvedGraphView<
   ): readonly (readonly VertexHandle<InputVertexTypes>[])[];
 }
 
-export type PreCommandDiscoveredGraphView<
+/** Live retained topology as discovery grows, with content captured before commands. */
+export type LivePreCommandDiscoveredGraphView<
   InputVertexTypes extends VertexDataAndChildHintTypes,
   VertexId = unknown,
 > = Pick<

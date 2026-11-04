@@ -131,8 +131,8 @@ export type AsyncDagTraversalBuilderOptions<
         >;
       }
     | {
-        rootWorkPrerequisitePolicy?: never;
-        undeclaredWorkPrerequisitePolicy?: never;
+        rootWorkToWorkPrerequisitePolicy?: never;
+        undeclaredWorkToWorkPrerequisitePolicy?: never;
       }
   );
 
@@ -157,8 +157,8 @@ export type AsyncDagTraversalBuilderOptionsPatch<
         treeDiscoverySource?: undefined;
       }
     | {
-        rootWorkPrerequisitePolicy?: never;
-        undeclaredWorkPrerequisitePolicy?: never;
+        rootWorkToWorkPrerequisitePolicy?: never;
+        undeclaredWorkToWorkPrerequisitePolicy?: never;
         treeDiscoverySource?:
           | (unknown extends VertexId
               ? AsyncTreeDiscoverySource<

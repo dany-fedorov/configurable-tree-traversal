@@ -5,7 +5,7 @@ import {
   MutableResolvedTreeStore,
   type LiveResolvedTreeView,
   type LiveResolvedGraphView,
-  type PreCommandDiscoveredGraphView,
+  type LivePreCommandDiscoveredGraphView,
   type VertexDataAndChildHintTypes,
   type Vertex,
   type DepthFirstTreeRunner,
@@ -63,7 +63,7 @@ tree.getDetachedChildDiscoveryContextOrNull(
   mutableRef,
 )!.discoveryDepthInEdges = 2;
 declare const graph: LiveResolvedGraphView<T>;
-declare const snapshot: PreCommandDiscoveredGraphView<T>;
+declare const snapshot: LivePreCommandDiscoveredGraphView<T>;
 for (const facade of [graph, snapshot]) {
   const vertexId: unknown = facade.requireVertexId(ref);
   const oldVertexId: unknown = facade.requireVertexId(ref);

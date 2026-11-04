@@ -29,7 +29,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           };
         },
-        resolveChildHint: (id) => {
+        resolveChildVertexFromHint: (id) => {
           calls++;
           return {
             kind: 'vertexResolved' as const,
@@ -43,7 +43,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         },
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => {
       calls++;
     });
     const runner = traversal.createIndependentRunnerFromCurrentOptions();
@@ -71,7 +71,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       captureProgressSnapshot.invalidDependencyTopologyDiagnostics,
     ).toEqual({
       blockedVertexPrerequisiteReports: [
-        { vertexId: 'bad', prerequisiteVertexIdsInReport: ['missing'] },
+        { vertexId: 'bad', unmetPrerequisiteVertexIds: ['missing'] },
       ],
       unresolvedPrerequisiteVertexIds: ['missing'],
       milestoneCycleVertexIdComponents: [],
@@ -79,12 +79,12 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       incompleteVertexIdsWithoutUnmetPrerequisites: [],
       originalMilestoneConstraints: expect.any(Array),
     });
-    captureProgressSnapshot.invalidDependencyTopologyDiagnostics!.blockedVertexPrerequisiteReports[0]!.prerequisiteVertexIdsInReport.length = 0;
+    captureProgressSnapshot.invalidDependencyTopologyDiagnostics!.blockedVertexPrerequisiteReports[0]!.unmetPrerequisiteVertexIds.length = 0;
     captureProgressSnapshot.invalidDependencyTopologyDiagnostics!.nonCyclePrerequisiteBlockedVertexIds.length = 0;
     expect(
       runner.captureProgressSnapshot().invalidDependencyTopologyDiagnostics!
         .blockedVertexPrerequisiteReports,
-    ).toEqual([{ vertexId: 'bad', prerequisiteVertexIdsInReport: ['missing'] }]);
+    ).toEqual([{ vertexId: 'bad', unmetPrerequisiteVertexIds: ['missing'] }]);
     expect(
       runner.captureProgressSnapshot().invalidDependencyTopologyDiagnostics!
         .nonCyclePrerequisiteBlockedVertexIds,
@@ -113,7 +113,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => {
+        resolveChildVertexFromHint: (id) => {
           if (id === 'probe') {
             snapshots.push(runner.captureProgressSnapshot());
             return {
@@ -159,7 +159,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
     );
     expect(partial.invalidDependencyTopologyDiagnostics).toEqual({
       blockedVertexPrerequisiteReports: [
-        { vertexId: bad, prerequisiteVertexIdsInReport: [missing] },
+        { vertexId: bad, unmetPrerequisiteVertexIds: [missing] },
       ],
       unresolvedPrerequisiteVertexIds: [missing],
       milestoneCycleVertexIdComponents: [[cycle]],
@@ -173,7 +173,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
     ).toBe(bad);
     expect(
       partial.invalidDependencyTopologyDiagnostics!
-        .blockedVertexPrerequisiteReports[0]!.prerequisiteVertexIdsInReport[0],
+        .blockedVertexPrerequisiteReports[0]!.unmetPrerequisiteVertexIds[0],
     ).toBe(missing);
     const complete = runner.captureProgressSnapshot();
     expect(complete.discovery.complete).toBe(true);
@@ -204,7 +204,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -219,7 +219,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
       seen.push(vertex.getVertexData());
       return {
         commands: [
@@ -356,7 +356,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
                 },
               },
             }),
-            resolveChildHint: (id) => ({
+            resolveChildVertexFromHint: (id) => ({
               kind: 'vertexResolved' as const,
               resolvedVertexInput: {
                 vertexId: id,
@@ -369,7 +369,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             }),
           },
         });
-        traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+        traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => ({
           commands: [
             {
               commandName:
@@ -414,7 +414,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           };
         },
-        resolveChildHint: (id) => {
+        resolveChildVertexFromHint: (id) => {
           calls++;
           return {
             kind: 'vertexResolved' as const,
@@ -427,7 +427,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         },
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
       calls++;
       const captureProgressSnapshot = runner.captureProgressSnapshot();
       expect(
@@ -496,7 +496,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -509,7 +509,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => ({
       commands: [
         {
           commandName:
@@ -553,7 +553,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
               },
             },
           }),
-          resolveChildHint: (id) => ({
+          resolveChildVertexFromHint: (id) => ({
             kind: 'vertexResolved' as const,
             resolvedVertexInput: {
               vertexId: id,
@@ -565,7 +565,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         },
       });
       let visited = false;
-      traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+      traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => {
         visited = true;
         return {
           commands: [
@@ -608,14 +608,14 @@ test('async summary excludes unresolved callbacks and includes active completion
   const traversal = new AsyncDagTraversalBuilder<G>({
     dagDiscoverySource: {
       resolveRootVertex: () => root.promise,
-      resolveChildHint: () => ({
+      resolveChildVertexFromHint: () => ({
         omittedVertexIdentity: null,
         satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         kind: 'vertexIntentionallyOmitted' as const,
       }),
     },
   });
-  traversal.registerVisitorCallbackForPhase(
+  traversal.registerVisitorForPhase(
     Order.ON_SUBGRAPH_COMPLETION_READY,
     () => complete.promise,
   );
@@ -668,7 +668,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -678,7 +678,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         }),
       },
     });
-    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+    traversal.registerVisitorForPhase(Order.ON_WORK_READY, () => ({
       commands: [
         {
           commandName:
@@ -710,7 +710,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted' as const,
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           omittedVertexIdentity: null,
           satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           kind: 'vertexIntentionallyOmitted' as const,

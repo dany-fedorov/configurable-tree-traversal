@@ -12,7 +12,11 @@ import {
   type TreeChildResolverContext,
   type DagChildResolutionContext,
   type LiveResolvedGraphView,
+  type MutableTreeChildDiscoveryContext,
 } from '../src';
+import type {
+  MutableTreeChildDiscoveryContext as CoreMutableTreeChildDiscoveryContext,
+} from '../src/core';
 // @ts-expect-error removed graph view name
 import type { ResolvedGraph as _ResolvedGraph } from '../src';
 type Input = VertexDataAndChildHintTypes<{ input: string }, { hint: string }>;
@@ -58,16 +62,16 @@ tree.previousCommittedVisitVertexHandleForSamePhase?.replaceReferencedValue(
   vertex.createEditableShallowCloneWithContentOverrides(),
 );
 const originalInput: string = tree
-  .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+  .livePreCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
   .getCurrentVertexView()
   .getVertexData().input;
 tree
-  .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+  .livePreCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
   .getCurrentVertexView()
   // @ts-expect-error original tree data stays in the input domain
   .getVertexData().output;
 const originalGraphInput: string = dag
-  .preCommandDiscoveredGraphView!.getDesignatedRootHandleOrNull()!
+  .livePreCommandDiscoveredGraphView!.getDesignatedRootHandleOrNull()!
   .getCurrentVertexView()
   .getVertexData().input;
 const treeParent: VertexHandle<Input | Output> =
@@ -119,3 +123,14 @@ for (const runner of [dfs, adfs, d, ad]) {
   }
 }
 void [originalInput, originalGraphInput, treeParent];
+
+// Editable storage contexts are available through both supported type entry points.
+declare const editableDiscoveryContext: MutableTreeChildDiscoveryContext<Input>;
+const coreEditableDiscoveryContext: CoreMutableTreeChildDiscoveryContext<Input> =
+  editableDiscoveryContext;
+editableDiscoveryContext.parentVertexReference.replaceReferencedValue(
+  vertex.createEditableShallowCloneWithContentOverrides(),
+);
+// @ts-expect-error editable storage uses references rather than observation handles
+editableDiscoveryContext.parentVertexHandle;
+void coreEditableDiscoveryContext;

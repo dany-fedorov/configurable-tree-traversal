@@ -9,7 +9,7 @@ export type DagStructuralDiscoverySlot<VertexId> =
       readonly omittedVertexIdentity: { readonly vertexId: VertexId } | null;
     };
 
-export type DagDefinitionVertex<Data, VertexId> = {
+export type DagVertexDeclaration<Data, VertexId> = {
   readonly vertexId: VertexId;
   readonly data: Data;
   readonly childDiscoverySlots: readonly DagStructuralDiscoverySlot<VertexId>[];
@@ -19,7 +19,7 @@ export type DagDefinitionVertex<Data, VertexId> = {
 
 /** Immutable in-memory topology; opaque caller data and IDs remain shallow. */
 export type DagDefinition<Data, VertexId = unknown> = {
-  readonly vertexDeclarations: readonly DagDefinitionVertex<Data, VertexId>[];
+  readonly vertexDeclarations: readonly DagVertexDeclaration<Data, VertexId>[];
   readonly omittedVertexIds: readonly VertexId[];
   readonly entry:
     | { readonly kind: 'root'; readonly vertexId: VertexId }

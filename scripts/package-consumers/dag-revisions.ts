@@ -8,7 +8,7 @@ import {
   type DagRevisionResult,
   type DagDefinitionDiff,
   type DagDefinitionChangeAspect,
-  type DagDefinitionVertexChange,
+  type DagVertexDeclarationChange,
 } from 'configurable-tree-traversal';
 import * as dag from 'configurable-tree-traversal/traversals/dag-traversal';
 type ID = 'task';
@@ -53,12 +53,12 @@ const namespaceDiffType: dagTraversal.DagDefinitionDiff<ID> = subDiff;
 const aspect: DagDefinitionChangeAspect = 'workWaitsForWorkOf';
 const subAspect: dag.DagDefinitionChangeAspect = aspect;
 const namespaceAspect: dagTraversal.DagDefinitionChangeAspect = subAspect;
-const change: DagDefinitionVertexChange<ID> = {
+const change: DagVertexDeclarationChange<ID> = {
   vertexId: 'task',
   changedDeclarationFields: [aspect],
 };
-const subChange: dag.DagDefinitionVertexChange<ID> = change;
-const namespaceChange: dagTraversal.DagDefinitionVertexChange<ID> = subChange;
+const subChange: dag.DagVertexDeclarationChange<ID> = change;
+const namespaceChange: dagTraversal.DagVertexDeclarationChange<ID> = subChange;
 if (prepared.kind === 'valid') {
   const result: DagRevisionResult<number, ID> = applyDagDefinitionRevisionBatch(
     prepared.validatedTopology,
@@ -67,7 +67,7 @@ if (prepared.kind === 'valid') {
   const subResult: dag.DagRevisionResult<number, ID> = result;
   const namespaceResult: dagTraversal.DagRevisionResult<number, ID> = subResult;
   if (result.kind === 'valid') {
-    const id: ID | undefined = result.changes.addedVertexDeclarationIds[0];
+    const id: ID | undefined = result.declarationDiff.addedVertexDeclarationIds[0];
     result.validatedTopology.createExternalWorkSession({
       acceptedCompletedWorkVertexIds: new Set<ID>(['task']),
     });

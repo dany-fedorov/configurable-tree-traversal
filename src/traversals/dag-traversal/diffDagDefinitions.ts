@@ -5,7 +5,7 @@ import type {
 import type {
   DagDefinitionChangeAspect,
   DagDefinitionDiff,
-  DagDefinitionVertexChange,
+  DagVertexDeclarationChange,
 } from './lib/DagRevision';
 
 function sameId<VertexId>(before: VertexId, after: VertexId): boolean {
@@ -86,7 +86,7 @@ export function diffDagDefinitionDeclarationsShallowly<
   );
   const addedVertexDeclarationIds = newIds.filter((id) => !oldIdSet.has(id));
   const removedVertexDeclarationIds: VertexId[] = [];
-  const changedVertexDeclarations: DagDefinitionVertexChange<VertexId>[] = [];
+  const changedVertexDeclarations: DagVertexDeclarationChange<VertexId>[] = [];
   for (const vertex of before.vertexDeclarations) {
     const next = newVertices.get(vertex.vertexId);
     if (next === undefined) {

@@ -31,8 +31,8 @@ export const DAG_OPTION_KEYS = [
   'retainDiscoveredGraphBeforeVisitorCommands',
   'workCompletionPolicy',
   'discoveryTiming',
-  'rootWorkPrerequisitePolicy',
-  'undeclaredWorkPrerequisitePolicy',
+  'rootWorkToWorkPrerequisitePolicy',
+  'undeclaredWorkToWorkPrerequisitePolicy',
   'sourceRootIsHiddenEntryHolder',
   'acceptedCompletedWorkVertexIds',
 ] as const;
@@ -136,19 +136,10 @@ export function assertTraversalFields(
       (source === null ||
         (typeof source !== 'object' && typeof source !== 'function') ||
         typeof Reflect.get(source, 'resolveRootVertex') !== 'function' ||
-        typeof Reflect.get(
-          source,
-          key === 'treeDiscoverySource'
-            ? 'resolveChildVertexFromHint'
-            : 'resolveChildHint',
-        ) !== 'function')
+        typeof Reflect.get(source, 'resolveChildVertexFromHint') !== 'function')
     )
       throw new TypeError(
-        `${key} requires resolveRootVertex and ${
-          key === 'treeDiscoverySource'
-            ? 'resolveChildVertexFromHint'
-            : 'resolveChildHint'
-        }`,
+        `${key} requires resolveRootVertex and resolveChildVertexFromHint`,
       );
   }
 }

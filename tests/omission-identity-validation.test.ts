@@ -52,7 +52,7 @@ for (const Builder of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         dagDiscoverySource: {
           resolveRootVertex: () =>
             bad as unknown as DagSourceVertexResolution<T>,
-          resolveChildHint: () => ({
+          resolveChildVertexFromHint: () => ({
             kind: 'vertexIntentionallyOmitted',
             omittedVertexIdentity: null,
             satisfiesWorkAndSubgraphCompletionPrerequisites: true,
@@ -79,7 +79,7 @@ for (const Builder of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
             satisfiesWorkAndSubgraphCompletionPrerequisites: true,
           }),
-          resolveChildHint: () => ({
+          resolveChildVertexFromHint: () => ({
             kind: 'vertexIntentionallyOmitted',
             omittedVertexIdentity: null,
             satisfiesWorkAndSubgraphCompletionPrerequisites: true,
@@ -144,7 +144,7 @@ for (const Builder of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
       const runner = new Builder<T>({
         dagDiscoverySource: {
           resolveRootVertex: () => new Omission(),
-          resolveChildHint: () => ({
+          resolveChildVertexFromHint: () => ({
             kind: 'vertexIntentionallyOmitted',
             omittedVertexIdentity: null,
             satisfiesWorkAndSubgraphCompletionPrerequisites: true,

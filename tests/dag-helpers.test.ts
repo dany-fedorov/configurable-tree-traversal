@@ -8,7 +8,7 @@ import {
 } from '../src';
 import { traverseDagAsync } from '../src/traversals/dag-traversal';
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
-import type { PreCommandDiscoveredGraphView } from '../src/core/ResolvedGraphView';
+import type { LivePreCommandDiscoveredGraphView } from '../src/core/ResolvedGraphView';
 import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 
 type TestGraph = VertexDataAndChildHintTypes<string, string>;
@@ -36,7 +36,7 @@ function graph(
             satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           }
         : result(root),
-    resolveChildHint: (hint) => result(hint),
+    resolveChildVertexFromHint: (hint) => result(hint),
     tryGetVertexIdentityFromHint: (hint) => ({ vertexId: hint }),
   };
 }
@@ -152,6 +152,6 @@ test('hasSingleStructuralSink counts the currently resolved discovery graph', ()
     hasExactlyOneResolvedStructuralLeaf({
       getVertexHandles: () => [null as never],
       getStructuralChildHandlesInSlotOrderOrNull: () => null,
-    } as unknown as PreCommandDiscoveredGraphView<TestGraph>),
+    } as unknown as LivePreCommandDiscoveredGraphView<TestGraph>),
   ).toBe(true);
 });

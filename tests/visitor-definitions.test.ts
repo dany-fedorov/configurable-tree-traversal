@@ -41,7 +41,7 @@ const dagDiscoverySource = {
       },
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     omittedVertexIdentity: null,
     satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
     kind: 'vertexIntentionallyOmitted' as const,
@@ -141,7 +141,7 @@ for (const [Ctor, order, source] of families) {
   test(`${Ctor.name}: grouped append and list/set preserve snapshots and empty groups are inert`, async () => {
     const calls: string[] = [];
     const Constructor = Ctor as unknown as new (input: unknown) => {
-      registerVisitorCallbackForPhase(
+      registerVisitorForPhase(
         order: string,
         callback: () => void,
         options?: { descendingExecutionPriorityWithinGroup: number },
@@ -154,7 +154,7 @@ for (const [Ctor, order, source] of families) {
       };
     };
     const t = new Constructor(source);
-    t.registerVisitorCallbackForPhase(
+    t.registerVisitorForPhase(
       order,
       () => {
         calls.push('low');
@@ -169,7 +169,7 @@ for (const [Ctor, order, source] of families) {
       order,
       t.getDetachedVisitorRegistrationRecordsForPhase(order),
     );
-    t.registerVisitorCallbackForPhase(
+    t.registerVisitorForPhase(
       order,
       () => {
         calls.push('high');
@@ -183,7 +183,7 @@ for (const [Ctor, order, source] of families) {
         },
       ],
     });
-    t.registerVisitorCallbackForPhase(
+    t.registerVisitorForPhase(
       order,
       () => {
         calls.push('tail');

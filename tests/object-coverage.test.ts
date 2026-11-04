@@ -136,7 +136,7 @@ describe('object identity bookkeeping', () => {
     const traversal = new DepthFirstTreeTraversalBuilder({
       treeDiscoverySource: new ObjectPropertyTreeSource({ branch }),
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
       (vertex, { isTreeRoot }) => {
         if (!isTreeRoot && vertex.getVertexData().propertyKey === 'branch') {
@@ -193,7 +193,7 @@ describe('object identity bookkeeping', () => {
         },
       ),
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
       (vertex) => {
         if (vertex.getVertexData().propertyKey === 'branch') {
@@ -229,7 +229,7 @@ describe('object identity bookkeeping', () => {
     const traversal = new DepthFirstTreeTraversalBuilder({
       treeDiscoverySource: new ObjectPropertyTreeSource({ child: 1 }),
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
       (vertex, { isTreeRoot }) => {
         if (isTreeRoot) {
@@ -286,7 +286,7 @@ describe('object identity bookkeeping', () => {
         },
       ),
     });
-    traversal.registerVisitorCallbackForPhase(
+    traversal.registerVisitorForPhase(
       DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
       (vertex, { isTreeRoot }) => {
         if (!isTreeRoot) visited.push(vertex.getVertexData().propertyKey);
@@ -321,7 +321,7 @@ describe('object identity bookkeeping', () => {
       discoveryDepthInEdges: 1,
       parentChildHintIndex: 0,
       parentVertexAtChildResolution: rootVertex,
-      parentVertexHandle: rootRef,
+      parentVertexReference: rootRef,
       childDiscoveryHint: {
         propertyKey: 'branch',
         propertyValue: originalBranch,
@@ -344,7 +344,7 @@ describe('object identity bookkeeping', () => {
     expect(() =>
       adapter.resolveChildVertexFromHint(childHint, {
         liveResolvedTreeView: resolvedTree.getLiveReadOnlyTreeView(),
-        preCommandDiscoveredTreeView: null,
+        livePreCommandDiscoveredTreeView: null,
         childDiscoveryContext: {
           discoveryDepthInEdges: 2,
           parentChildHintIndex: 0,
@@ -388,7 +388,7 @@ describe('object identity bookkeeping', () => {
     expect(() =>
       adapter.resolveChildVertexFromHint(childHint, {
         liveResolvedTreeView: resolvedTree.getLiveReadOnlyTreeView(),
-        preCommandDiscoveredTreeView: null,
+        livePreCommandDiscoveredTreeView: null,
         childDiscoveryContext: {
           discoveryDepthInEdges: 1,
           parentChildHintIndex: 0,
@@ -457,7 +457,7 @@ describe('public mutation command factory', () => {
       ObjectTree
     > = {
       liveResolvedTreeView: resolvedTree.getLiveReadOnlyTreeView(),
-      preCommandDiscoveredTreeView: null,
+      livePreCommandDiscoveredTreeView: null,
       phaseVisitorChainIndex: 0,
       visitorCallbackIndexInPhaseChain: 0,
       previousCommittedVisitVertexHandleForSamePhase: null,

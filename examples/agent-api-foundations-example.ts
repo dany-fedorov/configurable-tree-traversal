@@ -37,9 +37,9 @@ async function main(): Promise<void> {
         sourceCalls++;
         return source.dagDiscoverySource.resolveRootVertex();
       },
-      resolveChildHint: (hint, context) => {
+      resolveChildVertexFromHint: (hint, context) => {
         sourceCalls++;
-        return source.dagDiscoverySource.resolveChildHint(hint, context);
+        return source.dagDiscoverySource.resolveChildVertexFromHint(hint, context);
       },
     },
   });

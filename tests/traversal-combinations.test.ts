@@ -102,7 +102,7 @@ describe.each(Array.from({ length: 24 }, (_, i) => i + 1))(
       const dfs = new DepthFirstTreeTraversalBuilder<Tree>({
         treeDiscoverySource: adapter(root),
       });
-      dfs.registerVisitorCallbackForPhase(DepthOrder.BEFORE_CHILD_EXPANSION, (vertex) =>
+      dfs.registerVisitorForPhase(DepthOrder.BEFORE_CHILD_EXPANSION, (vertex) =>
         prune(vertex.getVertexData())
           ? { commands: [{ commandName: Command.SKIP_PENDING_CHILD_DISCOVERY_OF_CURRENT_VERTEX }] }
           : undefined,
@@ -117,7 +117,7 @@ describe.each(Array.from({ length: 24 }, (_, i) => i + 1))(
       const bfs = new BreadthFirstTreeTraversalBuilder<Tree>({
         treeDiscoverySource: adapter(root),
       });
-      bfs.registerVisitorCallbackForPhase(BreadthOrder.AT_LEVEL_ORDER_VERTEX, (vertex) =>
+      bfs.registerVisitorForPhase(BreadthOrder.AT_LEVEL_ORDER_VERTEX, (vertex) =>
         prune(vertex.getVertexData())
           ? { commands: [{ commandName: Command.SKIP_PENDING_CHILD_DISCOVERY_OF_CURRENT_VERTEX }] }
           : undefined,
@@ -144,7 +144,7 @@ test.each(Object.values(DepthOrder))(
       treeDiscoverySource: adapter(root),
     });
     const calls: number[] = [];
-    traversal.registerVisitorCallbackForPhase(haltOrder, (vertex) => {
+    traversal.registerVisitorForPhase(haltOrder, (vertex) => {
       calls.push(vertex.getVertexData());
       return { commands: [{ commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY }] };
     });
@@ -174,7 +174,7 @@ test.each(Object.values(DepthOrder))(
       treeDiscoverySource: adapter(root),
       retainDiscoveredTreeBeforeVisitorCommands: true,
     });
-    traversal.registerVisitorCallbackForPhase(order, (vertex) =>
+    traversal.registerVisitorForPhase(order, (vertex) =>
       vertex.getVertexData() === 1
         ? { commands: [{ commandName: Command.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS }] }
         : undefined,
@@ -201,7 +201,7 @@ test('disabling a subtree in-order stops unresolved children but retains complet
   const traversal = new DepthFirstTreeTraversalBuilder<Tree>({
     treeDiscoverySource: adapter(node(0, node(1), node(2), node(3))),
   });
-  traversal.registerVisitorCallbackForPhase(DepthOrder.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES, (vertex) =>
+  traversal.registerVisitorForPhase(DepthOrder.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES, (vertex) =>
     vertex.getVertexData() === 0
       ? { commands: [{ commandName: Command.SKIP_PENDING_CHILD_DISCOVERY_OF_CURRENT_VERTEX }] }
       : undefined,
@@ -290,8 +290,8 @@ describe.each(['depth', 'breadth'] as const)(
       visitor: () => void,
     ) {
       if (t instanceof DepthFirstTreeTraversalBuilder)
-        t.registerVisitorCallbackForPhase(DepthOrder.BEFORE_CHILD_EXPANSION, visitor);
-      else t.registerVisitorCallbackForPhase(BreadthOrder.AT_LEVEL_ORDER_VERTEX, visitor);
+        t.registerVisitorForPhase(DepthOrder.BEFORE_CHILD_EXPANSION, visitor);
+      else t.registerVisitorForPhase(BreadthOrder.AT_LEVEL_ORDER_VERTEX, visitor);
     }
 
     test('visitor exceptions leave a terminal failed runner', () => {
@@ -325,8 +325,8 @@ describe.each(['depth', 'breadth'] as const)(
         commands: [{ commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY as const }],
       });
       if (t instanceof DepthFirstTreeTraversalBuilder)
-        t.registerVisitorCallbackForPhase(DepthOrder.BEFORE_CHILD_EXPANSION, halt);
-      else t.registerVisitorCallbackForPhase(BreadthOrder.AT_LEVEL_ORDER_VERTEX, halt);
+        t.registerVisitorForPhase(DepthOrder.BEFORE_CHILD_EXPANSION, halt);
+      else t.registerVisitorForPhase(BreadthOrder.AT_LEVEL_ORDER_VERTEX, halt);
       const failure = new Error('resumed visitor failed');
       firstVisitor(t, () => {
         throw failure;

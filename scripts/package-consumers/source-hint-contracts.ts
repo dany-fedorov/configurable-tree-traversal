@@ -169,11 +169,11 @@ depthFirstTreeTraversal.patchOptionsForFutureRunners({
     [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION]: invalidHints,
   },
 });
-depthFirstTreeTraversal.registerVisitorCallbackForPhase(
+depthFirstTreeTraversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   validHints,
 );
-depthFirstTreeTraversal.registerVisitorCallbackForPhase(
+depthFirstTreeTraversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   // @ts-expect-error Registration cannot introduce output-only hints.
   invalidHints,
@@ -226,11 +226,11 @@ asyncDepthFirstTreeTraversal.patchOptionsForFutureRunners({
     [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION]: invalidHints,
   },
 });
-asyncDepthFirstTreeTraversal.registerVisitorCallbackForPhase(
+asyncDepthFirstTreeTraversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   validHints,
 );
-asyncDepthFirstTreeTraversal.registerVisitorCallbackForPhase(
+asyncDepthFirstTreeTraversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   // @ts-expect-error Registration cannot introduce output-only hints.
   invalidHints,
@@ -278,11 +278,11 @@ breadthFirstTreeTraversal.patchOptionsForFutureRunners({
     [BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX]: invalidHints,
   },
 });
-breadthFirstTreeTraversal.registerVisitorCallbackForPhase(
+breadthFirstTreeTraversal.registerVisitorForPhase(
   BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
   validHints,
 );
-breadthFirstTreeTraversal.registerVisitorCallbackForPhase(
+breadthFirstTreeTraversal.registerVisitorForPhase(
   BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
   // @ts-expect-error Registration cannot introduce output-only hints.
   invalidHints,
@@ -333,11 +333,11 @@ asyncBreadthFirstTreeTraversal.patchOptionsForFutureRunners({
     [BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX]: invalidHints,
   },
 });
-asyncBreadthFirstTreeTraversal.registerVisitorCallbackForPhase(
+asyncBreadthFirstTreeTraversal.registerVisitorForPhase(
   BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
   validHints,
 );
-asyncBreadthFirstTreeTraversal.registerVisitorCallbackForPhase(
+asyncBreadthFirstTreeTraversal.registerVisitorForPhase(
   BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
   // @ts-expect-error Registration cannot introduce output-only hints.
   invalidHints,
@@ -381,11 +381,11 @@ dagTraversal.patchOptionsForFutureRunners({
     [DagVisitorPhase.ON_WORK_READY]: invalidHints,
   },
 });
-dagTraversal.registerVisitorCallbackForPhase(
+dagTraversal.registerVisitorForPhase(
   DagVisitorPhase.ON_WORK_READY,
   validHints,
 );
-dagTraversal.registerVisitorCallbackForPhase(
+dagTraversal.registerVisitorForPhase(
   DagVisitorPhase.ON_WORK_READY,
   // @ts-expect-error Registration cannot introduce output-only hints.
   invalidHints,
@@ -436,11 +436,11 @@ asyncDagTraversal.patchOptionsForFutureRunners({
     [DagVisitorPhase.ON_WORK_READY]: invalidHints,
   },
 });
-asyncDagTraversal.registerVisitorCallbackForPhase(
+asyncDagTraversal.registerVisitorForPhase(
   DagVisitorPhase.ON_WORK_READY,
   validHints,
 );
-asyncDagTraversal.registerVisitorCallbackForPhase(
+asyncDagTraversal.registerVisitorForPhase(
   DagVisitorPhase.ON_WORK_READY,
   // @ts-expect-error Registration cannot introduce output-only hints.
   invalidHints,
@@ -494,15 +494,15 @@ const unionTraversal = new DepthFirstTreeTraversalBuilder<
 >({
   treeDiscoverySource: unionSource,
 });
-unionTraversal.registerVisitorCallbackForPhase(
+unionTraversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   genericHints<HintInput['ChildHint']>('first'),
 );
-unionTraversal.registerVisitorCallbackForPhase(
+unionTraversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
   genericHints<HintInput['ChildHint']>({ next: 1 }),
 );
-unionTraversal.registerVisitorCallbackForPhase(
+unionTraversal.registerVisitorForPhase(
   DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
   // @ts-expect-error Even a valid source hint cannot be introduced after discovery.
   genericHints<HintInput['ChildHint']>('first'),
@@ -528,7 +528,7 @@ const unionObject = new ObjectPropertyTreeSource<
   resolveChildPropertyOrUseDefault(hint, context) {
     const hintValue: number | string = hint.propertyValue;
     const originalValue: number | string = context
-      .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+      .livePreCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
       .getCurrentVertexView()
       .getVertexData().propertyValue;
     const currentValue: unknown =

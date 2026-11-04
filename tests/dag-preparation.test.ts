@@ -39,7 +39,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
               },
             };
           },
-          resolveChildHint: (id) => {
+          resolveChildVertexFromHint: (id) => {
             calls.push(id);
             return {
               kind: 'vertexResolved',
@@ -54,7 +54,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             };
           },
         },
-      }).registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+      }).registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
         visits.push(vertex.getVertexData());
       });
       const runner = traversal.createIndependentRunnerFromCurrentOptions();
@@ -111,7 +111,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
                   },
                 };
           },
-          resolveChildHint: () => {
+          resolveChildVertexFromHint: () => {
             calls.push('child');
             return {
               kind: 'vertexResolved' as const,
@@ -129,7 +129,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             ? {
                 treeDiscoverySource: {
                   resolveRootVertex: source.resolveRootVertex,
-                  resolveChildVertexFromHint: source.resolveChildHint,
+                  resolveChildVertexFromHint: source.resolveChildVertexFromHint,
                 },
               }
             : {
@@ -137,8 +137,8 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
                   ...source,
                   resolveRootVertex: () =>
                     graphResolution(source.resolveRootVertex()),
-                  resolveChildHint: () =>
-                    graphResolution(source.resolveChildHint()),
+                  resolveChildVertexFromHint: () =>
+                    graphResolution(source.resolveChildVertexFromHint()),
                 },
               },
         ).createIndependentRunnerFromCurrentOptions();
@@ -180,7 +180,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
                     },
                   },
                 },
-          resolveChildHint: () => ({
+          resolveChildVertexFromHint: () => ({
             kind: 'vertexResolved' as const,
             resolvedVertexInput: {
               vertexId: 'a',
@@ -222,7 +222,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: (id) => ({
+        resolveChildVertexFromHint: (id) => ({
           kind: 'vertexResolved' as const,
           resolvedVertexInput: {
             vertexId: id,
@@ -244,7 +244,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
         },
       },
     })
-      .registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+      .registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
         visits.push(vertex.getVertexData());
       })
       .createIndependentRunnerFromCurrentOptions();
@@ -307,7 +307,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
               },
             },
           }),
-          resolveChildHint: () => ({
+          resolveChildVertexFromHint: () => ({
             omittedVertexIdentity: null,
             kind: 'vertexIntentionallyOmitted' as const,
             satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -330,7 +330,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
                 },
         },
       })
-        .registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
+        .registerVisitorForPhase(Order.ON_WORK_READY, () => {
           visits++;
         })
         .createIndependentRunnerFromCurrentOptions();
@@ -368,7 +368,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
                 },
               };
             },
-            resolveChildHint: () => {
+            resolveChildVertexFromHint: () => {
               throw error;
             },
             resolvePrerequisiteByVertexId: () => {
@@ -399,7 +399,7 @@ const single = {
       vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
     },
   }),
-  resolveChildHint: () => ({
+  resolveChildVertexFromHint: () => ({
     omittedVertexIdentity: null,
     kind: 'vertexIntentionallyOmitted' as const,
     satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
@@ -485,7 +485,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           },
         }),
-        resolveChildHint: () => ({
+        resolveChildVertexFromHint: () => ({
           kind: 'vertexIntentionallyOmitted' as const,
         }),
       };
@@ -496,18 +496,18 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
                 ...source,
                 resolveRootVertex: () =>
                   graphResolution(source.resolveRootVertex()),
-                resolveChildHint: () =>
-                  graphResolution(source.resolveChildHint()),
+                resolveChildVertexFromHint: () =>
+                  graphResolution(source.resolveChildVertexFromHint()),
               },
             }
           : {
               treeDiscoverySource: {
                 resolveRootVertex: source.resolveRootVertex,
-                resolveChildVertexFromHint: source.resolveChildHint,
+                resolveChildVertexFromHint: source.resolveChildVertexFromHint,
               },
             },
       )
-        .registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
+        .registerVisitorForPhase(Order.ON_WORK_READY, () => ({
           commands: [
             {
               commandName: Command.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
@@ -557,7 +557,7 @@ for (const adopt of [false, true]) {
             },
           };
         },
-        resolveChildHint: async (id) => {
+        resolveChildVertexFromHint: async (id) => {
           calls.push(id);
           if (id === 'a') {
             entered();
@@ -573,7 +573,7 @@ for (const adopt of [false, true]) {
         },
       },
     })
-      .registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+      .registerVisitorForPhase(Order.ON_WORK_READY, (vertex) => {
         visits.push(vertex.getVertexData());
       })
       .createIndependentRunnerFromCurrentOptions();
@@ -698,7 +698,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
             },
           };
         },
-        resolveChildHint: () => {
+        resolveChildVertexFromHint: () => {
           throw error;
         },
       };
@@ -715,7 +715,7 @@ for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
           : {
               treeDiscoverySource: {
                 resolveRootVertex: source.resolveRootVertex,
-                resolveChildVertexFromHint: source.resolveChildHint,
+                resolveChildVertexFromHint: source.resolveChildVertexFromHint,
               },
             }),
         ...(stage === 'transformHints'

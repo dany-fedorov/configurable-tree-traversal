@@ -198,7 +198,7 @@ describe('internal traversal defaults', () => {
     try {
       const traversal = new DepthFirstTreeTraversalBuilder<Tree>({
         treeDiscoverySource: tree,
-      }).registerVisitorCallbackForPhase(
+      }).registerVisitorForPhase(
         DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
         () => undefined,
       );

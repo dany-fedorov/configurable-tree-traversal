@@ -58,7 +58,7 @@ const dag = new DagTraversalBuilder<T>({
   ...graph,
   visitors: { [D.ON_WORK_READY]: [record(commonDag)] },
 });
-dag.registerVisitorCallbackForPhase(D.ON_WORK_READY, commonDag);
+dag.registerVisitorForPhase(D.ON_WORK_READY, commonDag);
 dag.patchOptionsForFutureRunners({
   visitors: { [D.ON_WORK_READY]: [record(commonDag)] },
 });
@@ -68,7 +68,7 @@ const asyncDag = new AsyncDagTraversalBuilder<T>({
   ...graph,
   visitors: { [D.ON_WORK_READY]: [record(asyncCommonDag)] },
 });
-asyncDag.registerVisitorCallbackForPhase(D.ON_WORK_READY, asyncCommonDag);
+asyncDag.registerVisitorForPhase(D.ON_WORK_READY, asyncCommonDag);
 asyncDag.patchOptionsForFutureRunners({
   visitors: { [D.ON_WORK_READY]: [record(asyncCommonDag)] },
 });
@@ -80,7 +80,7 @@ const dfs = new DepthFirstTreeTraversalBuilder<T>({
   ...tree,
   visitors: { [F.BEFORE_CHILD_EXPANSION]: [record(commonTree)] },
 });
-dfs.registerVisitorCallbackForPhase(F.BEFORE_CHILD_EXPANSION, commonTree);
+dfs.registerVisitorForPhase(F.BEFORE_CHILD_EXPANSION, commonTree);
 dfs.patchOptionsForFutureRunners({
   visitors: { [F.BEFORE_CHILD_EXPANSION]: [record(commonTree)] },
 });
@@ -95,7 +95,7 @@ const asyncDfs = new AsyncDepthFirstTreeTraversalBuilder<T>({
   ...tree,
   visitors: { [F.BEFORE_CHILD_EXPANSION]: [record(asyncCommonTree)] },
 });
-asyncDfs.registerVisitorCallbackForPhase(
+asyncDfs.registerVisitorForPhase(
   F.BEFORE_CHILD_EXPANSION,
   asyncCommonTree,
 );
@@ -113,7 +113,7 @@ const bfs = new BreadthFirstTreeTraversalBuilder<T>({
   ...tree,
   visitors: { [B.AT_LEVEL_ORDER_VERTEX]: [record(commonTree)] },
 });
-bfs.registerVisitorCallbackForPhase(B.AT_LEVEL_ORDER_VERTEX, commonTree);
+bfs.registerVisitorForPhase(B.AT_LEVEL_ORDER_VERTEX, commonTree);
 bfs.patchOptionsForFutureRunners({
   visitors: { [B.AT_LEVEL_ORDER_VERTEX]: [record(commonTree)] },
 });
@@ -128,7 +128,7 @@ const asyncBfs = new AsyncBreadthFirstTreeTraversalBuilder<T>({
   ...tree,
   visitors: { [B.AT_LEVEL_ORDER_VERTEX]: [record(asyncCommonTree)] },
 });
-asyncBfs.registerVisitorCallbackForPhase(
+asyncBfs.registerVisitorForPhase(
   B.AT_LEVEL_ORDER_VERTEX,
   asyncCommonTree,
 );
@@ -304,7 +304,7 @@ declare const abstractDfs: import('../src').DepthFirstTreeTraversalBuilder<
   T,
   T
 >;
-abstractDfs.registerVisitorCallbackForPhase(
+abstractDfs.registerVisitorForPhase(
   F.BEFORE_CHILD_EXPANSION,
   commonTree,
   {

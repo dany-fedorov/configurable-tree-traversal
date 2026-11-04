@@ -14,8 +14,8 @@ import { prepareDagSource } from './lib/prepareDagSource';
 
 export type DagTopologyDiscoveryOptions = {
   sourceRootIsHiddenEntryHolder?: boolean;
-  rootWorkPrerequisitePolicy?: 'honor' | 'ignore';
-  undeclaredWorkPrerequisitePolicy?: 'none' | 'waitForDiscoveringParentWork';
+  rootWorkToWorkPrerequisitePolicy?: 'honor' | 'ignore';
+  undeclaredWorkToWorkPrerequisitePolicy?: 'none' | 'waitForDiscoveringParentWork';
   treeDiscoverySource?: never;
   visitors?: never;
   acceptedCompletedWorkVertexIds?: never;
@@ -50,8 +50,8 @@ export type AsyncDagTopologyDiscoveryInput<
 const preparationFields = [
   'dagDiscoverySource',
   'sourceRootIsHiddenEntryHolder',
-  'rootWorkPrerequisitePolicy',
-  'undeclaredWorkPrerequisitePolicy',
+  'rootWorkToWorkPrerequisitePolicy',
+  'undeclaredWorkToWorkPrerequisitePolicy',
 ];
 
 /** Discover and validate without visitors; caller source errors retain exact identity. */
@@ -127,7 +127,7 @@ export async function discoverValidateAndCaptureDagAsync<
         VertexId
       >,
       captured.candidates,
-      input.rootWorkPrerequisitePolicy ?? 'honor',
+      input.rootWorkToWorkPrerequisitePolicy ?? 'honor',
     ),
   };
 }
